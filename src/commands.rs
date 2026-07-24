@@ -70,6 +70,20 @@ impl EmbedArgs {
 			resolve(&self.embed_model, &cfg.embed.model),
 		)
 	}
+
+	/// Override this process's embed endpoint in place. `kern mcp`'s embedding
+	/// endpoint is otherwise config-only (default http://localhost:11434), so a
+	/// container-spawned `kern mcp` never reaches an ollama service under another
+	/// host; these flags let the parent point it there for the life of the
+	/// process. Absent flags leave `cfg.embed` exactly as loaded from config.
+	pub(crate) fn apply_to(self, cfg: &mut crate::config::Config) {
+		if let Some(url) = self.embed_url {
+			cfg.embed.url = url;
+		}
+		if let Some(model) = self.embed_model {
+			cfg.embed.model = model;
+		}
+	}
 }
 
 #[derive(Args)]
@@ -198,7 +212,10 @@ pub enum Commands {
 		#[command(subcommand)]
 		action: UnnamedAction,
 	},
-	Mcp,
+	Mcp {
+		#[command(flatten)]
+		embed: EmbedArgs,
+	},
 	Compress {
 		src: String,
 		#[arg(long, default_value = "int8")]
@@ -628,7 +645,14 @@ pub async fn dispatch(cmd: Commands, cfg: &crate::config::Config) {
 		Commands::Peers => admin::cmd_peers(cfg),
 		Commands::Register { path } => admin::cmd_register(cfg, &path),
 		Commands::Unnamed { action } => admin::cmd_unnamed(cfg, action).await,
-		Commands::Mcp => mcp_cmd::cmd_mcp(cfg).await,
+		Commands::Mcp { embed } => {
+			// Override the process config's embed endpoint before serving so the
+			// standalone in-process embedder honors --embed-url/--embed-model. With
+			// no flags this clone equals `cfg`, so behavior is exactly as before.
+			let mut cfg = cfg.clone();
+			embed.apply_to(&mut cfg);
+			mcp_cmd::cmd_mcp(&cfg).await
+		}
 		Commands::Compress { src, mode, out } => admin::cmd_compress(&src, &mode, out.as_deref()),
 		Commands::Daemon => {
 			// main.rs intercepts Daemon first; this arm is kept as a fallthrough.
@@ -1321,6 +1345,70 @@ mod entry_point_tests {
 	#[test]
 	fn daemon_subcommand_exists() {
 		let _ = Commands::Daemon;
+	}
+
+	// `kern mcp --embed-url/--embed-model` overrides the process config, while the
+	// bare `kern mcp` leaves the loaded config untouched. This is the whole of
+	// Part A: the standalone in-process embedder reads `cfg.embed`, so overriding
+	// it here points a container-spawned `kern mcp` at a non-default ollama host.
+	#[test]
+	fn mcp_embed_flags_override_the_config_and_are_inert_when_absent() {
+		use super::{Cli, EmbedArgs};
+		use crate::config::Config;
+		use clap::Parser;
+		use std::path::Path;
+
+		// Bare invocation: apply_to on the parsed EmbedArgs is a no-op.
+		let cli = Cli::try_parse_from(["kern", "mcp"]).expect("bare mcp parses");
+		let Some(Commands::Mcp { embed }) = cli.command else {
+			panic!("expected the mcp subcommand");
+		};
+		let base = Config::default_in(Path::new("/proj"));
+		let mut cfg = base.clone();
+		embed.apply_to(&mut cfg);
+		assert_eq!(
+			cfg.embed.url, base.embed.url,
+			"absent flags leave the config's embed url exactly as loaded"
+		);
+		assert_eq!(
+			cfg.embed.model, base.embed.model,
+			"absent flags leave the config's embed model exactly as loaded"
+		);
+
+		// With flags: both fields are replaced, nothing else in embed is touched.
+		let cli = Cli::try_parse_from([
+			"kern",
+			"mcp",
+			"--embed-url",
+			"http://ollama:11434",
+			"--embed-model",
+			"nomic-embed-text",
+		])
+		.expect("mcp with embed flags parses");
+		let Some(Commands::Mcp { embed }) = cli.command else {
+			panic!("expected the mcp subcommand");
+		};
+		let mut cfg = base.clone();
+		embed.apply_to(&mut cfg);
+		assert_eq!(cfg.embed.url, "http://ollama:11434", "url overridden");
+		assert_eq!(cfg.embed.model, "nomic-embed-text", "model overridden");
+		assert_eq!(
+			cfg.embed.key, base.embed.key,
+			"only url and model move; the rest of EmbedConfig is untouched"
+		);
+
+		// Each flag stands alone: only the one given moves.
+		let mut cfg = base.clone();
+		EmbedArgs {
+			embed_url: Some("http://only-url:1234".into()),
+			embed_model: None,
+		}
+		.apply_to(&mut cfg);
+		assert_eq!(cfg.embed.url, "http://only-url:1234");
+		assert_eq!(
+			cfg.embed.model, base.embed.model,
+			"an absent --embed-model keeps the config's model"
+		);
 	}
 
 	// Proves the WIRING, not the primitive: nothing here calls check_embed_stamp.
