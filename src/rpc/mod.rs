@@ -4,7 +4,7 @@ pub use kern_rpc_server::{serve_kern_rpc_loop, KernRpcHandler};
 
 use std::path::{Path, PathBuf};
 
-use trnsprt::kern_rpc::AuthReq;
+use transport::kern_rpc::AuthReq;
 
 /// The secret a client presents to the daemon rooted at `root`.
 ///

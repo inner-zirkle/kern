@@ -7,7 +7,7 @@ use axum::response::IntoResponse;
 use axum::routing::{get, post};
 use axum::Router;
 
-use crate::server::{dispatch, error_response};
+use crate::mcp::{dispatch, error_response};
 use crate::McpServer;
 
 pub struct AppState<S> {

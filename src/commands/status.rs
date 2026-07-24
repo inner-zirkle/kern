@@ -5,8 +5,8 @@
 //! and the one that had no answer when a respawned hub flushed its stale graph
 //! over a completed re-embed.
 
-use trnsprt::kern_rpc::KernRpcClient;
-use trnsprt::typed::{Endpoint, JsonEnvelopeCodec};
+use transport::kern_rpc::KernRpcClient;
+use transport::typed::{Endpoint, JsonEnvelopeCodec};
 
 pub(super) async fn cmd_status(cfg: &crate::config::Config) {
 	let kern_ep = Endpoint::kern();
@@ -59,8 +59,8 @@ pub(super) async fn cmd_status(cfg: &crate::config::Config) {
 // unreachable either way. `route` is where the distinction has teeth.
 async fn probe(
 	ep: &Endpoint,
-	auth: &trnsprt::kern_rpc::AuthReq,
-) -> Option<trnsprt::kern_rpc::HealthRes> {
+	auth: &transport::kern_rpc::AuthReq,
+) -> Option<transport::kern_rpc::HealthRes> {
 	KernRpcClient::<JsonEnvelopeCodec>::connect_endpoint_with_retry(
 		ep,
 		auth,

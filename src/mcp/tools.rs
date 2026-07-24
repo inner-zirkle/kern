@@ -7,10 +7,10 @@ pub fn tool_definitions() -> Vec<serde_json::Value> {
 	defs
 }
 
-pub(crate) fn typed_tool_schemas() -> Vec<trnsprt::ToolSchema> {
+pub(crate) fn typed_tool_schemas() -> Vec<transport::ToolSchema> {
 	tool_definitions()
 		.into_iter()
-		.filter_map(|v| serde_json::from_value(v).ok())
+		.filter_map(|v| transport::ToolSchema::from_value(&v))
 		.collect()
 }
 

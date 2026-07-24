@@ -1,5 +1,5 @@
-use trnsprt::kern_rpc::AuthReq;
-use trnsprt::typed::Endpoint;
+use transport::kern_rpc::AuthReq;
+use transport::typed::Endpoint;
 
 use crate::base::util::short_id;
 
@@ -122,9 +122,9 @@ pub(super) async fn cmd_health(cfg: &crate::config::Config) {
 
 // The tick queue lives in the daemon; an offline CLI has no view of it. One
 // attempt, no retry: `kern health` must not stall when nothing is serving.
-async fn daemon_health(cfg: &crate::config::Config) -> Option<trnsprt::kern_rpc::HealthRes> {
-	use trnsprt::kern_rpc::KernRpcClient;
-	use trnsprt::typed::{Endpoint, JsonEnvelopeCodec};
+async fn daemon_health(cfg: &crate::config::Config) -> Option<transport::kern_rpc::HealthRes> {
+	use transport::kern_rpc::KernRpcClient;
+	use transport::typed::{Endpoint, JsonEnvelopeCodec};
 
 	let client = KernRpcClient::<JsonEnvelopeCodec>::connect_endpoint_with_retry(
 		&Endpoint::kern(),
@@ -147,7 +147,7 @@ async fn daemon_health(cfg: &crate::config::Config) -> Option<trnsprt::kern_rpc:
 // on what else ran in the same process.
 fn degradation_lines(
 	h: &crate::base::health::HealthStats,
-	d: Option<&trnsprt::kern_rpc::HealthRes>,
+	d: Option<&transport::kern_rpc::HealthRes>,
 ) -> Vec<String> {
 	let [cold_evicted, query_dim_rejected, below_floor_deliveries, clock_skew_skips, ingest_dropped_chunks, remote_cap_dropped, unspilled_drops, ingest_queue_refused] =
 		match d {
@@ -198,7 +198,7 @@ fn degradation_lines(
 	lines
 }
 
-fn tick_health_lines(h: Option<&trnsprt::kern_rpc::HealthRes>) -> Vec<String> {
+fn tick_health_lines(h: Option<&transport::kern_rpc::HealthRes>) -> Vec<String> {
 	let Some(h) = h else {
 		return vec!["tick:        (no daemon serving this directory)".to_string()];
 	};
@@ -224,7 +224,7 @@ fn tick_health_lines(h: Option<&trnsprt::kern_rpc::HealthRes>) -> Vec<String> {
 // The ingest RAM queue's fill. Daemon-sourced like the tick lines, and for the
 // same reason: the CLI's own worker is idle by construction, so a local read is
 // structurally zero. No daemon, no line — a gauge nobody holds is not 0.
-fn ingest_health_lines(h: Option<&trnsprt::kern_rpc::HealthRes>) -> Vec<String> {
+fn ingest_health_lines(h: Option<&transport::kern_rpc::HealthRes>) -> Vec<String> {
 	match h {
 		Some(h) => vec![format!("ingest:      queue {}", h.ingest_queue_depth)],
 		None => Vec::new(),
@@ -235,7 +235,7 @@ fn ingest_health_lines(h: Option<&trnsprt::kern_rpc::HealthRes>) -> Vec<String> 
 // like the ingest queue line: the CLI's own graph is a fresh open with no query
 // history, so its access distribution is structurally uniform (gini 0.0) and a
 // local read carries no signal. No daemon, no line.
-fn convergence_health_lines(h: Option<&trnsprt::kern_rpc::HealthRes>) -> Vec<String> {
+fn convergence_health_lines(h: Option<&transport::kern_rpc::HealthRes>) -> Vec<String> {
 	match h {
 		Some(h) => vec![format!("convergence: gini {:.2}", h.gini_access)],
 		None => Vec::new(),
@@ -248,7 +248,7 @@ fn convergence_health_lines(h: Option<&trnsprt::kern_rpc::HealthRes>) -> Vec<Str
 // CLI opens on defaults that carry no signal. No daemon, no line. 0 (old
 // daemon / unset) prints `0s` unconditionally, matching the `convergence:` line
 // that prints `gini 0.00` when a daemon answers.
-fn heat_health_lines(h: Option<&trnsprt::kern_rpc::HealthRes>) -> Vec<String> {
+fn heat_health_lines(h: Option<&transport::kern_rpc::HealthRes>) -> Vec<String> {
 	match h {
 		Some(h) => vec![
 			// Active preset name (ROADMAP item 87 measurement half). The frame
@@ -270,7 +270,7 @@ fn heat_health_lines(h: Option<&trnsprt::kern_rpc::HealthRes>) -> Vec<String> {
 // No daemon, no block. A zeroed block (old daemon) prints zeroes, matching
 // the `convergence:`/`heat:` lines that print `0.00`/`0s` when a daemon
 // answers.
-fn retrieval_health_lines(h: Option<&trnsprt::kern_rpc::HealthRes>) -> Vec<String> {
+fn retrieval_health_lines(h: Option<&transport::kern_rpc::HealthRes>) -> Vec<String> {
 	match h {
 		Some(h) => vec![
 			format!(
@@ -313,7 +313,7 @@ fn retrieval_health_lines(h: Option<&trnsprt::kern_rpc::HealthRes>) -> Vec<Strin
 // daemon, no line. An empty map (unconfigured kern) prints `source_trust:
 // (none)`, matching the preset/heat lines that print a zeroed value when a
 // daemon answers.
-fn source_trust_health_lines(h: Option<&trnsprt::kern_rpc::HealthRes>) -> Vec<String> {
+fn source_trust_health_lines(h: Option<&transport::kern_rpc::HealthRes>) -> Vec<String> {
 	let Some(h) = h else {
 		return Vec::new();
 	};
@@ -333,7 +333,7 @@ fn source_trust_health_lines(h: Option<&trnsprt::kern_rpc::HealthRes>) -> Vec<St
 // beside, shipped 2026-07-23). `None` falls back to the global. Daemon-sourced
 // like the heat/recency/retrieval/source_trust lines: the CLI's own config is
 // irrelevant (item 100). No daemon, no line.
-fn dedup_health_lines(h: Option<&trnsprt::kern_rpc::HealthRes>) -> Vec<String> {
+fn dedup_health_lines(h: Option<&transport::kern_rpc::HealthRes>) -> Vec<String> {
 	let Some(h) = h else {
 		return Vec::new();
 	};
@@ -361,7 +361,7 @@ fn dedup_health_lines(h: Option<&trnsprt::kern_rpc::HealthRes>) -> Vec<String> {
 // its resident count is structurally small and a local read carries no signal.
 // No daemon, no warn. `KERN_CAP_DISABLED` (u64::MAX) and 0 (old daemon / unset)
 // both read as "cap off" — an opt-out or an absent field is not a bound.
-fn kern_cap_health_lines(h: Option<&trnsprt::kern_rpc::HealthRes>) -> Vec<String> {
+fn kern_cap_health_lines(h: Option<&transport::kern_rpc::HealthRes>) -> Vec<String> {
 	let Some(h) = h else {
 		return Vec::new();
 	};
@@ -383,7 +383,7 @@ fn kern_cap_health_lines(h: Option<&trnsprt::kern_rpc::HealthRes>) -> Vec<String
 // Quiet at zero, loud otherwise — the count is what separates a dead endpoint
 // from a model too weak to answer, and the string is what separates a timeout
 // from a refusal from an empty body.
-fn llm_health_lines(h: Option<&trnsprt::kern_rpc::HealthRes>) -> Vec<String> {
+fn llm_health_lines(h: Option<&transport::kern_rpc::HealthRes>) -> Vec<String> {
 	let Some(h) = h.filter(|h| h.llm_complete_failed > 0) else {
 		return Vec::new();
 	};
@@ -403,7 +403,7 @@ fn llm_health_lines(h: Option<&trnsprt::kern_rpc::HealthRes>) -> Vec<String> {
 mod degradation_lines_tests {
 	use super::*;
 	use crate::base::health::HealthStats;
-	use trnsprt::kern_rpc::HealthRes;
+	use transport::kern_rpc::HealthRes;
 
 	// What a CLI can actually see of the eight: it opened its own store and ran
 	// no query, no tick and no ingest, so every one of them is zero.
@@ -707,20 +707,20 @@ mod degradation_lines_tests {
 		// Non-default retrieval block -> the four lines carry it daemon-sourced.
 		let cfg = HealthRes {
 			ok: true,
-			retrieval: trnsprt::kern_rpc::dto::RetrievalHealth {
+			retrieval: transport::kern_rpc::dto::RetrievalHealth {
 				rrf_k: 60.0,
 				rrf_global_weight: 0.5,
-				weights_content: trnsprt::kern_rpc::dto::ModeWeightsHealth {
+				weights_content: transport::kern_rpc::dto::ModeWeightsHealth {
 					content: 0.7,
 					reason: 0.2,
 					edge: 0.1,
 				},
-				weights_reason: trnsprt::kern_rpc::dto::ModeWeightsHealth {
+				weights_reason: transport::kern_rpc::dto::ModeWeightsHealth {
 					content: 0.1,
 					reason: 0.8,
 					edge: 0.1,
 				},
-				weights_hybrid: trnsprt::kern_rpc::dto::ModeWeightsHealth {
+				weights_hybrid: transport::kern_rpc::dto::ModeWeightsHealth {
 					content: 0.5,
 					reason: 0.3,
 					edge: 0.2,
@@ -1242,7 +1242,7 @@ mod cmd_tests {
 		assert_eq!(offline.len(), 1, "no daemon -> no invented numbers");
 		assert!(offline[0].contains("no daemon"), "{offline:?}");
 
-		let live = tick_health_lines(Some(&trnsprt::kern_rpc::HealthRes {
+		let live = tick_health_lines(Some(&transport::kern_rpc::HealthRes {
 			ok: true,
 			task_panics: 2,
 			last_task_panic: "GnnPropagate[k]: boom".into(),
@@ -1267,7 +1267,7 @@ mod cmd_tests {
 	// panicking. A line gated on some other counter reports nothing here.
 	#[test]
 	fn a_refused_gnn_training_shows_with_no_other_counter_moving() {
-		let lines = tick_health_lines(Some(&trnsprt::kern_rpc::HealthRes {
+		let lines = tick_health_lines(Some(&transport::kern_rpc::HealthRes {
 			ok: true,
 			gnn_train_refused: 4,
 			..Default::default()
@@ -1282,7 +1282,7 @@ mod cmd_tests {
 			ingest_health_lines(None).is_empty(),
 			"no daemon -> no invented numbers"
 		);
-		let lines = ingest_health_lines(Some(&trnsprt::kern_rpc::HealthRes {
+		let lines = ingest_health_lines(Some(&transport::kern_rpc::HealthRes {
 			ok: true,
 			ingest_queue_depth: 5,
 			..Default::default()
@@ -1300,7 +1300,7 @@ mod cmd_tests {
 			"no daemon -> no invented numbers"
 		);
 		assert!(
-			llm_health_lines(Some(&trnsprt::kern_rpc::HealthRes {
+			llm_health_lines(Some(&transport::kern_rpc::HealthRes {
 				ok: true,
 				..Default::default()
 			}))
@@ -1313,7 +1313,7 @@ mod cmd_tests {
 			"transient: HTTP error: tcp connect error",
 			"permanent: empty completion response",
 		] {
-			let lines = llm_health_lines(Some(&trnsprt::kern_rpc::HealthRes {
+			let lines = llm_health_lines(Some(&transport::kern_rpc::HealthRes {
 				ok: true,
 				llm_complete_failed: 7,
 				last_llm_complete_failure: reason.into(),
@@ -1327,7 +1327,7 @@ mod cmd_tests {
 
 	#[test]
 	fn a_clean_daemon_prints_no_last_fault_lines() {
-		let lines = tick_health_lines(Some(&trnsprt::kern_rpc::HealthRes {
+		let lines = tick_health_lines(Some(&transport::kern_rpc::HealthRes {
 			ok: true,
 			..Default::default()
 		}));
@@ -1427,8 +1427,8 @@ fn default_root() -> String {
 }
 
 pub(super) async fn cmd_hub(action: Option<super::HubAction>, idle_unload_secs: u64) {
-	use trnsprt::hub_rpc::{HubRpcClient, ResolveReq, UnloadReq};
-	use trnsprt::typed::JsonEnvelopeCodec;
+	use transport::hub_rpc::{HubRpcClient, ResolveReq, UnloadReq};
+	use transport::typed::JsonEnvelopeCodec;
 
 	match action {
 		None => crate::hub::run_hub(idle_unload_secs).await,
@@ -1508,8 +1508,8 @@ pub(super) async fn cmd_hub(action: Option<super::HubAction>, idle_unload_secs: 
 // written. Both daemons must be down — the store is single-writer and a live
 // daemon's flush would clobber the merge.
 async fn cmd_hub_merge(src: &str, dst: &str) {
-	use trnsprt::hub_rpc::{HubRpcClient, UnloadReq};
-	use trnsprt::typed::JsonEnvelopeCodec;
+	use transport::hub_rpc::{HubRpcClient, UnloadReq};
+	use transport::typed::JsonEnvelopeCodec;
 
 	let canon = |s: &str| -> Option<std::path::PathBuf> {
 		let p = std::path::Path::new(s).canonicalize().ok()?;

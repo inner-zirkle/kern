@@ -1,5 +1,5 @@
 [package]
-name = "trnsprt"
+name = "transport"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -20,7 +20,7 @@ futures = "0.3"
 axum = { workspace = true }
 async-stream = "0.3"
 bincode = { workspace = true }
-trnsprt-macros = { workspace = true }
+transport-macros = { workspace = true }
 
 # Only for `geteuid`: a client must know whose socket it is about to talk to,
 # and std exposes the owner of a *file* but never the identity of this process.
@@ -31,10 +31,10 @@ libc = "0.2"
 # named pipe has no mode bits, so owner-only is a security descriptor.
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = [
-    "Win32_Foundation",
-    "Win32_Security",
-    "Win32_Security_Authorization",
-    "Win32_System_Threading",
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_Security_Authorization",
+  "Win32_System_Threading",
 ] }
 
 [dev-dependencies]

@@ -1,12 +1,12 @@
 use std::sync::Arc;
 
 use serde_json::Value;
-use trnsprt::kern_rpc::{
+use transport::kern_rpc::{
 	serve_kern_rpc, verify_auth, CallToolReq, CallToolRes, HealthRes, KernRpc, ListToolsReq,
 	ListToolsRes, ShutdownRes,
 };
-use trnsprt::typed::{AdapterError, Channel, JsonEnvelopeCodec, LocalListener};
-use trnsprt::McpServer;
+use transport::typed::{AdapterError, Channel, JsonEnvelopeCodec, LocalListener};
+use transport::McpServer;
 
 #[derive(Clone)]
 pub struct KernRpcHandler {
@@ -116,7 +116,7 @@ impl KernRpc for KernRpcHandler {
 				qbst_recency_half_life_secs: u64_at("qbst_recency_half_life_secs"),
 				retrieval: {
 					let r = payload.get("retrieval");
-					let mw = |key: &str| trnsprt::kern_rpc::dto::ModeWeightsHealth {
+					let mw = |key: &str| transport::kern_rpc::dto::ModeWeightsHealth {
 						content: r
 							.and_then(|r| r.get(key))
 							.and_then(|w| w.get("content"))
@@ -133,7 +133,7 @@ impl KernRpc for KernRpcHandler {
 							.and_then(|v| v.as_f64())
 							.unwrap_or(0.0),
 					};
-					trnsprt::kern_rpc::dto::RetrievalHealth {
+					transport::kern_rpc::dto::RetrievalHealth {
 						rrf_k: r
 							.and_then(|r| r.get("rrf_k"))
 							.and_then(|v| v.as_f64())
@@ -238,7 +238,7 @@ impl KernRpc for KernRpcHandler {
 			// exactly what we expose.
 			let tools = McpServer::tools_list(&*kern)
 				.iter()
-				.filter_map(|s| serde_json::to_value(s).ok())
+				.map(|s| s.to_value())
 				.collect();
 			ListToolsRes { tools }
 		}
@@ -413,14 +413,14 @@ mod tests {
 	}
 }
 
-// The gate itself. Not "the handshake round-trips" — that lives in trnsprt —
+// The gate itself. Not "the handshake round-trips" — that lives in transport —
 // but the thing an unauthenticated caller is trying to reach: `call_tool`.
 #[cfg(test)]
 mod auth_gate_tests {
 	use super::*;
 	use std::sync::atomic::{AtomicUsize, Ordering};
-	use trnsprt::kern_rpc::AuthReq;
-	use trnsprt::typed::InprocAdapter;
+	use transport::kern_rpc::AuthReq;
+	use transport::typed::InprocAdapter;
 
 	const TOKEN: &str = "the-real-token";
 

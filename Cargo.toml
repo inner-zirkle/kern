@@ -1,10 +1,6 @@
 [workspace]
 resolver = "2"
-members = [
-    "src/trnsprt",
-    "src/trnsprt/macros",
-    "src/watcher",
-]
+members = ["src/transport", "src/transport/macros", "src/watcher"]
 
 [workspace.package]
 version = "1.1.0"
@@ -24,10 +20,14 @@ tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 bincode = { version = "2", features = ["serde"] }
 sha2 = "0.11"
 rand = "0.10"
-reqwest = { version = "0.13", default-features = false, features = ["json", "rustls", "stream"] }
+reqwest = { version = "0.13", default-features = false, features = [
+  "json",
+  "rustls",
+  "stream",
+] }
 axum = "0.8.9"
 rayon = "1.12"
-trnsprt-macros = { path = "src/trnsprt/macros" }
+transport-macros = { path = "src/transport/macros" }
 toml = "0.8"
 parking_lot = "0.12"
 
@@ -52,7 +52,6 @@ name = "kern"
 path = "src/main.rs"
 
 
-
 [dependencies]
 dirs = "6"
 toml.workspace = true
@@ -73,7 +72,7 @@ futures-core = "0.3"
 futures-util = "0.3"
 tracing-subscriber.workspace = true
 tracing.workspace = true
-trnsprt = { path = "src/trnsprt" }
+transport = { path = "src/transport" }
 watcher = { path = "src/watcher" }
 async-trait = "0.1"
 heed = "0.20"

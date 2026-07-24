@@ -829,10 +829,10 @@ pub async fn run_server(cli: &Cli, cfg: &crate::config::Config) {
 			}
 		};
 		let handler = crate::rpc::KernRpcHandler::new(mcp_server.clone(), shutdown.clone());
-		let endpoint = trnsprt::typed::Endpoint::kern();
+		let endpoint = transport::typed::Endpoint::kern();
 		#[cfg(unix)]
 		let bound = if crate::takeover::is_takeover_boot() {
-			match trnsprt::typed::adopt_kern_listener(&endpoint) {
+			match transport::typed::adopt_kern_listener(&endpoint) {
 				Ok(listener) => {
 					tracing::info!(
 						target: "kern.kern_rpc",
@@ -850,12 +850,12 @@ pub async fn run_server(cli: &Cli, cfg: &crate::config::Config) {
 			None
 		};
 		#[cfg(not(unix))]
-		let bound: Option<trnsprt::typed::LocalListener> = None;
+		let bound: Option<transport::typed::LocalListener> = None;
 
 		let listener = match bound {
 			Some(l) => l,
-			None => match trnsprt::typed::bind_kern_listener(&endpoint).await {
-				Ok(trnsprt::typed::BindOutcome::Bound(listener)) => {
+			None => match transport::typed::bind_kern_listener(&endpoint).await {
+				Ok(transport::typed::BindOutcome::Bound(listener)) => {
 					tracing::info!(
 						target: "kern.kern_rpc",
 						endpoint = %endpoint.display(),
@@ -863,7 +863,7 @@ pub async fn run_server(cli: &Cli, cfg: &crate::config::Config) {
 					);
 					listener
 				}
-				Ok(trnsprt::typed::BindOutcome::AlreadyRunning) => {
+				Ok(transport::typed::BindOutcome::AlreadyRunning) => {
 					eprintln!(
 						"kern: another daemon already running at {} — exiting",
 						endpoint.display()

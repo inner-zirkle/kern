@@ -1,4 +1,4 @@
-# `trnsprt`
+# `transport`
 
 kern's transport and typed-RPC layer. Two stacks, layered bottom-up:
 
@@ -24,7 +24,7 @@ format is an implementation detail hidden inside `mod server`; `serve_stdio`
 
 A codec-framed `typed::Channel` over a `typed::Adapter` (in-proc pair or the
 per-cwd local socket), with a pluggable `Codec` (`JsonEnvelope`). The
-`service!` macro (re-exported from [`trnsprt-macros`](macros/)) generates a
+`service!` macro (re-exported from [`transport-macros`](macros/)) generates a
 trait, a client, and a serve loop per service from a single declaration. The
 two services:
 

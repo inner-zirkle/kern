@@ -1,10 +1,10 @@
 [package]
-name = "trnsprt-macros"
+name = "transport-macros"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
-description = "Proc macros for the trnsprt crate (service! codegen)."
+description = "Proc macros for the transport crate (service! codegen)."
 
 [lib]
 proc-macro = true

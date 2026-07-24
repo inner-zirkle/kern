@@ -106,11 +106,11 @@ impl Server {
 	pub fn run(&self, input: impl Read, output: impl Write) {
 		let mut reader = BufReader::with_capacity(1024 * 1024, input);
 		let mut output = output;
-		let _ = trnsprt::serve_rw(&mut reader, &mut output, self);
+		let _ = transport::serve_rw(&mut reader, &mut output, self);
 	}
 
 	pub fn run_stdio(&self) {
-		let _ = trnsprt::serve_stdio(self);
+		let _ = transport::serve_stdio(self);
 	}
 
 	pub(crate) fn health_stats(&self) -> serde_json::Value {
@@ -220,7 +220,7 @@ impl Server {
 	}
 }
 
-impl trnsprt::McpServer for Server {
+impl transport::McpServer for Server {
 	fn server_name(&self) -> &str {
 		"kern"
 	}
@@ -232,7 +232,7 @@ impl trnsprt::McpServer for Server {
 		serde_json::json!({"resources": {}, "prompts": {}})
 	}
 
-	fn tools_list(&self) -> Vec<trnsprt::ToolSchema> {
+	fn tools_list(&self) -> Vec<transport::ToolSchema> {
 		tools::typed_tool_schemas()
 	}
 
@@ -240,7 +240,7 @@ impl trnsprt::McpServer for Server {
 		&self,
 		name: &str,
 		args: &serde_json::Value,
-	) -> Result<trnsprt::ToolResult, trnsprt::McpError> {
+	) -> Result<transport::ToolResult, transport::McpError> {
 		if name != "health" {
 			self.touch();
 		}
@@ -269,7 +269,7 @@ impl trnsprt::McpServer for Server {
 				params_to_raw(args),
 			)),
 			_ => {
-				return Ok(trnsprt::ToolResult {
+				return Ok(transport::ToolResult {
 					content: vec![
 						serde_json::json!({"type": "text", "text": format!("unknown tool: {name}")}),
 					],
@@ -285,7 +285,7 @@ impl trnsprt::McpServer for Server {
 		&self,
 		method: &str,
 		params: serde_json::Value,
-	) -> Option<Result<serde_json::Value, trnsprt::McpError>> {
+	) -> Option<Result<serde_json::Value, transport::McpError>> {
 		if let Some(r) = handle_graphless_method(method, &params) {
 			return Some(r);
 		}
@@ -314,7 +314,7 @@ pub(crate) const RESOURCE_READ_TOOL: &str = "resource_read";
 pub(crate) fn handle_graphless_method(
 	method: &str,
 	params: &serde_json::Value,
-) -> Option<Result<serde_json::Value, trnsprt::McpError>> {
+) -> Option<Result<serde_json::Value, transport::McpError>> {
 	match method {
 		"resources/list" => Some(Ok(
 			serde_json::json!({"resources": resources::resource_definitions()}),
@@ -351,8 +351,8 @@ pub(crate) fn encode_resource_read(resp: Response) -> serde_json::Value {
 
 /// The inverse of [`encode_resource_read`], run by the proxy.
 pub(crate) fn decode_resource_read(
-	result: &trnsprt::ToolResult,
-) -> Result<serde_json::Value, trnsprt::McpError> {
+	result: &transport::ToolResult,
+) -> Result<serde_json::Value, transport::McpError> {
 	let text = result
 		.content
 		.first()
@@ -370,12 +370,12 @@ pub(crate) fn decode_resource_read(
 			.and_then(serde_json::Value::as_str)
 			.unwrap_or(text)
 			.to_string();
-		return Err(trnsprt::McpError::Rpc { code, message });
+		return Err(transport::McpError::Rpc { code, message });
 	}
 	Ok(parsed)
 }
 
-pub(crate) fn value_to_tool_result(v: &serde_json::Value) -> trnsprt::ToolResult {
+pub(crate) fn value_to_tool_result(v: &serde_json::Value) -> transport::ToolResult {
 	let is_error = v
 		.get("isError")
 		.and_then(serde_json::Value::as_bool)
@@ -385,17 +385,17 @@ pub(crate) fn value_to_tool_result(v: &serde_json::Value) -> trnsprt::ToolResult
 		.and_then(serde_json::Value::as_array)
 		.cloned()
 		.unwrap_or_default();
-	trnsprt::ToolResult {
+	transport::ToolResult {
 		content,
 		is_error,
 		structured_content: None,
 	}
 }
 
-fn response_to_result(resp: Response) -> Result<serde_json::Value, trnsprt::McpError> {
+fn response_to_result(resp: Response) -> Result<serde_json::Value, transport::McpError> {
 	match (resp.result, resp.error) {
 		(Some(v), _) => Ok(v),
-		(None, Some(e)) => Err(trnsprt::McpError::Rpc {
+		(None, Some(e)) => Err(transport::McpError::Rpc {
 			code: e.code as i64,
 			message: e.message,
 		}),

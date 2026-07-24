@@ -667,7 +667,7 @@ mod tests {
 	// store behind the daemon — exactly what item 19 must not do.
 	#[tokio::test]
 	async fn forget_by_source_dispatches_through_call_tool() {
-		use trnsprt::McpServer;
+		use transport::McpServer;
 
 		let srv = source_server();
 		let res = McpServer::call_tool(

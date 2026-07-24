@@ -1,4 +1,4 @@
-use trnsprt::kern_rpc::HealthRes;
+use transport::kern_rpc::HealthRes;
 
 // Below this, a mismatching daemon is left alone. Two clients built from
 // different binaries — `target/debug/kern` and an installed `kern`, both

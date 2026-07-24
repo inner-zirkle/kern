@@ -3,10 +3,10 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use tokio::sync::Mutex;
-use trnsprt::hub_rpc::{
+use transport::hub_rpc::{
 	HubRpc, HubStatusRes, NodeLite, ResolveReq, ResolveRes, StopRes, UnloadReq, UnloadRes,
 };
-use trnsprt::typed::{Channel, Endpoint, JsonEnvelopeCodec};
+use transport::typed::{Channel, Endpoint, JsonEnvelopeCodec};
 
 use super::node::{self, NodeHandle};
 
@@ -293,9 +293,9 @@ async fn idle_pass(handler: &HubRpcHandler, cutoff_ms: u64) {
 
 pub async fn run_hub(idle_unload_secs: u64) {
 	let endpoint = Endpoint::hub();
-	let mut listener = match trnsprt::typed::bind_kern_listener(&endpoint).await {
-		Ok(trnsprt::typed::BindOutcome::Bound(l)) => l,
-		Ok(trnsprt::typed::BindOutcome::AlreadyRunning) => {
+	let mut listener = match transport::typed::bind_kern_listener(&endpoint).await {
+		Ok(transport::typed::BindOutcome::Bound(l)) => l,
+		Ok(transport::typed::BindOutcome::AlreadyRunning) => {
 			eprintln!(
 				"kern hub: already running at {} — exiting",
 				endpoint.display()
@@ -329,7 +329,7 @@ pub async fn run_hub(idle_unload_secs: u64) {
 			let handler = handler.clone();
 			tokio::spawn(async move {
 				let channel = Channel::new(adapter, JsonEnvelopeCodec::new());
-				if let Err(e) = trnsprt::hub_rpc::serve_hub_rpc(channel, handler).await {
+				if let Err(e) = transport::hub_rpc::serve_hub_rpc(channel, handler).await {
 					tracing::warn!(target: "kern.hub", error = %e, "serve loop");
 				}
 			});

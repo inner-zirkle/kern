@@ -89,15 +89,15 @@ fn expand(input: ItemTrait) -> syn::Result<TokenStream> {
 	let server_arms = methods.iter().map(|m| server_arm(&trait_name, m));
 
 	let codec_bound = quote! {
-			::trnsprt::typed::Codec<Frame = ::trnsprt::__private::serde_json::Value>
+			::transport::typed::Codec<Frame = ::transport::__private::serde_json::Value>
 					+ ::core::default::Default
-					+ ::trnsprt::__private::tokio_util::codec::Encoder<
-							::trnsprt::__private::serde_json::Value,
-							Error = ::trnsprt::typed::CodecError,
+					+ ::transport::__private::tokio_util::codec::Encoder<
+							::transport::__private::serde_json::Value,
+							Error = ::transport::typed::CodecError,
 					>
-					+ ::trnsprt::__private::tokio_util::codec::Decoder<
-							Item = ::trnsprt::__private::serde_json::Value,
-							Error = ::trnsprt::typed::CodecError,
+					+ ::transport::__private::tokio_util::codec::Decoder<
+							Item = ::transport::__private::serde_json::Value,
+							Error = ::transport::typed::CodecError,
 					>
 	};
 
@@ -106,10 +106,10 @@ fn expand(input: ItemTrait) -> syn::Result<TokenStream> {
 			where
 					C: #codec_bound,
 			{
-					channel: ::trnsprt::__private::tokio::sync::Mutex<::trnsprt::typed::Channel<C>>,
+					channel: ::transport::__private::tokio::sync::Mutex<::transport::typed::Channel<C>>,
 					next_id: ::core::sync::atomic::AtomicU64,
-					pending: ::trnsprt::__private::tokio::sync::Mutex<
-							::std::collections::HashMap<u64, ::trnsprt::__private::serde_json::Value>,
+					pending: ::transport::__private::tokio::sync::Mutex<
+							::std::collections::HashMap<u64, ::transport::__private::serde_json::Value>,
 					>,
 			}
 
@@ -117,11 +117,11 @@ fn expand(input: ItemTrait) -> syn::Result<TokenStream> {
 			where
 					C: #codec_bound,
 			{
-					pub fn new(channel: ::trnsprt::typed::Channel<C>) -> Self {
+					pub fn new(channel: ::transport::typed::Channel<C>) -> Self {
 							Self {
-									channel: ::trnsprt::__private::tokio::sync::Mutex::new(channel),
+									channel: ::transport::__private::tokio::sync::Mutex::new(channel),
 									next_id: ::core::sync::atomic::AtomicU64::new(1),
-									pending: ::trnsprt::__private::tokio::sync::Mutex::new(
+									pending: ::transport::__private::tokio::sync::Mutex::new(
 											::std::collections::HashMap::new(),
 									),
 							}
@@ -130,14 +130,14 @@ fn expand(input: ItemTrait) -> syn::Result<TokenStream> {
 					async fn __call(
 							&self,
 							method: &'static str,
-							params: ::trnsprt::__private::serde_json::Value,
+							params: ::transport::__private::serde_json::Value,
 					) -> ::core::result::Result<
-							::trnsprt::__private::serde_json::Value,
-							::trnsprt::typed::RpcError,
+							::transport::__private::serde_json::Value,
+							::transport::typed::RpcError,
 					> {
 							use ::core::sync::atomic::Ordering;
 							let id = self.next_id.fetch_add(1, Ordering::Relaxed);
-							let envelope = ::trnsprt::__private::serde_json::json!({
+							let envelope = ::transport::__private::serde_json::json!({
 									"id": id,
 									"method": method,
 									"params": params,
@@ -145,7 +145,7 @@ fn expand(input: ItemTrait) -> syn::Result<TokenStream> {
 							{
 									let mut chan = self.channel.lock().await;
 									chan.send(envelope).await
-											.map_err(|e| ::trnsprt::typed::RpcError::Adapter(e.to_string()))?;
+											.map_err(|e| ::transport::typed::RpcError::Adapter(e.to_string()))?;
 							}
 							loop {
 									{
@@ -157,8 +157,8 @@ fn expand(input: ItemTrait) -> syn::Result<TokenStream> {
 									let frame = {
 											let mut chan = self.channel.lock().await;
 											chan.recv().await
-													.map_err(|e| ::trnsprt::typed::RpcError::Adapter(e.to_string()))?
-													.ok_or_else(|| ::trnsprt::typed::RpcError::Adapter("eof".into()))?
+													.map_err(|e| ::transport::typed::RpcError::Adapter(e.to_string()))?
+													.ok_or_else(|| ::transport::typed::RpcError::Adapter("eof".into()))?
 									};
 									let rid = frame.get("id").and_then(|v| v.as_u64()).unwrap_or(0);
 									if rid == id {
@@ -171,20 +171,20 @@ fn expand(input: ItemTrait) -> syn::Result<TokenStream> {
 					}
 
 					fn __decode_reply(
-							frame: ::trnsprt::__private::serde_json::Value,
+							frame: ::transport::__private::serde_json::Value,
 					) -> ::core::result::Result<
-							::trnsprt::__private::serde_json::Value,
-							::trnsprt::typed::RpcError,
+							::transport::__private::serde_json::Value,
+							::transport::typed::RpcError,
 					> {
 							if let Some(err) = frame.get("error") {
 									let msg = err.get("message")
 											.and_then(|v| v.as_str())
 											.unwrap_or("rpc error")
 											.to_string();
-									return Err(::trnsprt::typed::RpcError::Application(msg));
+									return Err(::transport::typed::RpcError::Application(msg));
 							}
 							Ok(frame.get("result").cloned().unwrap_or(
-									::trnsprt::__private::serde_json::Value::Null,
+									::transport::__private::serde_json::Value::Null,
 							))
 					}
 
@@ -194,9 +194,9 @@ fn expand(input: ItemTrait) -> syn::Result<TokenStream> {
 
 	let serve_decl = quote! {
 			#trait_vis async fn #serve_ident<C, H>(
-					mut channel: ::trnsprt::typed::Channel<C>,
+					mut channel: ::transport::typed::Channel<C>,
 					handler: H,
-			) -> ::core::result::Result<(), ::trnsprt::typed::AdapterError>
+			) -> ::core::result::Result<(), ::transport::typed::AdapterError>
 			where
 					C: #codec_bound,
 					H: #trait_name,
@@ -207,18 +207,18 @@ fn expand(input: ItemTrait) -> syn::Result<TokenStream> {
 									None => return Ok(()),
 							};
 							let id = frame.get("id").cloned().unwrap_or(
-									::trnsprt::__private::serde_json::Value::Null,
+									::transport::__private::serde_json::Value::Null,
 							);
 							let method = frame.get("method")
 									.and_then(|v| v.as_str())
 									.unwrap_or("")
 									.to_string();
 							let params = frame.get("params").cloned().unwrap_or(
-									::trnsprt::__private::serde_json::Value::Null,
+									::transport::__private::serde_json::Value::Null,
 							);
 							let reply = match method.as_str() {
 									#( #server_arms )*
-									other => ::trnsprt::__private::serde_json::json!({
+									other => ::transport::__private::serde_json::json!({
 											"id": id,
 											"error": { "code": -32601, "message": format!("method not found: {}", other) }
 									}),
@@ -246,8 +246,8 @@ fn client_method(m: &Method) -> TokenStream2 {
 		quote! {
 				params_obj.insert(
 						#key.to_string(),
-						::trnsprt::__private::serde_json::to_value(&#n)
-								.map_err(|e| ::trnsprt::typed::RpcError::Codec(e.to_string()))?,
+						::transport::__private::serde_json::to_value(&#n)
+								.map_err(|e| ::transport::typed::RpcError::Codec(e.to_string()))?,
 				);
 		}
 	});
@@ -255,13 +255,13 @@ fn client_method(m: &Method) -> TokenStream2 {
 			pub async fn #name(
 					&self,
 					#( #arg_decls ),*
-			) -> ::core::result::Result<#ret, ::trnsprt::typed::RpcError> {
-					let mut params_obj = ::trnsprt::__private::serde_json::Map::new();
+			) -> ::core::result::Result<#ret, ::transport::typed::RpcError> {
+					let mut params_obj = ::transport::__private::serde_json::Map::new();
 					#( #arg_inserts )*
-					let params = ::trnsprt::__private::serde_json::Value::Object(params_obj);
+					let params = ::transport::__private::serde_json::Value::Object(params_obj);
 					let result = self.__call(#method_str, params).await?;
-					::trnsprt::__private::serde_json::from_value::<#ret>(result)
-							.map_err(|e| ::trnsprt::typed::RpcError::Codec(e.to_string()))
+					::transport::__private::serde_json::from_value::<#ret>(result)
+							.map_err(|e| ::transport::typed::RpcError::Codec(e.to_string()))
 			}
 	}
 }
@@ -273,10 +273,10 @@ fn server_arm(_trait_name: &syn::Ident, m: &Method) -> TokenStream2 {
 		let key = n.to_string();
 		quote! {
 				let #n: #t = match params.get(#key).cloned() {
-						Some(v) => match ::trnsprt::__private::serde_json::from_value::<#t>(v) {
+						Some(v) => match ::transport::__private::serde_json::from_value::<#t>(v) {
 								Ok(x) => x,
 								Err(e) => {
-										let reply = ::trnsprt::__private::serde_json::json!({
+										let reply = ::transport::__private::serde_json::json!({
 												"id": id,
 												"error": { "code": -32602, "message": format!("decode {}: {}", #key, e) }
 										});
@@ -285,7 +285,7 @@ fn server_arm(_trait_name: &syn::Ident, m: &Method) -> TokenStream2 {
 								}
 						},
 						None => {
-								let reply = ::trnsprt::__private::serde_json::json!({
+								let reply = ::transport::__private::serde_json::json!({
 										"id": id,
 										"error": { "code": -32602, "message": format!("missing param: {}", #key) }
 								});
@@ -300,9 +300,9 @@ fn server_arm(_trait_name: &syn::Ident, m: &Method) -> TokenStream2 {
 			#method_str => {
 					#( #arg_decodes )*
 					let out = handler.#name( #( #arg_names ),* ).await;
-					match ::trnsprt::__private::serde_json::to_value(&out) {
-							Ok(v) => ::trnsprt::__private::serde_json::json!({ "id": id, "result": v }),
-							Err(e) => ::trnsprt::__private::serde_json::json!({
+					match ::transport::__private::serde_json::to_value(&out) {
+							Ok(v) => ::transport::__private::serde_json::json!({ "id": id, "result": v }),
+							Err(e) => ::transport::__private::serde_json::json!({
 									"id": id,
 									"error": { "code": -32603, "message": format!("encode result: {}", e) }
 							}),

@@ -1145,7 +1145,7 @@ dependencies = [
  "toml",
  "tracing",
  "tracing-subscriber",
- "trnsprt",
+ "transport",
  "watcher",
  "zstd",
 ]
@@ -2377,7 +2377,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "trnsprt"
+name = "transport"
 version = "1.1.0"
 dependencies = [
  "async-stream",
@@ -2392,12 +2392,12 @@ dependencies = [
  "thiserror",
  "tokio",
  "tokio-util",
- "trnsprt-macros",
+ "transport-macros",
  "windows-sys 0.61.2",
 ]
 
 [[package]]
-name = "trnsprt-macros"
+name = "transport-macros"
 version = "1.1.0"
 dependencies = [
  "proc-macro2",
