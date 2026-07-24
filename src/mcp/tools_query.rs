@@ -430,6 +430,7 @@ fn entity_detail(
 			"scheme": thought.source.scheme(),
 			"object_id": thought.source.object_id(),
 			"section": thought.source.section(),
+			"url": thought.source.url(),
 		},
 		"edges": edges,
 	});
@@ -453,17 +454,23 @@ fn secs_since_epoch(t: std::time::SystemTime) -> u64 {
 }
 
 // kind/scheme/status labels are consumed by `kern_rpc::query` — do not drop them.
+// The full `source` backlink (object_id/section/url) rides alongside them, the exact
+// shape the id-lookup path emits, so a ranked hit can be followed back to the proving
+// corpus page rather than surfacing only the scheme it matched on. It is placed first
+// in the envelope on purpose: the wire contract is "ranked recall carries the backlink".
 pub(crate) fn base_entity_json(
 	entity: &crate::base::types::Entity,
 	score: f64,
 ) -> serde_json::Value {
-	let status_str = if entity.is_superseded() {
-		"superseded"
-	} else {
-		"active"
-	};
+	let status_str = if entity.is_superseded() { "superseded" } else { "active" };
 	serde_json::json!({
 		"id": entity.id,
+		"source": {
+			"scheme": entity.source.scheme(),
+			"object_id": entity.source.object_id(),
+			"section": entity.source.section(),
+			"url": entity.source.url(),
+		},
 		"score": score,
 		"conf": entity.conf_mean(),
 		"conf_uncertainty": entity.conf_variance(),
@@ -502,16 +509,32 @@ mod envelope_shape_tests {
 			EntityStatus::Active,
 			Source::File {
 				path: "src/main.rs".into(),
-				section: String::new(),
+				section: "fn main".into(),
 				title: String::new(),
 				author: String::new(),
-				url: String::new(),
+				url: "https://example.test/src/main.rs".into(),
 			},
 		);
 		let v = build_entity_json(&ent, 0.5);
 		assert_eq!(v.get("kind").and_then(|x| x.as_str()), Some("fact"));
 		assert_eq!(v.get("scheme").and_then(|x| x.as_str()), Some("file"));
 		assert_eq!(v.get("status").and_then(|x| x.as_str()), Some("active"));
+		// The ranked envelope carries the full source backlink, not just the scheme
+		// it matched on, so a caller can open the proving page.
+		let source = v.get("source").expect("envelope carries a source backlink");
+		assert_eq!(source.get("scheme").and_then(|x| x.as_str()), Some("file"));
+		assert_eq!(
+			source.get("object_id").and_then(|x| x.as_str()),
+			Some("src/main.rs")
+		);
+		assert_eq!(
+			source.get("section").and_then(|x| x.as_str()),
+			Some("fn main")
+		);
+		assert_eq!(
+			source.get("url").and_then(|x| x.as_str()),
+			Some("https://example.test/src/main.rs")
+		);
 	}
 
 	#[test]
@@ -528,6 +551,12 @@ mod envelope_shape_tests {
 		assert_eq!(v.get("status").and_then(|x| x.as_str()), Some("superseded"));
 		assert_eq!(v.get("scheme").and_then(|x| x.as_str()), Some("inline"));
 		assert_eq!(v.get("kind").and_then(|x| x.as_str()), Some("claim"));
+		// A scheme with no url still carries the backlink block, with object_id set
+		// to what `Source::object_id` returns for it (the inline hash).
+		let source = v.get("source").expect("envelope carries a source backlink");
+		assert_eq!(source.get("scheme").and_then(|x| x.as_str()), Some("inline"));
+		assert_eq!(source.get("object_id").and_then(|x| x.as_str()), Some("h"));
+		assert_eq!(source.get("url").and_then(|x| x.as_str()), Some(""));
 	}
 
 	#[test]
