@@ -3,6 +3,7 @@ pub mod resources;
 pub mod sse;
 pub mod tools;
 mod tools_admin;
+mod tools_events;
 mod tools_intake;
 mod tools_mutate;
 pub(crate) mod tools_query;
@@ -246,6 +247,7 @@ impl transport::McpServer for Server {
 		}
 		let result = match name {
 			"query" => self.tool_query(args),
+			"events" => self.tool_events(args),
 			"ingest" => self.tool_ingest(args),
 			"link" => self.tool_link(args),
 			"forget" => self.tool_forget(args),

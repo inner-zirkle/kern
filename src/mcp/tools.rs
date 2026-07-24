@@ -1,5 +1,6 @@
 pub fn tool_definitions() -> Vec<serde_json::Value> {
 	let mut defs = super::tools_query::tool_schemas();
+	defs.extend(super::tools_events::tool_schemas());
 	defs.extend(super::tools_mutate::tool_schemas());
 	defs.extend(super::tools_admin::tool_schemas());
 	defs.extend(super::tools_intake::tool_schemas());
@@ -28,6 +29,7 @@ mod tests {
 
 		let expected = [
 			"query",
+			"events",
 			"ingest",
 			"link",
 			"forget",
