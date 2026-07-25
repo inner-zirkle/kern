@@ -2,6 +2,23 @@
 
 <!-- docs-check: historical -->
 
+- 2026-07-25 — v1.2.0 cut. Workspace version 1.1.0 → 1.2.0 (`Cargo.toml`,
+  `Cargo.lock`, `FEATURES.md` header/footer): the surface grew since v1.1.0 —
+  the sixteenth tool `events` (the ctrl-Watcher change feed) and the
+  `kern mcp --embed-url/--embed-model` per-process override — semver-minor,
+  tagged `v1.2.0` so `release.yml` publishes the 15-target build. Checked and
+  deliberately NOT done: prefixing served tool names with `mcp__` — the
+  `mcp__kern__<tool>` spelling agents see is minted client-side from the
+  `.mcp.json` `mcpServers.kern` key (`ensure_mcp_registered`,
+  `src/commands/mcp_cmd.rs`); the wire names stay bare (`query`, `events`, …,
+  pinned by `definitions_are_well_formed_and_complete`), and renaming them
+  server-side would double-prefix every client to `mcp__kern__mcp__query`.
+
+  **Decided by:** verify-before-claiming (prefix mechanism read from the
+  registration code and the client convention, not assumed from the tool
+  list), fix-the-root (the version records the released surface; the prefix
+  "fix" was refused because the root already provides it).
+
 - 2026-07-25 — repo-state audit reconciled the inventory and site to the tree.
   A full-feature audit (per-subsystem state, gaps, recorded numbers) found four
   drifts, all the class the 2026-07-24 site pass named — new surface outrunning
