@@ -64,7 +64,7 @@ stale-and-sometimes-wrong: structurally zero.
 Closed by preferring the wire. `cmd_health` awaits `daemon_health` once, up
 front (`src/commands/admin.rs:43`), and hands the response to a new
 `degradation_lines` (`:119`) beside `tick_health_lines` (`:172`). `HealthRes`
-already carried all eight — `cold_evicted` (`src/trnsprt/src/kern_rpc/dto.rs:42`)
+already carried all eight — `cold_evicted` (`src/transport/src/kern_rpc/dto.rs:42`)
 and the seven at `:55`–`:67`, filled from the daemon's own `health_stats`
 (`src/rpc/kern_rpc_server.rs:94`) — and all eight are now taken **whole**
 (`src/commands/admin.rs:125`), not merged: a daemon is serving the store, so its <!-- docs-check: anchor-ok -->
@@ -564,7 +564,7 @@ so the token gate plus the `0600` socket *is* the whole access model.
 
 **Narrowed 2026-07-22 — "anything that can open the path" was already false on
 Unix when this was written.** `harden_socket`
-(`src/trnsprt/src/typed/local.rs:355`) sets the socket `0600` on both the fresh
+(`src/transport/src/typed/local.rs:355`) sets the socket `0600` on both the fresh
 bind and the stale-rebind path, pinned by `a_bound_socket_is_owner_only` and
 `a_rebound_stale_socket_is_also_owner_only`, so a foreign uid never reaches it
 and the only residue is the sub-ms bind→chmod window item 84 already carries.
@@ -572,7 +572,7 @@ No document said so — `FEATURES.md` §13 still read "anything that can open th
 path", which is why this is recorded here rather than assumed.
 
 **Built 2026-07-22 — the connection is authenticated.** One `AuthReq` frame
-(`src/trnsprt/src/kern_rpc/auth.rs:79`) carrying the graph's `mcp-token` — the
+(`src/transport/src/kern_rpc/auth.rs:79`) carrying the graph's `mcp-token` — the
 same secret the HTTP surface already demands (`resolve_mcp_token`,
 `src/config/serve.rs:64`), never a second one — is compared in constant time
 before anything dispatches. The ordering is structural, not remembered:
@@ -584,7 +584,7 @@ nobody rather than everybody — and `run_server` resolves the token before it
 binds, so that state is unreachable in practice as well as harmless. Windows
 gets the same posture the Unix `0600` states: an owner-only SDDL,
 `D:P(A;;GA;;;<user>)`, built from the process token's own SID
-(`src/trnsprt/src/typed/local.rs:392`) and passed to *every* pipe instance — <!-- docs-check: anchor-ok -->
+(`src/transport/src/typed/local.rs:392`) and passed to *every* pipe instance — <!-- docs-check: anchor-ok -->
 the `accept`-created ones too (`:641`), since an instance created without it
 would be a hole beside a locked door.
 
@@ -609,7 +609,7 @@ re-run 2026-07-22). What is left is everything the gate does not cover.
    owner-only, not *known* to be.
 2. **The socket secret is the HTTP secret, and the socket path is squattable.**
    With no `XDG_RUNTIME_DIR` the endpoint falls back to `/tmp/kern-<tag>-<user>.sock`
-   (`Endpoint::scoped`, `src/trnsprt/src/typed/local.rs:44-55`), and `/tmp` is
+   (`Endpoint::scoped`, `src/transport/src/typed/local.rs:44-55`), and `/tmp` is
    sticky-but-writable: another local user can bind that name first. On the
    socket the stolen token buys nothing (the real socket is `0600`), but it is
    the *same* token `mcp_addr` demands, so a socket-side disclosure is an
@@ -619,12 +619,12 @@ re-run 2026-07-22). What is left is everything the gate does not cover.
 
    **The disclosure is closed 2026-07-22 — the client now authenticates the
    server, twice.** `require_owned_by_caller`
-   (`src/trnsprt/src/typed/local.rs:237`) stats the endpoint and refuses unless
+   (`src/transport/src/typed/local.rs:237`) stats the endpoint and refuses unless
    both the name and what it resolves to are owned by this euid.
    `require_peer_is_caller` (`:283`) then reads `SO_PEERCRED` off the connected
    socket and refuses unless the process serving it is this euid. Both sit in
    `connect_kern` (`:314`), which returns before
-   `present_auth` (`src/trnsprt/src/kern_rpc/client_local.rs:44`) writes the
+   `present_auth` (`src/transport/src/kern_rpc/client_local.rs:44`) writes the
    token — so both are ahead of every byte a client could send, and a check
    after frame 1 would be decoration. It fails closed: any stat error, a
    dangling symlink, and an unreadable peer credential all refuse.
@@ -635,7 +635,7 @@ re-run 2026-07-22). What is left is everything the gate does not cover.
    **Why two checks and not one.** The stat is the cheap one and it is not
    sufficient on its own: it describes a *name* at one instant, and the window
    between it and the `connect` is opened by our own daemon rather than by an
-   attacker — `Drop for LocalListener` (`src/trnsprt/src/typed/local.rs:654`)
+   attacker — `Drop for LocalListener` (`src/transport/src/typed/local.rs:654`)
    unlinks the socket on every shutdown and the stale-rebind path unlinks it
    too, so a name that stats as ours can be free a microsecond later and rebound
    by somebody else before the `connect` lands. Waiting for a daemon restart is
@@ -657,7 +657,7 @@ re-run 2026-07-22). What is left is everything the gate does not cover.
 
    **What closed and what is still owed, in order of how much it matters.**
    - **CLOSED 2026-07-22 — the bind path refuses instead of standing down.**
-     The `AddrInUse` arm (`src/trnsprt/src/typed/local.rs:513-540`) now runs
+     The `AddrInUse` arm (`src/transport/src/typed/local.rs:513-540`) now runs
      the same two checks `connect_kern` does, in the same order:
      `require_owned_by_caller` on the name, then `UnixStreamAdapter::connect`
      and the peer check on whatever answered. Either refusal returns the new
@@ -725,7 +725,7 @@ re-run 2026-07-22). What is left is everything the gate does not cover.
      root-owned `foreign_path()`; this closes the peer-uid half — the one gap
      this entry named.
      The arm is reached through `bind_unix(path, expected_peer)`
-     (`src/trnsprt/src/typed/local.rs:507`), split out exactly as
+     (`src/transport/src/typed/local.rs:507`), split out exactly as
      `require_peer_uid` is split out of `require_peer_is_caller` and for the
      same reason, so a test drives the whole arm against a real socket and a
      real `SO_PEERCRED` read with a uid that is deliberately not the server's.
@@ -755,17 +755,17 @@ re-run 2026-07-22). What is left is everything the gate does not cover.
    item 98.** This entry read the defect correctly — per connection rather than
    an accept-loop stall, and a cap belonging in `decode` — and named the one
    thing it could not settle: the number. `verify_auth`
-   (`src/trnsprt/src/kern_rpc/auth.rs:98`) now bounds that read at 1 KiB and 5 s
+   (`src/transport/src/kern_rpc/auth.rs:98`) now bounds that read at 1 KiB and 5 s
    and lifts both once the frame is in hand, so `call_tool`'s whole documents
    still travel the framing they need
-   (`JsonEnvelopeCodec::decode`, `src/trnsprt/src/typed/codec.rs:53`). The
+   (`JsonEnvelopeCodec::decode`, `src/transport/src/typed/codec.rs:53`). The
    ranking stands as written: `0600` means the caller was already same-uid, so
    this was a robustness bound, not a boundary failure.
 
 The item's second half is **retired 2026-07-21 — verified
 false**: `KernRpc` does not mirror MCP 1:1 and never did. The contract is four
 methods (`health`/`shutdown`/`call_tool`/`list_tools`,
-`src/trnsprt/src/kern_rpc/svc.rs`) and every tool reaches the daemon through the
+`src/transport/src/kern_rpc/svc.rs`) and every tool reaches the daemon through the
 one `call_tool` passthrough, so there is no second dispatch copy to drift
 against repo law 3 — as the closed list already recorded while this item claimed
 the opposite.
@@ -1262,7 +1262,7 @@ so the counter belonged to `cmd_health` (`src/commands/admin.rs:38`). Both
 lacked it, so the defect was real either way; only the target moved.
 
 Three edits and no new plumbing. `HealthRes` took a `#[serde(default)]
-gnn_train_refused: u64` (`src/trnsprt/src/kern_rpc/dto.rs:74`) — append-only,
+gnn_train_refused: u64` (`src/transport/src/kern_rpc/dto.rs:74`) — append-only,
 the shape every other counter took, and `dto_serde_tests` feeds it a literal
 old-daemon payload to prove a new client against an old daemon reads 0 rather
 than erroring. `KernRpcHandler::health` (`src/rpc/kern_rpc_server.rs:113`) fills
@@ -1554,7 +1554,7 @@ that contract is what six call sites rely on — but the error is counted and
 named on the way past (`record_complete_failure`, `:74`), reusing `is_transient`
 (`:21`) rather than adding a second classifier, and reaching the surface as
 `llm_complete_failed` / `last_llm_complete_failure` (`src/mcp.rs:153`,
-`trnsprt::HealthRes` at `src/trnsprt/src/kern_rpc/dto.rs:80`, printed by
+`trnsprt::HealthRes` at `src/transport/src/kern_rpc/dto.rs:80`, printed by
 `llm_health_lines`, `src/commands/admin.rs:214`). Daemon-sourced, because the
 counter is a process static and nothing on the `kern health` path completes
 anything — a local read could only ever be zero.
@@ -1590,7 +1590,7 @@ the run loop has taken in flight releases its slot and is not counted. It rides
 beside `ingest_queue_refused` on all three surfaces: the MCP health JSON reads
 it live off the serving worker's channel (`src/mcp.rs:148`) rather than off a
 process static, `HealthRes` carries it `#[serde(default)]`
-(`src/trnsprt/src/kern_rpc/dto.rs:70`) so an old daemon's payload reads 0
+(`src/transport/src/kern_rpc/dto.rs:70`) so an old daemon's payload reads 0
 instead of erroring, and `kern health` prints `ingest: queue N` daemon-sourced
 only (`ingest_health_lines`, `src/commands/admin.rs:203`) — no daemon, no line,
 because the CLI's own worker is idle by construction and a local read is
@@ -2410,7 +2410,7 @@ Mem0's 92.5 are LLM-judged end-to-end scores and are not comparable.
 **LongMemEval-S half done, measured 2026-07-23** (`qwen3-embedding:0.6b` on
 Ollama, direct path, k=10, seeded 100-question sample of 500 — seed 13, the
 runner's default — 4792 sessions ingested, 196 label collisions resolved
-through `kern get`; report `tests/eval/reports/longmemeval-20260723-193342.json`,
+through `kern get`; report `eval/reports/longmemeval-20260723-193342.json`,
 CHANGELOG entry same day): session granularity recall_any@1 **0.83**,
 recall_any@5 **0.97**, recall_any@10 **0.99**, recall_all@10 0.91, MRR 0.8896,
 NDCG@10 0.8589 over 100 questions; turn granularity (93 questions carrying
@@ -2845,7 +2845,7 @@ in `CHANGELOG.md`, which carries the historical marker and is skipped whole.
 argument.** This file cited `Drop for LocalListener` at `` `:654` `` under a
 paragraph whose last named file was `client_local.rs` — 146 lines long. The
 line number was right and the *file* was wrong: `Drop for LocalListener` is
-`src/trnsprt/src/typed/local.rs:654`. That is a failure mode a spelled-out path
+`src/transport/src/typed/local.rs:654`. That is a failure mode a spelled-out path
 does not have, and it is the one a continuation adds: existence stops being a
 property of the anchor and becomes a property of the anchor plus everything
 above it, so an edit that inserts an unrelated citation silently re-points every
@@ -2856,7 +2856,7 @@ fix that survives the next insertion.
 false — 83.3% precision on a population that had never been checked.** Five of
 the 15 are the wrong-file class the dead reference belongs to
 (`` `:507` `` reaching `src/commands.rs` for a `bind_unix` that lives in
-`src/trnsprt/`, `` `:129` `` reaching `direct.rs` for a `Worker::submit` in
+`src/transport/`, `` `:129` `` reaching `direct.rs` for a `Worker::submit` in
 `file_watcher.rs`, and the two Windows/PQ notes at `` `:136-137` `` and
 `` `:132-134` `` that say "doc-only" while landing in `src/base/graph.rs`);
 the other ten are ordinary rot, including
@@ -2895,7 +2895,7 @@ is superseded now.
 than a mistake.** Twelve of the 18 are rot by any reading. The three in dispute
 are the wrong-file class, and for those the anchor a human resolves is
 *correct*: `` `:507` ``, under a paragraph about `bind_unix`, means
-`src/trnsprt/src/typed/local.rs`, which is where `bind_unix` is, and `` `:129` ``,
+`src/transport/src/typed/local.rs`, which is where `bind_unix` is, and `` `:129` ``,
 under one about `Worker::submit`, means `src/ingest/file_watcher.rs`, which is
 where the `submit` call is. Both hit the named symbol exactly. So the count is
 15 if the question is "is this anchor under-specified" and 12 — 66.7% — if it is
@@ -2977,7 +2977,7 @@ Both halves were real and both are shut. 978 unit tests, e2e untouched.
 **The size half was real by a different mechanism than this item named, and the
 difference decided where the fix had to go.** There is no length field on this
 wire to reject: `JsonEnvelopeCodec` is newline-delimited
-(`src/trnsprt/src/typed/codec.rs:53`), so nothing declares a size and
+(`src/transport/src/typed/codec.rs:53`), so nothing declares a size and
 `FramedRead` simply reserves, reads and doubles its `BytesMut` for as long as
 `decode` returns `Ok(None)` — which it does until a `\n` arrives
 (`tokio-util-0.7.18/src/codec/framed_impl.rs:218`, `state.buffer.reserve(1)`
@@ -3044,7 +3044,7 @@ Two independent observations, both loud:
   sat on disk, in a tree that had just compiled cleanly under `cargo nextest`.
   Two rmetas carrying the field existed under different hashes (check and test
   profiles); the dev-profile one kept losing to sibling builds with a newer
-  mtime. `touch src/trnsprt/src/kern_rpc/dto.rs` before each build was the
+  mtime. `touch src/transport/src/kern_rpc/dto.rs` before each build was the
   workaround it used for every number it reported.
 
 So there are two failure modes, not one:
@@ -3450,7 +3450,7 @@ principal would need a new check, but item 18 retired that path).
 (`src/commands/mcp_cmd.rs:368`), so the five methods `extra_capabilities`
 (`:355`) advertises — `resources/list`, `resources/read`, `prompts/list`,
 `prompts/get`, `ping` — answer instead of falling through the trait default
-(`src/trnsprt/src/server.rs:21`) to `-32601`. `ping` is the one that mattered
+(`src/transport/src/mcp.rs:137`) to `-32601`. `ping` is the one that mattered
 most: clients use it for liveness, so `-32601` there read as a dead server on
 the path an agent actually gets (`cmd_mcp` reaches `run_proxy` whenever a
 daemon exists).
@@ -3760,7 +3760,7 @@ maxes at `(n−1)/n`, stated), verify-before-claiming (negative control). See th
   silent — loopback is correct there (`FEATURES.md:1125-1127`).
 - RPC socket bind→chmod race — sub-millisecond, umask default — recorded as an
   accepted risk where it happens (`harden_socket`,
-  `src/trnsprt/src/typed/local.rs:348-358`); revisit only if the umask
+  `src/transport/src/typed/local.rs:348-358`); revisit only if the umask
   alternative stops being worse. **Corrected 2026-07-22:** this cited
   `concepts/security.mdx:40-43`, which is the API-key-vs-redirected-endpoint
   rule and says nothing about the socket; that page states the `0600` mode at
@@ -3786,7 +3786,7 @@ target back. The list resolved into four classes, not the two the filing guessed
 - **A bare ref continuing the wrong file** — 4, plus a fifth wearing a
   quotation's clothes. Item 52 documented the hazard and it is exactly as
   predicted: `bind_unix`'s `` `:507` `` bound to `src/commands.rs` and meant
-  `src/trnsprt/src/typed/local.rs`; `Worker::submit`'s `` `:129` `` bound to
+  `src/transport/src/typed/local.rs`; `Worker::submit`'s `` `:129` `` bound to
   `src/ingest/direct.rs` and meant `src/ingest/file_watcher.rs` — the *number*
   was right, only the file was wrong, which is the quietest failure of the set;
   and item 75's two doc-only leads bound to `src/base/graph.rs` while meaning
@@ -3932,12 +3932,12 @@ and item 1's instrument staying the scorer.~~
   — ROADMAP is the only plan — is kept; the lie that the notes held no plans is
   gone.)
 - (retired 2026-07-22 — `README.md:116` now names the typed `KernRpc` as
-  generated by this repo's own `service!` macro in `src/trnsprt/`, matching
+  generated by this repo's own `service!` macro in `src/transport/`, matching
   `FEATURES.md` §13. The phantom `tarpc` dependency is gone from where a reader
   looks first.) ~~`README.md:116` still sells "**tarpc `KernRpc`**" on the front
   page. There is no tarpc in `Cargo.toml`, in `Cargo.lock` or anywhere in
   `src/`~~ — the service is generated by this repo's own `service!` macro
-  (`src/trnsprt/macros/`), and `FEATURES.md` §13 says so outright. (found
+  (`src/transport/macros/`), and `FEATURES.md` §13 says so outright. (found
   2026-07-21, same sweep that corrected the identical line in `SPECIALISTS.md`.)
 - (retired 2026-07-21 — corrected at the source) the four stale `docs/kern/`
   research-note claims are gone: `crdts-federation.md:6-14` now states outright
@@ -4408,9 +4408,9 @@ number ("blocked on item 13") and renumbering would silently repoint them.
   and never supersedes. Item 48 is the remaining *dedup* half.
 - **There is one typed transport surface, not two.** The former "kern_rpc +
   search with overlapping DTOs" item was wrong: `trnsprt` exposes `kern_rpc` and
-  `hub_rpc` (`src/trnsprt/src/lib.rs:20-21`), and `kern_rpc` is
+  `hub_rpc` (`src/transport/src/lib.rs:20-21`), and `kern_rpc` is
   `health` / `shutdown` / `call_tool` / `list_tools`
-  (`src/trnsprt/src/kern_rpc/svc.rs:5-8`) — a generic envelope with no query DTOs
+  (`src/transport/src/kern_rpc/svc.rs:5-8`) — a generic envelope with no query DTOs
   to overlap. Nothing to kill. (`KernRpc` mirroring the MCP tool list 1:1 was
   carried as item 24's second half; that half is retired 2026-07-21 — verified
   false on this same reading.)

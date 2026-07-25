@@ -2,7 +2,7 @@
 title: "Wire up MCP"
 ---
 
-Get your agent listing kern's fifteen tools against the project's graph. Start from a project with `.kern/` — see [Install & run](./install-run.mdx).
+Get your agent listing kern's sixteen tools against the project's graph. Start from a project with `.kern/` — see [Install & run](./install-run.mdx).
 
 ## 1. Register the server
 
@@ -48,6 +48,7 @@ Standalone fallback is a second writer against the same LMDB environment — a s
 ### Reading
 
 - **`query`** — hybrid vector + lexical retrieval; scored thoughts with edges and path chains, no synthesis. Needs `text` or `id`. Filters: `kind` (`fact` / `document` / `normal`), `source`, `min_conf`; `since` / `before`, `sort` + `ascending`; `as_of` for what was believed at a past instant; `include_history: true` for superseded revisions (flagged `history: true`). Every filter applies to an `id` read too.
+- **`events`** — read-only change feed for pollers: `created` / `superseded` entities since an opaque `cursor`; pass the returned `cursor` back as `since` to resume without gap or overlap, `limit` bounds the batch. Derived from the bitemporal stamps — mutates nothing. `degraded` / `forgotten` are declared on the wire but never emitted.
 - **`health`** — counts plus degradation: tick queue and latency, `task_panics` / `task_failures`, `cold_evicted`, `embed_model` / `embed_dim` with `embed_mismatch`. kern fails open — a degraded daemon keeps serving and shows up only here.
 
 ### Writing
@@ -75,7 +76,7 @@ Default loop: `query` to recall, `ingest` durable conclusions, `degrade` on a mi
 
 ## 4. Verify
 
-List tools in your client — expect all fifteen. Or drive stdio:
+List tools in your client — expect all sixteen. Or drive stdio:
 
 ```bash
 printf '%s\n' \
@@ -104,8 +105,8 @@ Non-zero `entities` = populated graph. Zero on a fresh project is expected — [
 5. **Config aborting the boot?** Invalid `kern.toml` exits **78** with the offending key on stderr — the client sees an immediately dying process. Deleting the file is a valid fix.
 6. **Read the logs.** `RUST_LOG=kern=info kern mcp` prints proxy ("attached to running daemon") vs standalone ("auto-spawn failed"). Spawned daemon output appends to `.kern/data/logs/daemon.log`.
 
-<Callout type="warn" title="Prompts and resources are stdio-standalone only">
-In proxy mode, `resources/list` and `prompts/list` are not forwarded — `-32601 method not found`. The tools are the stable surface.
+<Callout type="info" title="Prompts and resources ride both modes">
+Proxy and standalone answer `resources/list`, `prompts/list`, `prompts/get` and `ping` through the same handler; `resources/read` rides the tool-call passthrough. The tools remain the stable surface.
 </Callout>
 
 ## MCP over HTTP
