@@ -110,8 +110,10 @@ pub fn merged_root(g: &GraphGnn) -> Kern {
 	merged.inner_radius = g.root.inner_radius;
 	merged.outer_radius = g.root.outer_radius;
 	// REPLACE, don't union: a union re-adds claim kinds from the stale map base,
-	// so a removal on g.root (`claim-kind rm`) never persists.
+	// so a removal on g.root (`claim-kind rm`) never persists. The parent edges
+	// follow the same rule for the same reason.
 	merged.claim_kinds = g.root.claim_kinds.clone();
+	merged.claim_kind_parents = g.root.claim_kind_parents.clone();
 	merged
 }
 
@@ -122,7 +124,7 @@ pub fn save_graph_into(
 	check_stamp(store, stamp_of(g).as_ref());
 	let mut kerns = g.map().clone();
 	kerns.insert(g.root.id.clone(), merged_root(g));
-	store.save_all_kerns(&kerns, &g.network_id, g.quant_mode)?;
+	store.save_all_kerns(&kerns, &g.network_id, g.quant_mode, g.unloaded_ids())?;
 	Ok(())
 }
 
@@ -135,7 +137,13 @@ pub fn flush_guarded(
 			check_stamp(&store, stamp_of(g).as_ref());
 			let mut kerns = g.map().clone();
 			kerns.insert(g.root.id.clone(), merged_root(g));
-			store.flush_guarded(&kerns, &g.network_id, g.quant_mode, expected)
+			store.flush_guarded(
+				&kerns,
+				&g.network_id,
+				g.quant_mode,
+				expected,
+				g.unloaded_ids(),
+			)
 		}
 		None => Ok(crate::base::store::FlushOutcome::Flushed { epoch: expected }),
 	}
@@ -148,6 +156,8 @@ pub struct FlushSnapshot {
 	network_id: String,
 	quant_mode: QuantizationMode,
 	stamp: Option<crate::base::store::EmbedStamp>,
+	// Unloaded-kern ids at snapshot time; the flush prune must spare their rows.
+	unloaded: std::collections::HashSet<String>,
 }
 
 // Call under the read guard; drop it before flush_snapshot runs.
@@ -161,6 +171,7 @@ pub fn snapshot_for_flush(g: &GraphGnn) -> Option<FlushSnapshot> {
 		network_id: g.network_id.clone(),
 		quant_mode: g.quant_mode,
 		stamp: stamp_of(g),
+		unloaded: g.unloaded_ids().clone(),
 	})
 }
 
@@ -171,12 +182,18 @@ pub fn flush_snapshot(
 	expected: u64,
 ) -> Result<crate::base::store::FlushOutcome, crate::base::store::StoreError> {
 	check_stamp(&snap.store, snap.stamp.as_ref());
-	snap
-		.store
-		.flush_guarded(&snap.kerns, &snap.network_id, snap.quant_mode, expected)
+	snap.store.flush_guarded(
+		&snap.kerns,
+		&snap.network_id,
+		snap.quant_mode,
+		expected,
+		&snap.unloaded,
+	)
 }
 
-// save_all_kerns prunes rows outside the live set, so no kern can resurrect.
+// save_all_kerns prunes rows outside the live set — minus the unloaded ids,
+// whose disk rows are residency, not garbage — so no deregistered kern can
+// resurrect while an idle-unloaded one survives the flush.
 pub fn save_all(g: &GraphGnn) -> Result<(), crate::base::store::StoreError> {
 	match g.store() {
 		Some(store) => save_graph_into(&store, g),
@@ -249,5 +266,43 @@ mod tests {
 		let d = dir.path().to_string_lossy().to_string();
 		let g = load_dir(&d).expect("an empty store is a fresh store, not an error");
 		assert!(g.loaded("root").is_some() || g.map().is_empty());
+	}
+
+	#[test]
+	fn an_unloaded_kern_survives_a_full_save_and_reload() {
+		// Regression for the idle-unload wipe: unload removes a kern from the
+		// resident map (residency, not forgetting), and the next full save's
+		// destructive prune used to delete its disk row — the only copy —
+		// permanently losing its thoughts while their reason edges lived on.
+		use crate::base::store::Store;
+		use crate::base::types::{mk_entity, EntityKind};
+		let dir = tempdir().unwrap();
+		let d = dir.path().to_string_lossy().to_string();
+
+		let mut g = GraphGnn::new();
+		g.data_dir = d.clone();
+		g.set_store(std::sync::Arc::new(Store::open(&d).unwrap()));
+		let mut k = Kern::new("idle-kern", &g.root.id);
+		k.entities.insert(
+			"t1".to_string(),
+			mk_entity("t1", "a thought", 0.5, EntityKind::Claim),
+		);
+		g.register(k);
+
+		g.unload("idle-kern").unwrap();
+		assert!(g.is_unloaded("idle-kern"), "unload parks the kern off-RAM");
+
+		save_all(&g).unwrap();
+		drop(g);
+
+		let g2 = load_dir(&d).unwrap();
+		let k2 = g2
+			.map()
+			.get("idle-kern")
+			.expect("the unloaded kern's disk row survives the flush prune");
+		assert!(
+			k2.entities.contains_key("t1"),
+			"and its thoughts reload with it"
+		);
 	}
 }

@@ -12,6 +12,16 @@ pub enum GossipKind {
 	Fetch = 4,
 	Delta = 5,
 	EntitySync = 6,
+	// Ring routing (FEDERATION_PLAN §2): request/response like Fetch.
+	FindNearest = 7,
+	Nearest = 8,
+	// Contract kerns (FEDERATION_PLAN §3/§4).
+	Subscribe = 9,
+	SubAck = 10,
+	ContractDelta = 11,
+	SyncSummary = 12,
+	SyncDiff = 13,
+	Tombstone = 14,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -20,6 +30,20 @@ pub struct GossipMessage {
 	pub id: String,
 	pub origin: String,
 	pub payload: GossipPayload,
+}
+
+// The signed wire envelope every TCP frame travels in. `pubkey` rides along
+// because PeerId is its blake3 hash — the receiver cannot verify against a
+// hash alone. The signature covers blake3(body || lamport_le); see
+// `identity::frame_digest`. Verification happens before ANY per-peer state
+// is touched (seen-set, peer list, rate limits): an invalid signature is
+// free to send and must buy nothing.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SignedFrame {
+	pub pubkey: [u8; 32],
+	pub sig: Vec<u8>,
+	pub lamport: u64,
+	pub body: Vec<u8>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -32,6 +56,65 @@ pub enum GossipPayload {
 	FetchResult(FetchResultPayload),
 	CrdtDelta(CrdtDeltaPayload),
 	EntitySync(EntitySyncPayload),
+	FindNearest(FindNearestPayload),
+	Nearest(NearestPayload),
+	Subscribe(SubscribePayload),
+	SubAck(SubAckPayload),
+	ContractDelta(ContractDeltaPayload),
+	SyncSummary(SyncSummaryPayload),
+	SyncDiff(SyncDiffPayload),
+	Tombstone(TombstonePayload),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SubscribePayload {
+	pub contract: [u8; 32],
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SubAckPayload {
+	pub contract: [u8; 32],
+	pub summary: crate::gossip::contract::Summary,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContractDeltaPayload {
+	pub contract: [u8; 32],
+	pub delta: crate::gossip::contract::Delta,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SyncSummaryPayload {
+	pub contract: [u8; 32],
+	pub summary: crate::gossip::contract::Summary,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SyncDiffPayload {
+	pub contract: [u8; 32],
+	pub delta: crate::gossip::contract::Delta,
+}
+
+// A signed forward pointer published in the OLD contract when its params
+// are amended: the key is the policy hash, so a policy change moves the key
+// and subscribers follow the pointer once (FEDERATION_PLAN §5).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TombstonePayload {
+	pub contract: [u8; 32],
+	pub new_id: [u8; 32],
+	pub sig: Vec<u8>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FindNearestPayload {
+	pub target: f64,
+}
+
+// The responder's own entry plus its `near` set — everything a joiner needs
+// to keep hopping greedily or to adopt a neighborhood at the terminal.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NearestPayload {
+	pub peers: Vec<crate::gossip::ring::PeerEntry>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -54,6 +54,10 @@ pub struct QueryOptions {
 	pub user_id: Option<String>,
 	pub agent_id: Option<String>,
 	pub session_id: Option<String>,
+	// Claim-kind label filter, pre-resolved at the tool layer to its subClassOf
+	// closure (the label plus every registered descendant), so this predicate
+	// stays a set-membership check with no graph access.
+	pub claim_kinds: Option<Vec<String>>,
 	// Appended to the synthesis prompt only — never a retrieval filter, so is_active() ignores it.
 }
 
@@ -71,6 +75,7 @@ impl QueryOptions {
 			|| self.user_id.is_some()
 			|| self.agent_id.is_some()
 			|| self.session_id.is_some()
+			|| self.claim_kinds.is_some()
 	}
 }
 
@@ -272,6 +277,18 @@ pub fn matches_filter(entity: &Entity, opts: &QueryOptions) -> bool {
 	}
 	if let Some(ref want) = opts.scheme {
 		if entity.source.scheme() != want.as_str() {
+			return false;
+		}
+	}
+	if let Some(ref want) = opts.claim_kinds {
+		// Only distilled claims carry a claim-kind label, as the Session title
+		// `session://<kind>`; everything else reads as the empty label and drops.
+		let label = entity
+			.source
+			.title()
+			.strip_prefix("session://")
+			.unwrap_or("");
+		if !want.iter().any(|w| w == label) {
 			return false;
 		}
 	}
@@ -545,6 +562,40 @@ mod query_filter_tests {
 				..Default::default()
 			}
 		));
+	}
+
+	#[test]
+	fn claim_kind_filter_matches_the_session_title_label_and_drops_the_rest() {
+		let labelled = ent(
+			"a",
+			EntityKind::Claim,
+			Source::Session {
+				session_id: "session:x".into(),
+				section: String::new(),
+				title: "session://code-fact".into(),
+			},
+		)
+		.entity;
+		let unlabelled = ent("b", EntityKind::Fact, file_src("/b")).entity;
+		// The closure is pre-resolved by the tool layer; the predicate is pure
+		// set membership over the label parsed out of `session://<kind>`.
+		let want = QueryOptions {
+			claim_kinds: Some(vec!["fact".into(), "code-fact".into()]),
+			..Default::default()
+		};
+		assert!(matches_filter(&labelled, &want), "label in closure passes");
+		assert!(
+			!matches_filter(&unlabelled, &want),
+			"an entity with no claim-kind label never matches a claim_kind filter"
+		);
+		let other = QueryOptions {
+			claim_kinds: Some(vec!["preference".into()]),
+			..Default::default()
+		};
+		assert!(
+			!matches_filter(&labelled, &other),
+			"label outside the closure drops"
+		);
 	}
 
 	// Both halves matter. A pending entity that is never in the set proves nothing:

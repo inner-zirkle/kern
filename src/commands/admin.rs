@@ -987,12 +987,16 @@ async fn claim_kind_at(
 	action: ClaimKindAction,
 ) {
 	match action {
-		ClaimKindAction::Add { name, description } => {
+		ClaimKindAction::Add {
+			name,
+			description,
+			parent,
+		} => {
 			match route_to(
 				endpoint,
 				auth,
 				"claim_kind",
-				serde_json::json!({"action": "add", "name": &name, "description": &description}),
+				serde_json::json!({"action": "add", "name": &name, "description": &description, "parent": parent.as_deref().unwrap_or("")}),
 			)
 			.await
 			{
@@ -1000,10 +1004,21 @@ async fn claim_kind_at(
 				Routed::Refused(e) => return eprintln!("{e}"),
 				Routed::NoDaemon => {}
 			}
+			let mut refused: Option<String> = None;
 			with_graph(cfg, |g| {
-				g.root.claim_kinds.insert(name.clone(), description);
+				if let Err(e) = g.root.add_claim_kind(
+					&name,
+					&description,
+					parent.as_deref(),
+					&crate::ingest::distill::DEFAULT_KINDS,
+				) {
+					refused = Some(e);
+				}
 			});
-			print_claim_kind_added(&name);
+			match refused {
+				Some(e) => eprintln!("{e}"),
+				None => print_claim_kind_added(&name),
+			}
 		}
 		ClaimKindAction::Rm { name } => {
 			match route_to(
@@ -1019,7 +1034,7 @@ async fn claim_kind_at(
 				Routed::NoDaemon => {}
 			}
 			with_graph(cfg, |g| {
-				g.root.claim_kinds.remove(&name);
+				g.root.rm_claim_kind(&name);
 			});
 			print_claim_kind_removed(&name);
 		}
@@ -1123,6 +1138,7 @@ mod cmd_tests {
 			ClaimKindAction::Add {
 				name: key.into(),
 				description: "a custom kind".into(),
+				parent: None,
 			},
 		)
 		.await;
@@ -1167,6 +1183,7 @@ mod cmd_tests {
 			ClaimKindAction::Add {
 				name: "custom_test_kind".into(),
 				description: "a custom kind".into(),
+				parent: None,
 			},
 		)
 		.await;

@@ -13,6 +13,45 @@ pub struct GossipConfig {
 	pub peers: Vec<String>,
 	pub seed: bool,
 	pub seed_addr: String,
+	// Small-world ring topology (FEDERATION_PLAN §2). Off = legacy flat peers.
+	pub ring: bool,
+	// Path of the ed25519 peer key file; empty = <data_dir>/peer.key.
+	pub identity_path: String,
+	// Anti-entropy cadence for contract kerns (FEDERATION_PLAN §4).
+	pub sync_interval_secs: u64,
+	// Contract ids (hex) to subscribe to on boot.
+	pub subscriptions: Vec<String>,
+	// Contracts this node hosts/owns.
+	pub contracts: Vec<ContractConfig>,
+}
+
+// One `[[gossip.contracts]]` table: the policy whose hash is the contract key
+// (FEDERATION_PLAN §3). Keys are hex-encoded ed25519 public keys.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ContractConfig {
+	pub kind: String,
+	pub owners: Vec<String>,
+	// "open" | "owners-only" | allowlist implied by non-empty `writers` list.
+	pub writers: String,
+	pub writer_keys: Vec<String>,
+	pub kinds: Vec<String>,
+	pub max_entities: u32,
+	pub retention_secs: Option<u64>,
+}
+
+impl Default for ContractConfig {
+	fn default() -> Self {
+		Self {
+			kind: "signed-crdt-v0".into(),
+			owners: Vec::new(),
+			writers: "owners-only".into(),
+			writer_keys: Vec::new(),
+			kinds: Vec::new(),
+			max_entities: crate::base::constants::GOSSIP_REMOTE_KERN_ENTITY_CAP as u32,
+			retention_secs: None,
+		}
+	}
 }
 
 impl GossipConfig {
@@ -69,6 +108,12 @@ impl Default for GossipConfig {
 			// default-on seed would auto-join a stranger's network.
 			seed: false,
 			seed_addr: GOSSIP_SEED_ADDR.into(),
+			// Ring routing is phase-gated off until a network opts in.
+			ring: false,
+			identity_path: String::new(),
+			sync_interval_secs: 300,
+			subscriptions: Vec::new(),
+			contracts: Vec::new(),
 		}
 	}
 }
@@ -92,6 +137,14 @@ mod tests {
 			"no pooling id by default — each daemon keeps its unique generated id"
 		);
 		assert!(c.peers.is_empty(), "no seed peers by default");
+		assert!(!c.ring, "ring topology is opt-in (phase 2 switch)");
+		assert!(
+			c.identity_path.is_empty(),
+			"peer key defaults beside the graph it identifies"
+		);
+		assert_eq!(c.sync_interval_secs, 300);
+		assert!(c.subscriptions.is_empty(), "no boot subscriptions by default");
+		assert!(c.contracts.is_empty(), "no hosted contracts by default");
 		assert!(
 			!c.seed,
 			"dialing the public seed is opt-in, never a default"

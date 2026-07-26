@@ -28,6 +28,7 @@ pub(crate) fn tool_schemas() -> Vec<serde_json::Value> {
 				"ascending": {"type": "boolean", "description": "sort ascending (default false)"},
 				"source":    {"type": "string", "description": "filter by source system"},
 				"kind":      {"type": "string", "enum": ["", "fact", "claim", "document", "question", "conclusion"], "description": "filter by thought kind"},
+				"claim_kind": {"type": "string", "description": "filter distilled claims by claim-kind label (builtin or registered). Sub-kind hierarchy is honoured: filtering on a parent kind also returns claims labelled with any registered sub-kind (subClassOf closure)"},
 				"since":     {"type": "string", "description": "ISO8601 timestamp; only include thoughts at or after this time"},
 				"before":    {"type": "string", "description": "ISO8601 timestamp; only include thoughts before this time"},
 				"min_conf":  {"type": "number", "description": "minimum confidence 0.0-1.0"},
@@ -97,6 +98,8 @@ struct QueryArgs {
 	#[serde(default, deserialize_with = "de_kind")]
 	kind: Option<EntityKind>,
 	#[serde(default)]
+	claim_kind: String,
+	#[serde(default)]
 	scheme: Option<String>,
 	#[serde(default)]
 	since: String,
@@ -127,6 +130,27 @@ fn de_kind<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<EntityKind>,
 }
 
 impl Server {
+	// Resolves a `claim_kind` label to its subClassOf closure against the live
+	// registry, so `matches_filter` stays graph-free. Unknown labels are an
+	// error, not an empty result — a typo should say so.
+	fn apply_claim_kind_filter(
+		&self,
+		p: &QueryArgs,
+		opts: &mut retrieval::score::QueryOptions,
+	) -> Result<(), String> {
+		if p.claim_kind.is_empty() {
+			return Ok(());
+		}
+		let g = self.graph.read();
+		let known = crate::ingest::distill::DEFAULT_KINDS.contains(&p.claim_kind.as_str())
+			|| g.root.claim_kinds.contains_key(&p.claim_kind);
+		if !known {
+			return Err(format!("unknown claim kind: {}", p.claim_kind));
+		}
+		opts.claim_kinds = Some(g.root.claim_kind_closure(&p.claim_kind));
+		Ok(())
+	}
+
 	#[allow(clippy::field_reassign_with_default)]
 	pub(crate) fn tool_query(&self, args: &serde_json::Value) -> serde_json::Value {
 		let p: QueryArgs = match serde_json::from_value(args.clone()) {
@@ -139,10 +163,13 @@ impl Server {
 			// `{results, missing}` so a caller can tell a filter-drop (in results,
 			// flagged) from a non-existent id (in missing). Prefix and cold tier
 			// both resolve, matching the single-id path.
-			let opts = match build_query_options(&p) {
+			let mut opts = match build_query_options(&p) {
 				Ok(o) => o,
 				Err(e) => return tool_error(&e),
 			};
+			if let Err(e) = self.apply_claim_kind_filter(&p, &mut opts) {
+				return tool_error(&e);
+			}
 			let g = self.graph.read();
 			let mut results = Vec::new();
 			let mut missing = Vec::new();
@@ -164,10 +191,13 @@ impl Server {
 			// A bare `query {id}` still serves everything — `QueryOptions::default()`
 			// leaves every filter off, `valid_at`/`as_of` included, so an expired row
 			// keeps arriving flagged rather than filtered.
-			let opts = match build_query_options(&p) {
+			let mut opts = match build_query_options(&p) {
 				Ok(o) => o,
 				Err(e) => return tool_error(&e),
 			};
+			if let Err(e) = self.apply_claim_kind_filter(&p, &mut opts) {
+				return tool_error(&e);
+			}
 			let g = self.graph.read();
 			// Prefix and cold tier both included so `kern get` can route here
 			// without resolving fewer ids than it did reading the store itself.
@@ -197,10 +227,14 @@ impl Server {
 			None => return tool_error("no tokio runtime"),
 		};
 
-		let opts = match build_query_options(&p) {
+		let mut opts = match build_query_options(&p) {
 			Ok(o) => o,
 			Err(e) => return tool_error(&e),
 		};
+		if let Err(e) = self.apply_claim_kind_filter(&p, &mut opts) {
+			return tool_error(&e);
+		}
+		let opts = opts;
 
 		let result = retrieval::query::query_locked(
 			&self.graph,
@@ -642,6 +676,62 @@ mod id_filter_tests {
 		assert!(
 			text(&out).contains("since"),
 			"names the field: {}",
+			text(&out)
+		);
+	}
+
+	fn distilled_claim(id: &str, label: &str) -> Entity {
+		Entity {
+			id: id.into(),
+			kind: EntityKind::Claim,
+			source: Source::Session {
+				session_id: "session:x".into(),
+				section: String::new(),
+				title: format!("session://{label}"),
+			},
+			statements: vec!["a distilled thing".into()],
+			..Default::default()
+		}
+	}
+
+	// The subClassOf half of the claim_kind filter: a sub-kind registered under
+	// a parent must answer a query that filtered on the parent.
+	#[tokio::test]
+	async fn claim_kind_filter_admits_registered_sub_kinds_of_the_asked_parent() {
+		let srv = server_with(distilled_claim("c1", "rust-fact"));
+		srv.graph
+			.write()
+			.root
+			.add_claim_kind(
+				"rust-fact",
+				"rust facts",
+				Some("code-fact"),
+				&crate::ingest::distill::DEFAULT_KINDS,
+			)
+			.expect("builtin parent registers");
+
+		let out = srv.tool_query(&serde_json::json!({"id": "c1", "claim_kind": "code-fact"}));
+		assert!(
+			!is_error(&out),
+			"a rust-fact claim answers a code-fact filter through the hierarchy: {out}"
+		);
+		assert_eq!(body(&out)["id"], serde_json::json!("c1"));
+
+		let out = srv.tool_query(&serde_json::json!({"id": "c1", "claim_kind": "preference"}));
+		assert!(
+			is_error(&out),
+			"an unrelated claim kind must not match: {out}"
+		);
+	}
+
+	#[tokio::test]
+	async fn claim_kind_filter_rejects_an_unknown_label_instead_of_matching_nothing() {
+		let srv = server_with(distilled_claim("c1", "decision"));
+		let out = srv.tool_query(&serde_json::json!({"id": "c1", "claim_kind": "ghost"}));
+		assert!(is_error(&out));
+		assert!(
+			text(&out).contains("unknown claim kind"),
+			"a typo says so: {}",
 			text(&out)
 		);
 	}

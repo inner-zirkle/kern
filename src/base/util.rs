@@ -5,7 +5,7 @@ pub fn content_hash(s: &str) -> String {
 	hex::encode(hash)
 }
 
-mod hex {
+pub mod hex {
 	const HEX_CHARS: &[u8; 16] = b"0123456789abcdef";
 
 	pub fn encode(bytes: impl AsRef<[u8]>) -> String {

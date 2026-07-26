@@ -13,8 +13,21 @@ use crate::base::types::{Kern, ReasonKind};
 use crate::crdt::{lww_wins, GCounter};
 use crate::tick;
 
+use super::contract::{
+	contract_kern_id, contract_loc, entity_sig_digest, tombstone_digest, Applied, ContractId,
+	ContractState, Delta as ContractDelta, ParamsV0, SignedCrdt, SignedEntity, SyncContract,
+};
 use super::node::{FetchHandler, Handler, Node};
+use super::subs::SubTable;
 use super::types::*;
+
+/// One hosted contract: the policy plus the signed bodies this node can
+/// prove. Only hosts participate in a contract's subscription tree — every
+/// hop validates, and validation needs the params.
+pub struct ContractHost {
+	pub params: ParamsV0,
+	pub state: RwLock<ContractState>,
+}
 
 pub struct Deps {
 	pub graph: Arc<RwLock<GraphGnn>>,
@@ -22,6 +35,8 @@ pub struct Deps {
 	pub queue: Option<Arc<tick::queue::Queue>>,
 	// Every federation mutation must call this or federated knowledge is lost on restart.
 	pub save: Option<std::sync::Arc<dyn Fn() + Send + Sync>>,
+	pub contracts: Arc<RwLock<std::collections::HashMap<ContractId, Arc<ContractHost>>>>,
+	pub subs: Arc<SubTable>,
 }
 
 impl Deps {
@@ -30,24 +45,38 @@ impl Deps {
 			s();
 		}
 	}
+
+	fn host(&self, cid: &ContractId) -> Option<Arc<ContractHost>> {
+		self.contracts.read().get(cid).cloned()
+	}
 }
 
 pub fn new_handler(d: Arc<Deps>) -> Handler {
-	Arc::new(move |msg: GossipMessage| match msg.kind {
-		GossipKind::Sphere => {
-			if msg.id.starts_with("answer-") {
-				handle_answer(&d, msg);
-			} else {
-				handle_sphere(&d, msg);
+	Arc::new(
+		move |peer: crate::gossip::identity::PeerId, msg: GossipMessage| match msg.kind {
+			GossipKind::Sphere => {
+				if msg.id.starts_with("answer-") {
+					handle_answer(&d, msg);
+				} else {
+					handle_sphere(&d, msg);
+				}
 			}
-		}
-		GossipKind::Question => handle_question(&d, msg),
-		GossipKind::Pulse => handle_pulse(&d, msg),
-		GossipKind::PeerExchange => handle_peer_exchange(&d, msg),
-		GossipKind::Fetch => {}
-		GossipKind::Delta => handle_crdt_delta(&d, msg),
-		GossipKind::EntitySync => handle_entity_sync(&d, msg),
-	})
+			GossipKind::Question => handle_question(&d, peer, msg),
+			GossipKind::Pulse => handle_pulse(&d, msg),
+			GossipKind::PeerExchange => handle_peer_exchange(&d, msg),
+			GossipKind::Fetch => {}
+			// Request/response kinds answered inside Node::handle_conn; nothing
+			// for the graph handler to do.
+			GossipKind::FindNearest | GossipKind::Nearest => {}
+			GossipKind::Delta => handle_crdt_delta(&d, msg),
+			GossipKind::EntitySync => handle_entity_sync(&d, msg),
+			GossipKind::Subscribe => handle_subscribe(&d, msg),
+			GossipKind::SubAck => handle_suback(&d, msg),
+			GossipKind::ContractDelta | GossipKind::SyncDiff => handle_contract_delta(&d, msg),
+			GossipKind::SyncSummary => handle_sync_summary(&d, msg),
+			GossipKind::Tombstone => handle_tombstone(&d, msg),
+		},
+	)
 }
 
 pub fn wire_fetch(node: Arc<Node>, graph: Arc<RwLock<GraphGnn>>) {
@@ -301,7 +330,7 @@ fn handle_answer(d: &Arc<Deps>, msg: GossipMessage) {
 	}
 }
 
-fn handle_question(d: &Deps, msg: GossipMessage) {
+fn handle_question(d: &Deps, peer: crate::gossip::identity::PeerId, msg: GossipMessage) {
 	let question = match &msg.payload {
 		GossipPayload::Question(q) => q,
 		_ => return,
@@ -314,8 +343,14 @@ fn handle_question(d: &Deps, msg: GossipMessage) {
 	// SECURITY: answering tells the peer we hold something above the resolve
 	// threshold for a vector THEY chose. That is a membership oracle, and the
 	// content never has to be sent for it to leak. A budget makes bulk extraction
-	// expensive; only an authenticated identity (item 33) can refuse outright.
-	if !d.node.question_rate.allow(&msg.origin) {
+	// expensive. The budget is keyed on the envelope-verified PeerId — spoofing
+	// a fresh `origin` string no longer buys a fresh budget; a fresh budget now
+	// costs a fresh keypair.
+	if !d
+		.node
+		.question_rate
+		.allow(&crate::base::util::hex::encode(peer))
+	{
 		if QUESTION_RATE_WARN.allow() {
 			tracing::warn!(
 				target: "kern.gossip",
@@ -524,7 +559,7 @@ pub fn forged_id_rejected() -> u64 {
 // SHAPE are judged: an id that is not a 64-char lowercase hex digest was never a
 // content hash, so failing it would be an assertion about a format we do not
 // define — and dropping legitimate remote knowledge is worse than the exposure.
-fn id_matches_body(e: &crate::base::types::Entity) -> bool {
+pub(crate) fn id_matches_body(e: &crate::base::types::Entity) -> bool {
 	let looks_hashed = e.id.len() == 64
 		&& e
 			.id
@@ -624,6 +659,332 @@ fn new_phantom_kern(g: &GraphGnn, phantom_id: &str) -> Kern {
 	k
 }
 
+// ---- Contract kerns: subscription tree + delta sync (FEDERATION_PLAN §4) ----
+
+static CONTRACT_DELTA_WARN: LogThrottle = LogThrottle::new(300);
+
+fn ensure_contract_kern(g: &mut GraphGnn, cid: &ContractId) -> String {
+	let kid = contract_kern_id(cid);
+	if !g.kerns.contains_key(&kid) {
+		let k = new_phantom_kern(g, &kid);
+		g.register(k);
+	}
+	kid
+}
+
+// A Subscribe travels toward loc(ContractId); each hosting hop records the
+// asker as downstream, answers with its summary, and (once) extends the tree
+// toward the key. Non-hosts drop it: every tree hop validates deltas, and
+// validation needs the params only hosts carry.
+fn handle_subscribe(d: &Arc<Deps>, msg: GossipMessage) {
+	let cid = match &msg.payload {
+		GossipPayload::Subscribe(p) => p.contract,
+		_ => return,
+	};
+	let Some(host) = d.host(&cid) else { return };
+	if msg.origin.is_empty() || msg.origin == d.node.addr() {
+		return;
+	}
+	d.subs.add_downstream(&cid, &msg.origin);
+
+	let summary = SignedCrdt.summarize(&host.state.read());
+	d.node.send_to(
+		&msg.origin,
+		GossipMessage {
+			kind: GossipKind::SubAck,
+			id: format!("suback-{}-{}", d.node.addr(), crate::base::util::now_nanos()),
+			origin: d.node.addr(),
+			payload: GossipPayload::SubAck(SubAckPayload {
+				contract: cid,
+				summary,
+			}),
+		},
+	);
+
+	// Extend the tree toward the key once; the peer closest to loc(cid) ends
+	// up the root because route() returns None there.
+	if d.subs.upstream(&cid).is_none() {
+		subscribe_upstream(d, &cid);
+	}
+}
+
+// Resolve and dial our tree parent for a contract: the ring neighbor
+// strictly closer to the key, if any.
+pub fn subscribe_upstream(d: &Arc<Deps>, cid: &ContractId) {
+	let Some(next) = d.node.route_toward(contract_loc(cid)) else {
+		return;
+	};
+	// Never adopt our own subscriber as parent — that closes a cycle that
+	// starves everyone outside it.
+	if next == d.node.addr() || d.subs.is_downstream(cid, &next) {
+		return;
+	}
+	d.node.send_to(
+		&next,
+		GossipMessage {
+			kind: GossipKind::Subscribe,
+			id: format!("sub-{}-{}", d.node.addr(), crate::base::util::now_nanos()),
+			origin: d.node.addr(),
+			payload: GossipPayload::Subscribe(SubscribePayload { contract: *cid }),
+		},
+	);
+}
+
+// The parent acknowledged: adopt it as upstream and reconcile both ways —
+// push what it misses, show it our summary so it pushes what we miss.
+fn handle_suback(d: &Arc<Deps>, msg: GossipMessage) {
+	let (cid, their_summary) = match &msg.payload {
+		GossipPayload::SubAck(p) => (p.contract, p.summary.clone()),
+		_ => return,
+	};
+	let Some(host) = d.host(&cid) else { return };
+	if msg.origin.is_empty() || d.subs.is_downstream(&cid, &msg.origin) {
+		return;
+	}
+	// First parent wins: a later SubAck (a raced tree extension) must not
+	// re-root us mid-flight; eviction and the sync loop handle real repair.
+	match d.subs.upstream(&cid) {
+		Some(existing) if existing != msg.origin => return,
+		_ => d.subs.set_upstream(&cid, Some(msg.origin.clone())),
+	}
+
+	let (ours, our_summary) = {
+		let state = host.state.read();
+		(SignedCrdt.diff(&state, &their_summary), SignedCrdt.summarize(&state))
+	};
+	if !ours.entities.is_empty() {
+		d.node.send_to(
+			&msg.origin,
+			GossipMessage {
+				kind: GossipKind::SyncDiff,
+				id: format!("sdiff-{}-{}", d.node.addr(), crate::base::util::now_nanos()),
+				origin: d.node.addr(),
+				payload: GossipPayload::SyncDiff(SyncDiffPayload {
+					contract: cid,
+					delta: ours,
+				}),
+			},
+		);
+	}
+	if our_summary.root != their_summary.root {
+		d.node.send_to(
+			&msg.origin,
+			GossipMessage {
+				kind: GossipKind::SyncSummary,
+				id: format!("ssum-{}-{}", d.node.addr(), crate::base::util::now_nanos()),
+				origin: d.node.addr(),
+				payload: GossipPayload::SyncSummary(SyncSummaryPayload {
+					contract: cid,
+					summary: our_summary,
+				}),
+			},
+		);
+	}
+}
+
+// Anti-entropy pull: a peer showed us its summary; ship exactly what it
+// lacks. Convergence terminates the exchange — equal roots diff to empty.
+fn handle_sync_summary(d: &Arc<Deps>, msg: GossipMessage) {
+	let (cid, their_summary) = match &msg.payload {
+		GossipPayload::SyncSummary(p) => (p.contract, p.summary.clone()),
+		_ => return,
+	};
+	let Some(host) = d.host(&cid) else { return };
+	if msg.origin.is_empty() {
+		return;
+	}
+	let missing = SignedCrdt.diff(&host.state.read(), &their_summary);
+	if missing.entities.is_empty() {
+		return;
+	}
+	d.node.send_to(
+		&msg.origin,
+		GossipMessage {
+			kind: GossipKind::SyncDiff,
+			id: format!("sdiff-{}-{}", d.node.addr(), crate::base::util::now_nanos()),
+			origin: d.node.addr(),
+			payload: GossipPayload::SyncDiff(SyncDiffPayload {
+				contract: cid,
+				delta: missing,
+			}),
+		},
+	);
+}
+
+// A delta arrived (live tree flood or anti-entropy diff — same admission
+// path): validate against the contract, apply through the CRDT merge, and
+// forward along the tree only when it changed something here.
+fn handle_contract_delta(d: &Arc<Deps>, msg: GossipMessage) {
+	let (cid, delta) = match &msg.payload {
+		GossipPayload::ContractDelta(p) => (p.contract, p.delta.clone()),
+		GossipPayload::SyncDiff(p) => (p.contract, p.delta.clone()),
+		_ => return,
+	};
+	let Some(host) = d.host(&cid) else { return };
+
+	let applied = {
+		let mut state = host.state.write();
+		if let Err(refusal) = SignedCrdt.validate_delta(&host.params, &state, &delta) {
+			if CONTRACT_DELTA_WARN.allow() {
+				tracing::warn!(
+					target: "kern.gossip",
+					origin = %msg.origin,
+					contract = %crate::base::util::short_id(&crate::base::util::hex::encode(cid)),
+					refusal = ?refusal,
+					total_refused = super::contract::contract_refused(),
+					"contract delta refused (further refusals counted, not logged)"
+				);
+			}
+			return;
+		}
+		let mut g = d.graph.write();
+		let kid = ensure_contract_kern(&mut g, &cid);
+		SignedCrdt.apply(&mut g, &kid, &host.params, &mut state, delta.clone())
+	};
+
+	if applied.changed {
+		d.persist();
+		// Natural flood suppression: only news travels further.
+		for addr in d.subs.fanout(&cid, &msg.origin) {
+			d.node.send_to(
+				&addr,
+				GossipMessage {
+					kind: GossipKind::ContractDelta,
+					id: format!("cdelta-{}-{}", d.node.addr(), crate::base::util::now_nanos()),
+					origin: d.node.addr(),
+					payload: GossipPayload::ContractDelta(ContractDeltaPayload {
+						contract: cid,
+						delta: delta.clone(),
+					}),
+				},
+			);
+		}
+	}
+}
+
+// An owner retired the contract in favour of an amended one. Verify the
+// owner signature over (old, new); v0 drops the subscription and logs the
+// forward pointer — following it is the operator's call.
+fn handle_tombstone(d: &Arc<Deps>, msg: GossipMessage) {
+	let p = match &msg.payload {
+		GossipPayload::Tombstone(p) => p.clone(),
+		_ => return,
+	};
+	let Some(host) = d.host(&p.contract) else { return };
+	let digest = tombstone_digest(&p.contract, &p.new_id);
+	let signed_by_owner = host
+		.params
+		.owners
+		.iter()
+		.any(|o| crate::gossip::identity::verify_sig_by(o, &digest, &p.sig));
+	if !signed_by_owner {
+		return;
+	}
+	d.subs.remove(&p.contract);
+	tracing::info!(
+		target: "kern.gossip",
+		old = %crate::base::util::short_id(&crate::base::util::hex::encode(p.contract)),
+		new = %crate::base::util::short_id(&crate::base::util::hex::encode(p.new_id)),
+		"contract tombstoned by its owner; unsubscribed — resubscribe to the new id to follow"
+	);
+}
+
+/// Local ingest into a shared kern: sign the entity with the daemon's key,
+/// admit it through the same validation peers apply, then flood the delta
+/// along the tree. Refusals surface to the caller — publishing something
+/// the contract refuses locally would only be refused remotely anyway.
+pub fn publish_to_contract(
+	d: &Arc<Deps>,
+	cid: &ContractId,
+	entity: crate::base::types::Entity,
+) -> Result<Applied, String> {
+	let Some(host) = d.host(cid) else {
+		return Err("contract not hosted on this node".into());
+	};
+	let lamport = d.node.bump_lamport();
+	let digest = entity_sig_digest(&entity.id, lamport);
+	let se = SignedEntity {
+		sig: d.node.identity.sign_digest(&digest),
+		signer: d.node.identity.pubkey(),
+		lamport,
+		entity,
+	};
+	let delta = ContractDelta {
+		entities: vec![se],
+	};
+	let applied = {
+		let mut state = host.state.write();
+		SignedCrdt
+			.validate_delta(&host.params, &state, &delta)
+			.map_err(|r| format!("contract refused the publish: {r:?}"))?;
+		let mut g = d.graph.write();
+		let kid = ensure_contract_kern(&mut g, cid);
+		SignedCrdt.apply(&mut g, &kid, &host.params, &mut state, delta.clone())
+	};
+	if applied.changed {
+		d.persist();
+	}
+	for addr in d.subs.fanout(cid, "") {
+		d.node.send_to(
+			&addr,
+			GossipMessage {
+				kind: GossipKind::ContractDelta,
+				id: format!("cdelta-{}-{}", d.node.addr(), crate::base::util::now_nanos()),
+				origin: d.node.addr(),
+				payload: GossipPayload::ContractDelta(ContractDeltaPayload {
+					contract: *cid,
+					delta: delta.clone(),
+				}),
+			},
+		);
+	}
+	Ok(applied)
+}
+
+/// One anti-entropy pass: show our summary to each tree parent (they answer
+/// with a SyncDiff of what we lack), and re-dial a parent for any contract
+/// still rootless. Called on the sync interval and by tests.
+pub fn contract_sync_once(d: &Arc<Deps>) {
+	let contracts: Vec<ContractId> = d.contracts.read().keys().copied().collect();
+	for cid in contracts {
+		let Some(host) = d.host(&cid) else { continue };
+		match d.subs.upstream(&cid) {
+			Some(up) => {
+				let summary = SignedCrdt.summarize(&host.state.read());
+				d.node.send_to(
+					&up,
+					GossipMessage {
+						kind: GossipKind::SyncSummary,
+						id: format!("ssum-{}-{}", d.node.addr(), crate::base::util::now_nanos()),
+						origin: d.node.addr(),
+						payload: GossipPayload::SyncSummary(SyncSummaryPayload {
+							contract: cid,
+							summary,
+						}),
+					},
+				);
+			}
+			None => subscribe_upstream(d, &cid),
+		}
+	}
+}
+
+/// The periodic anti-entropy driver (FEDERATION_PLAN §4): every
+/// `sync_interval_secs`, reconcile with tree parents.
+pub fn start_contract_sync(d: Arc<Deps>, interval_secs: u64) {
+	let mut stop = d.node.stop_rx.clone();
+	tokio::spawn(async move {
+		let mut interval =
+			tokio::time::interval(std::time::Duration::from_secs(interval_secs.max(1)));
+		loop {
+			tokio::select! {
+				_ = interval.tick() => contract_sync_once(&d),
+				_ = stop.changed() => break,
+			}
+		}
+	});
+}
+
 fn resolve_question_from_peer(
 	d: &Arc<Deps>,
 	reason_id: &str,
@@ -693,6 +1054,8 @@ mod tests {
 			node: Node::new("127.0.0.1:0", "testnet", vec![]),
 			queue: None,
 			save: None,
+			contracts: Arc::new(RwLock::new(std::collections::HashMap::new())),
+			subs: Arc::new(SubTable::new()),
 		}
 	}
 
@@ -806,6 +1169,8 @@ mod tests {
 			save: Some(Arc::new(move || {
 				calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
 			})),
+			contracts: Arc::new(RwLock::new(std::collections::HashMap::new())),
+			subs: Arc::new(SubTable::new()),
 		}
 	}
 
@@ -986,7 +1351,7 @@ mod tests {
 				question_text: String::new(),
 			}),
 		};
-		handle_question(&d, msg);
+		handle_question(&d, [1u8; 32], msg);
 	}
 
 	#[test]
@@ -998,6 +1363,8 @@ mod tests {
 			node: Node::new("127.0.0.1:0", "testnet", vec![]),
 			queue: Some(q),
 			save: None,
+			contracts: Arc::new(RwLock::new(std::collections::HashMap::new())),
+			subs: Arc::new(SubTable::new()),
 		};
 		let msg = GossipMessage {
 			kind: GossipKind::Pulse,
@@ -1174,12 +1541,172 @@ mod tests {
 		};
 
 		let before = d.node.question_rate.refused();
+		// One keypair, many origin strings: the budget must follow the verified
+		// PeerId, so the flood exhausts a single budget no matter what `origin`
+		// claims.
 		for i in 0..(GOSSIP_QUESTION_PER_MIN as usize + 20) {
-			handle_question(&d, probe(i));
+			handle_question(&d, [9u8; 32], probe(i));
 		}
 		assert!(
 			d.node.question_rate.refused() > before,
 			"an unbounded membership oracle is extractable in bulk"
 		);
+	}
+
+	// ---- Subscription tree e2e (FEDERATION_PLAN §9 gate 4): three nodes
+	// chained over real sockets; a leaf publish reaches all three; a healed
+	// partition converges within one anti-entropy pass. ----
+
+	fn open_contract() -> (
+		crate::gossip::contract::ContractId,
+		crate::gossip::contract::ParamsV0,
+	) {
+		use crate::gossip::contract::*;
+		let params = ParamsV0 {
+			owners: Vec::new(),
+			writers: WritePolicy::Open,
+			kinds: None,
+			max_entities: 100,
+			retention_secs: None,
+			private: None,
+			legacy_network_id: Some("fed-e2e".into()),
+		};
+		(contract_id(SIGNED_CRDT_V0_TAG, &params), params)
+	}
+
+	async fn fed_node(
+		cid: crate::gossip::contract::ContractId,
+		params: crate::gossip::contract::ParamsV0,
+	) -> (Arc<Deps>, String) {
+		let node = Node::new("127.0.0.1:0", "fed-e2e", vec![]);
+		node.enable_ring();
+		let mut contracts = std::collections::HashMap::new();
+		contracts.insert(
+			cid,
+			Arc::new(ContractHost {
+				params,
+				state: RwLock::new(Default::default()),
+			}),
+		);
+		let d = Arc::new(Deps {
+			graph: Arc::new(RwLock::new(GraphGnn::new())),
+			node: node.clone(),
+			queue: None,
+			save: None,
+			contracts: Arc::new(RwLock::new(contracts)),
+			subs: Arc::new(crate::gossip::subs::SubTable::new()),
+		});
+		node.set_handler(new_handler(d.clone()));
+		let addr = node.listen().await.expect("fed node binds");
+		(d, addr)
+	}
+
+	fn fed_entity(text: &str) -> Entity {
+		Entity {
+			id: crate::base::util::content_hash(text),
+			statements: vec![text.to_string()],
+			chunks: vec![crate::base::types::ChunkPart {
+				kind: crate::base::types::ChunkPartKind::StatementRef,
+				text: String::new(),
+				index: 0,
+			}],
+			..Default::default()
+		}
+	}
+
+	fn holds(d: &Arc<Deps>, cid: &crate::gossip::contract::ContractId, id: &str) -> bool {
+		let kid = crate::gossip::contract::contract_kern_id(cid);
+		let g = d.graph.read();
+		g.kerns
+			.get(&kid)
+			.map(|k| k.entities.contains_key(id))
+			.unwrap_or(false)
+	}
+
+	async fn wait_for(mut cond: impl FnMut() -> bool, what: &str) {
+		let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+		while !cond() {
+			assert!(std::time::Instant::now() < deadline, "timed out: {what}");
+			tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+		}
+	}
+
+	#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+	async fn a_leaf_publish_reaches_all_three_daemons_and_anti_entropy_heals_a_partition() {
+		let (cid, params) = open_contract();
+		let (a, a_addr) = fed_node(cid, params.clone()).await;
+		let (b, b_addr) = fed_node(cid, params.clone()).await;
+		let (c, _c_addr) = fed_node(cid, params).await;
+
+		// Chain: c subscribes via b, b via a. Subscribe frames travel over the
+		// real sockets; SubAck sets each hop's upstream.
+		b.node.send_to(
+			&a_addr,
+			GossipMessage {
+				kind: GossipKind::Subscribe,
+				id: "sub-b".into(),
+				origin: b.node.addr(),
+				payload: GossipPayload::Subscribe(SubscribePayload { contract: cid }),
+			},
+		);
+		c.node.send_to(
+			&b_addr,
+			GossipMessage {
+				kind: GossipKind::Subscribe,
+				id: "sub-c".into(),
+				origin: c.node.addr(),
+				payload: GossipPayload::Subscribe(SubscribePayload { contract: cid }),
+			},
+		);
+		wait_for(
+			|| b.subs.upstream(&cid).as_deref() == Some(a_addr.as_str()),
+			"b adopts a as its tree parent",
+		)
+		.await;
+		wait_for(
+			|| c.subs.upstream(&cid).as_deref() == Some(b_addr.as_str()),
+			"c adopts b as its tree parent",
+		)
+		.await;
+
+		// Ingest at the leaf: the signed delta floods up the tree.
+		let leaf_fact = fed_entity("the leaf daemon learned this first");
+		let leaf_id = leaf_fact.id.clone();
+		publish_to_contract(&c, &cid, leaf_fact).expect("open contract admits the leaf");
+		wait_for(
+			|| holds(&a, &cid, &leaf_id) && holds(&b, &cid, &leaf_id) && holds(&c, &cid, &leaf_id),
+			"leaf publish reaches all three daemons",
+		)
+		.await;
+
+		// Partition c: sever its tree links so a live delta misses it.
+		c.subs.remove(&cid);
+		b.subs.remove(&cid);
+		let root_fact = fed_entity("published while the leaf was partitioned");
+		let root_id = root_fact.id.clone();
+		publish_to_contract(&a, &cid, root_fact).expect("root publish");
+		wait_for(|| holds(&a, &cid, &root_id), "root holds its own publish").await;
+		tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+		assert!(
+			!holds(&c, &cid, &root_id),
+			"partitioned leaf must have missed the live delta"
+		);
+
+		// Heal: re-link the chain and run one anti-entropy pass at each hop —
+		// summaries flow up, diffs flow back down.
+		b.subs.set_upstream(&cid, Some(a_addr.clone()));
+		c.subs.set_upstream(&cid, Some(b_addr.clone()));
+		contract_sync_once(&b);
+		wait_for(|| holds(&b, &cid, &root_id), "b converges via anti-entropy").await;
+		contract_sync_once(&c);
+		wait_for(
+			|| holds(&c, &cid, &root_id),
+			"healed leaf converges within one sync pass",
+		)
+		.await;
+
+		a.node.close();
+		b.node.close();
+		c.node.close();
 	}
 }

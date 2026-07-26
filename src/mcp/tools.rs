@@ -5,6 +5,7 @@ pub fn tool_definitions() -> Vec<serde_json::Value> {
 	defs.extend(super::tools_admin::tool_schemas());
 	defs.extend(super::tools_intake::tool_schemas());
 	defs.extend(super::tools_setup::tool_schemas());
+	defs.extend(super::tools_delegate::tool_schemas());
 	defs
 }
 
@@ -44,6 +45,8 @@ mod tests {
 			"gc",
 			"intake_drain",
 			"setup",
+			"sign",
+			"contract_grant",
 		];
 		assert_eq!(names, expected, "tool set must match (order intentional)");
 

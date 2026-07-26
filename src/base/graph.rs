@@ -693,6 +693,12 @@ impl GraphGnn {
 		&self.kerns
 	}
 
+	/// Kerns unloaded from RAM whose rows still live on disk. The flush prune
+	/// must spare these ids — deleting them turns residency into forgetting.
+	pub fn unloaded_ids(&self) -> &HashSet<String> {
+		&self.unloaded
+	}
+
 	pub fn from_saved_with_mode(
 		root: Kern,
 		network_id: String,

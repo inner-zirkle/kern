@@ -645,10 +645,7 @@ pub fn supersede_renamed(
 			break;
 		}
 	}
-	let (old_id, old_kern_id, old_vec) = match hit {
-		Some(t) => t,
-		None => return None,
-	};
+	let (old_id, old_kern_id, old_vec) = hit?;
 	if old_id == new_id {
 		// Pure rename: content unchanged, same id. Re-key the survivor's
 		// external_id and source-index from the old path to the new path so
@@ -957,7 +954,7 @@ pub fn promote_unnamed(
 	if !vec.is_empty() {
 		if let Some(k) = g.get_mut(kern_id) {
 			k.graviton_text = name.to_string();
-			k.graviton_vec = vec.into();
+			k.graviton_vec = vec;
 			k.mass = mass;
 		}
 		return Ok(());

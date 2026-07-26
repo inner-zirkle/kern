@@ -278,7 +278,14 @@ pub enum GravitonAction {
 
 #[derive(Subcommand)]
 pub enum ClaimKindAction {
-	Add { name: String, description: String },
+	Add {
+		name: String,
+		description: String,
+		/// Optional parent claim kind (builtin or registered) this kind
+		/// specializes — queries filtering on the parent also return this kind.
+		#[arg(long)]
+		parent: Option<String>,
+	},
 	Rm { name: String },
 }
 
@@ -402,6 +409,11 @@ pub(crate) fn save_graph_guarded(
 				);
 				let mut w = graph.write();
 				let Some(fresh) = crate::base::persist::reload_from_disk(&w) else {
+					tracing::error!(
+						target: "kern.persist",
+						data_dir = %cfg.data_dir,
+						"reload after a refused flush failed (unreadable or rootless store); unflushed rows stay in memory until the next snapshot"
+					);
 					return;
 				};
 				let disk_epoch = fresh.flushed_epoch();
@@ -409,6 +421,12 @@ pub(crate) fn save_graph_guarded(
 				w.set_flushed_epoch(disk_epoch);
 			}
 			Err(e) => {
+				tracing::error!(
+					target: "kern.persist",
+					error = %e,
+					data_dir = %cfg.data_dir,
+					"flush failed; unflushed rows stay in memory until the next snapshot"
+				);
 				eprintln!("save: {e}");
 				return;
 			}
@@ -690,17 +708,37 @@ pub(crate) async fn bootstrap(cli: &Cli, cfg: &crate::config::Config) -> EngineH
 
 	// Advisory, and deliberately non-fatal: the daemon is the graph's owner, so
 	// it claims the dir but never refuses to serve over a lock it cannot take.
-	// A takeover boot expects the predecessor to still hold it for a few ms.
-	let writer_lock = match crate::base::lock::acquire(&cfg.data_dir, "daemon") {
-		Ok(l) => Some(l),
-		Err(e) => {
-			tracing::warn!(
-				target: "kern.startup",
-				error = %e,
-				"could not claim the writer lock; direct-writer admin commands will not be refused while this daemon runs"
-			);
-			None
+	// A takeover boot expects the predecessor to still hold it for a few ms, so
+	// retry with backoff before giving up — a daemon that serves for hours
+	// without the lock leaves the dir open to a concurrent writer wipe.
+	let writer_lock = {
+		const LOCK_RETRIES: u32 = 10;
+		let mut lock = None;
+		for attempt in 0..LOCK_RETRIES {
+			match crate::base::lock::acquire(&cfg.data_dir, "daemon") {
+				Ok(l) => {
+					lock = Some(l);
+					break;
+				}
+				Err(e) if attempt + 1 < LOCK_RETRIES => {
+					tracing::info!(
+						target: "kern.startup",
+						error = %e,
+						attempt,
+						"writer lock held; retrying"
+					);
+					tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+				}
+				Err(e) => {
+					tracing::error!(
+						target: "kern.startup",
+						error = %e,
+						"could not claim the writer lock after {LOCK_RETRIES} attempts; direct-writer admin commands will not be refused while this daemon runs"
+					);
+				}
+			}
 		}
+		lock
 	};
 
 	let reason_url = if cli.reason_url.is_empty() {
@@ -1191,23 +1229,117 @@ async fn start_gossip(
 	if let Some(seed) = cfg.gossip.effective_seed() {
 		tracing::info!(target: "kern.gossip", seed = %seed, "gossip bootstrap seed — federation is unauthenticated and unencrypted; set [gossip] seed = false to stay LAN-only");
 	}
-	let node = crate::gossip::node::Node::new(&cfg.gossip.addr, &network_id, bootstrap);
+	// The daemon's persistent peer identity: every outbound frame is signed by
+	// it. Failing to read/mint the key file degrades to an ephemeral identity
+	// rather than killing the daemon — federation is optional, boot is not.
+	let key_path = if cfg.gossip.identity_path.trim().is_empty() {
+		std::path::Path::new(&cfg.data_dir).join("peer.key")
+	} else {
+		std::path::PathBuf::from(cfg.gossip.identity_path.trim())
+	};
+	let identity = match crate::gossip::identity::PeerIdentity::load_or_mint(&key_path) {
+		Ok(id) => std::sync::Arc::new(id),
+		Err(e) => {
+			tracing::warn!(
+				target: "kern.gossip",
+				path = %key_path.display(),
+				error = %e,
+				"peer key unavailable; running with an ephemeral identity for this process"
+			);
+			std::sync::Arc::new(crate::gossip::identity::PeerIdentity::generate())
+		}
+	};
+	let node = crate::gossip::node::Node::new_with_identity(
+		&cfg.gossip.addr,
+		&network_id,
+		bootstrap,
+		identity,
+	);
 	node.ledger.set_max_entries(cfg.graph.max_ledger_entries);
+	// Contracts this node hosts: each `[[gossip.contracts]]` table whose keys
+	// parse. A table that fails to parse is refused loudly — hosting it with a
+	// silently weakened policy would betray every subscriber.
+	let contracts: std::collections::HashMap<
+		crate::gossip::contract::ContractId,
+		Arc<crate::gossip::handler::ContractHost>,
+	> = cfg
+		.gossip
+		.contracts
+		.iter()
+		.filter_map(|c| match crate::gossip::contract::params_from_config(c) {
+			Some(params) => {
+				let cid = crate::gossip::contract::contract_id(
+					crate::gossip::contract::SIGNED_CRDT_V0_TAG,
+					&params,
+				);
+				tracing::info!(
+					target: "kern.gossip",
+					contract = %crate::base::util::hex::encode(cid),
+					"hosting contract"
+				);
+				Some((
+					cid,
+					Arc::new(crate::gossip::handler::ContractHost {
+						params,
+						state: parking_lot::RwLock::new(Default::default()),
+					}),
+				))
+			}
+			None => {
+				tracing::warn!(
+					target: "kern.gossip",
+					kind = %c.kind,
+					"[gossip.contracts] table refused: unknown kind, writer policy, claim kind, or unparseable key"
+				);
+				None
+			}
+		})
+		.collect();
 	let deps = Arc::new(crate::gossip::handler::Deps {
 		graph: g.clone(),
 		node: node.clone(),
 		queue: Some(q.clone()),
 		save: Some(save_fn.clone()),
+		contracts: Arc::new(parking_lot::RwLock::new(contracts)),
+		subs: Arc::new(crate::gossip::subs::SubTable::new()),
 	});
-	node.set_handler(crate::gossip::handler::new_handler(deps));
+	node.set_handler(crate::gossip::handler::new_handler(deps.clone()));
+	if cfg.gossip.ring {
+		node.enable_ring();
+	}
 	match node.listen().await {
 		Ok(addr) => {
 			tracing::info!(target: "kern.gossip", addr = %addr, network = %network_id, "gossip listening");
+			if cfg.gossip.ring {
+				let join_node = node.clone();
+				let join_peers = cfg.gossip.bootstrap_peers();
+				tokio::spawn(async move {
+					join_node.join_ring(&join_peers).await;
+				});
+			}
 			node.start_heartbeat();
 			crate::gossip::handler::start_announce(node.clone(), g.clone());
 			crate::gossip::handler::start_entity_sync(node.clone(), g.clone());
 			crate::gossip::handler::wire_fetch(node.clone(), g.clone());
 			crate::gossip::handler::start_delta_flush(node.clone(), g.clone());
+			// Anti-entropy for hosted contracts + boot subscriptions (§4). The
+			// first sync pass also dials tree parents for rootless contracts.
+			if !deps.contracts.read().is_empty() || !cfg.gossip.subscriptions.is_empty() {
+				for s in &cfg.gossip.subscriptions {
+					match crate::gossip::contract::parse_key_hex(s) {
+						Some(cid) => crate::gossip::handler::subscribe_upstream(&deps, &cid),
+						None => tracing::warn!(
+							target: "kern.gossip",
+							id = %s,
+							"[gossip] subscriptions entry is not a 64-hex contract id; skipped"
+						),
+					}
+				}
+				crate::gossip::handler::start_contract_sync(
+					deps.clone(),
+					cfg.gossip.sync_interval_secs,
+				);
+			}
 			if cfg.gossip.discovery {
 				crate::gossip::discovery::start_broadcast(&node, cfg.gossip.discovery_port);
 				crate::gossip::discovery::start_listen(&node, cfg.gossip.discovery_port);

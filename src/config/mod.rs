@@ -18,7 +18,7 @@ mod watcher;
 
 pub use embed::{EmbedConfig, DEFAULT_EMBED_MODEL, DEFAULT_EMBED_URL};
 pub use gnn::GnnConfig;
-pub use gossip::GossipConfig;
+pub use gossip::{ContractConfig, GossipConfig};
 pub use graph::GraphConfig;
 pub use hub::HubConfig;
 pub use ingest::IngestConfig;

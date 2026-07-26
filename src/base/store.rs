@@ -34,7 +34,7 @@ const EMBED_KEY: &str = "embed";
 // Version byte prepended ahead of the zstd frame so a reader rejects any other
 // format instead of mis-decoding it. Alpha: exactly one version is ever
 // decodable — a mismatch is a clean BadVersion, never a migration.
-const FORMAT_VERSION: u8 = 8; // v8: added user_id/agent_id/session_id scoping on Entity
+const FORMAT_VERSION: u8 = 9; // v9: claim_kind_parents (RDFS-lite subClassOf) on Kern
 const ZSTD_LEVEL: i32 = 3;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -514,6 +514,9 @@ impl Store {
 	}
 
 	// Destructive prune-and-write shared by both save paths; stamps next_epoch.
+	// `spare` names rows that must survive the prune even though they are not in
+	// `kerns`: an unloaded kern left RAM as pure residency, and its disk row is
+	// the only copy — pruning it would turn an idle sweep into a wipe.
 	fn write_snapshot(
 		&self,
 		wtxn: &mut heed::RwTxn,
@@ -521,6 +524,7 @@ impl Store {
 		network_id: &str,
 		quant_mode: QuantizationMode,
 		next_epoch: u64,
+		spare: &std::collections::HashSet<String>,
 	) -> Result<(), StoreError> {
 		// Collect existing keys first (immutable borrow of the txn), then mutate —
 		// can't hold the iterator borrow across put/delete.
@@ -533,7 +537,7 @@ impl Store {
 			v
 		};
 		for id in existing {
-			if !kerns.contains_key(&id) {
+			if !kerns.contains_key(&id) && !spare.contains(&id) {
 				self.kern.delete(wtxn, id.as_str())?;
 			}
 		}
@@ -558,10 +562,11 @@ impl Store {
 		kerns: &HashMap<String, Kern>,
 		network_id: &str,
 		quant_mode: QuantizationMode,
+		spare: &std::collections::HashSet<String>,
 	) -> Result<u64, StoreError> {
 		let mut wtxn = self.env.write_txn()?;
 		let next = self.epoch_in(&wtxn)?.wrapping_add(1);
-		self.write_snapshot(&mut wtxn, kerns, network_id, quant_mode, next)?;
+		self.write_snapshot(&mut wtxn, kerns, network_id, quant_mode, next, spare)?;
 		wtxn.commit()?;
 		Ok(next)
 	}
@@ -574,6 +579,7 @@ impl Store {
 		network_id: &str,
 		quant_mode: QuantizationMode,
 		expected: u64,
+		spare: &std::collections::HashSet<String>,
 	) -> Result<FlushOutcome, StoreError> {
 		let mut wtxn = self.env.write_txn()?;
 		let disk = self.epoch_in(&wtxn)?;
@@ -585,7 +591,7 @@ impl Store {
 			});
 		}
 		let next = disk.wrapping_add(1);
-		self.write_snapshot(&mut wtxn, kerns, network_id, quant_mode, next)?;
+		self.write_snapshot(&mut wtxn, kerns, network_id, quant_mode, next, spare)?;
 		wtxn.commit()?;
 		Ok(FlushOutcome::Flushed { epoch: next })
 	}
@@ -1095,8 +1101,13 @@ mod tests {
 		kerns.insert("root".to_string(), Kern::new("root", ""));
 		kerns.insert("k".to_string(), kern_with("k", e));
 
-		s.save_all_kerns(&kerns, "net-123", QuantizationMode::Int8)
-			.unwrap();
+		s.save_all_kerns(
+			&kerns,
+			"net-123",
+			QuantizationMode::Int8,
+			&std::collections::HashSet::new(),
+		)
+		.unwrap();
 		let (loaded, net, qm) = s.load_all_kerns().unwrap();
 
 		assert_eq!(net, "net-123");
@@ -1115,15 +1126,25 @@ mod tests {
 		let mut kerns = HashMap::new();
 		kerns.insert("root".to_string(), Kern::new("root", ""));
 		assert_eq!(
-			s.save_all_kerns(&kerns, "n", QuantizationMode::None)
-				.unwrap(),
+			s.save_all_kerns(
+				&kerns,
+				"n",
+				QuantizationMode::None,
+				&std::collections::HashSet::new()
+			)
+			.unwrap(),
 			1,
 			"first save bumps to 1"
 		);
 		assert_eq!(s.read_epoch(), 1);
 		assert_eq!(
-			s.save_all_kerns(&kerns, "n", QuantizationMode::None)
-				.unwrap(),
+			s.save_all_kerns(
+				&kerns,
+				"n",
+				QuantizationMode::None,
+				&std::collections::HashSet::new()
+			)
+			.unwrap(),
 			2,
 			"each save advances the epoch"
 		);
@@ -1142,14 +1163,28 @@ mod tests {
 			kern_with("ka", mk_entity("ea", "durable", 1.0, EntityKind::Claim)),
 		);
 		assert_eq!(
-			s.flush_guarded(&a, "n", QuantizationMode::None, 0).unwrap(),
+			s.flush_guarded(
+				&a,
+				"n",
+				QuantizationMode::None,
+				0,
+				&std::collections::HashSet::new()
+			)
+			.unwrap(),
 			FlushOutcome::Flushed { epoch: 1 },
 		);
 
 		let mut b = HashMap::new();
 		b.insert("root".to_string(), Kern::new("root", ""));
 		assert_eq!(
-			s.flush_guarded(&b, "n", QuantizationMode::None, 0).unwrap(),
+			s.flush_guarded(
+				&b,
+				"n",
+				QuantizationMode::None,
+				0,
+				&std::collections::HashSet::new()
+			)
+			.unwrap(),
 			FlushOutcome::RefusedStale {
 				disk_epoch: 1,
 				expected: 0,
@@ -1163,7 +1198,14 @@ mod tests {
 		assert_eq!(s.read_epoch(), 1, "a refusal does not advance the epoch");
 
 		assert_eq!(
-			s.flush_guarded(&b, "n", QuantizationMode::None, 1).unwrap(),
+			s.flush_guarded(
+				&b,
+				"n",
+				QuantizationMode::None,
+				1,
+				&std::collections::HashSet::new()
+			)
+			.unwrap(),
 			FlushOutcome::Flushed { epoch: 2 },
 		);
 		let (loaded, _, _) = s.load_all_kerns().unwrap();
@@ -1180,16 +1222,63 @@ mod tests {
 		let mut kerns = HashMap::new();
 		kerns.insert("a".to_string(), Kern::new("a", ""));
 		kerns.insert("b".to_string(), Kern::new("b", ""));
-		s.save_all_kerns(&kerns, "n", QuantizationMode::None)
-			.unwrap();
+		s.save_all_kerns(
+			&kerns,
+			"n",
+			QuantizationMode::None,
+			&std::collections::HashSet::new(),
+		)
+		.unwrap();
 
 		kerns.remove("b");
-		s.save_all_kerns(&kerns, "n", QuantizationMode::None)
-			.unwrap();
+		s.save_all_kerns(
+			&kerns,
+			"n",
+			QuantizationMode::None,
+			&std::collections::HashSet::new(),
+		)
+		.unwrap();
 
 		let (loaded, _, _) = s.load_all_kerns().unwrap();
 		assert!(loaded.contains_key("a"));
 		assert!(!loaded.contains_key("b"), "removed kern pruned from disk");
+	}
+
+	#[test]
+	fn the_prune_spares_rows_named_in_spare() {
+		// Regression for the idle-unload wipe: an unloaded kern's disk row is the
+		// only copy of its thoughts, and the flush prune used to delete it because
+		// the resident map no longer named it.
+		let d = tmp();
+		let s = Store::open(&dir_of(&d)).unwrap();
+		s.save_one_kern(&kern_with(
+			"unloaded",
+			mk_entity("e", "kept", 0.5, EntityKind::Claim),
+		))
+		.unwrap();
+
+		let mut kerns = HashMap::new();
+		kerns.insert("root".to_string(), Kern::new("root", ""));
+		let mut spare = std::collections::HashSet::new();
+		spare.insert("unloaded".to_string());
+		s.save_all_kerns(&kerns, "n", QuantizationMode::None, &spare)
+			.unwrap();
+		assert!(
+			s.load_one_kern("unloaded").unwrap().is_some(),
+			"a spared row survives the prune"
+		);
+
+		s.save_all_kerns(
+			&kerns,
+			"n",
+			QuantizationMode::None,
+			&std::collections::HashSet::new(),
+		)
+		.unwrap();
+		assert!(
+			s.load_one_kern("unloaded").unwrap().is_none(),
+			"without spare the prune reclaims it — deregistered kerns must not resurrect"
+		);
 	}
 
 	#[test]
@@ -1200,8 +1289,13 @@ mod tests {
 			let s = Store::open(&dir).unwrap();
 			let mut kerns = HashMap::new();
 			kerns.insert("root".to_string(), Kern::new("root", ""));
-			s.save_all_kerns(&kerns, "n", QuantizationMode::Int8)
-				.unwrap();
+			s.save_all_kerns(
+				&kerns,
+				"n",
+				QuantizationMode::Int8,
+				&std::collections::HashSet::new(),
+			)
+			.unwrap();
 			assert!(
 				s.data_file_len() < crate::base::constants::COLD_COMPACT_MIN_BYTES,
 				"tiny store"
@@ -1235,15 +1329,25 @@ mod tests {
 				e.vector = (0..256).map(|j| ((i + j) as f64).sin() as f32).collect();
 				kerns.insert(format!("k{i}"), kern_with(&format!("k{i}"), e));
 			}
-			s.save_all_kerns(&kerns, "n", QuantizationMode::Int8)
-				.unwrap();
+			s.save_all_kerns(
+				&kerns,
+				"n",
+				QuantizationMode::Int8,
+				&std::collections::HashSet::new(),
+			)
+			.unwrap();
 			let bloated = s.data_file_len();
 
 			let mut small = HashMap::new();
 			small.insert("root".to_string(), Kern::new("root", ""));
 			small.insert("k0".to_string(), kerns.remove("k0").unwrap());
-			s.save_all_kerns(&small, "n", QuantizationMode::Int8)
-				.unwrap();
+			s.save_all_kerns(
+				&small,
+				"n",
+				QuantizationMode::Int8,
+				&std::collections::HashSet::new(),
+			)
+			.unwrap();
 			assert!(
 				s.data_file_len() >= bloated * 9 / 10,
 				"LMDB keeps ~all of the high-water mark after delete: {} vs peak {bloated}",

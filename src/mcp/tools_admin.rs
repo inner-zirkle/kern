@@ -20,6 +20,8 @@ struct ClaimKindArgs {
 	name: String,
 	#[serde(default)]
 	description: String,
+	#[serde(default)]
+	parent: String,
 }
 
 #[derive(Deserialize, Default)]
@@ -50,7 +52,7 @@ pub(crate) fn tool_schemas() -> Vec<serde_json::Value> {
 		}),
 		serde_json::json!({
 			"name": "claim_kind",
-			"description": "Register or remove a claim kind. Registered kinds extend the built-in set (preference, decision, project, fact, code-fact, reference, procedural) that transcript distillation may label claims with.",
+			"description": "Register or remove a claim kind. Registered kinds extend the built-in set (preference, decision, project, fact, code-fact, reference, procedural) that transcript distillation may label claims with. An optional `parent` makes the kind a sub-kind (RDFS-style subClassOf): a `query` filtering on the parent claim kind also returns claims labelled with the sub-kind.",
 			"inputSchema": {
 				"type": "object",
 				"required": ["action", "name"],
@@ -58,6 +60,7 @@ pub(crate) fn tool_schemas() -> Vec<serde_json::Value> {
 					"action":      {"type": "string", "enum": ["add", "rm"], "description": "add or remove"},
 					"name":        {"type": "string", "description": "claim kind name"},
 					"description": {"type": "string", "description": "markdown description (required for add)"},
+					"parent":      {"type": "string", "description": "optional parent claim kind (builtin or registered) this kind specializes; cycles and unknown parents are refused"},
 				},
 			},
 		}),
@@ -169,15 +172,23 @@ impl Server {
 				if p.description.is_empty() {
 					return tool_error("description required for add");
 				}
+				let parent = (!p.parent.is_empty()).then_some(p.parent.as_str());
 				let mut g = self.graph.write();
-				g.root.claim_kinds.insert(p.name.clone(), p.description);
+				if let Err(e) = g.root.add_claim_kind(
+					&p.name,
+					&p.description,
+					parent,
+					&crate::ingest::distill::DEFAULT_KINDS,
+				) {
+					return tool_error(&e);
+				}
 				drop(g);
 				(self.save_fn)();
 				tool_result_json(&serde_json::json!({"added": p.name}))
 			}
 			"rm" => {
 				let mut g = self.graph.write();
-				g.root.claim_kinds.remove(&p.name);
+				g.root.rm_claim_kind(&p.name);
 				drop(g);
 				(self.save_fn)();
 				tool_result_json(&serde_json::json!({"removed": p.name}))
@@ -399,6 +410,69 @@ mod claim_kind_tests {
 		let out = srv.tool_claim_kind(&serde_json::json!({"action": "list", "name": "x"}));
 		assert!(is_error(&out));
 		assert!(text(&out).contains("action must be add or rm"));
+	}
+
+	#[tokio::test]
+	async fn add_with_parent_puts_kind_into_the_parents_closure() {
+		let (srv, _) = make_server();
+		let out = srv.tool_claim_kind(&serde_json::json!({
+			"action": "add", "name": "rust-fact", "description": "rust facts", "parent": "code-fact"
+		}));
+		assert!(!is_error(&out), "builtin parent accepted: {out}");
+		let g = srv.graph.read();
+		let closure = g.root.claim_kind_closure("code-fact");
+		assert!(
+			closure.iter().any(|k| k == "rust-fact"),
+			"sub-kind reachable from the parent's closure: {closure:?}"
+		);
+		assert!(
+			!g.root.claim_kind_closure("preference").iter().any(|k| k == "rust-fact"),
+			"unrelated kind's closure stays untouched"
+		);
+	}
+
+	#[tokio::test]
+	async fn add_with_unknown_parent_is_refused_without_save() {
+		let (srv, counter) = make_server();
+		let out = srv.tool_claim_kind(&serde_json::json!({
+			"action": "add", "name": "x", "description": "d", "parent": "ghost"
+		}));
+		assert!(is_error(&out));
+		assert!(text(&out).contains("unknown parent claim kind"));
+		assert_eq!(counter.load(Ordering::SeqCst), 0, "refusal persists nothing");
+	}
+
+	#[tokio::test]
+	async fn a_parent_edge_that_closes_a_cycle_is_refused() {
+		let (srv, _) = make_server();
+		srv.tool_claim_kind(&serde_json::json!({"action": "add", "name": "a", "description": "d"}));
+		srv.tool_claim_kind(
+			&serde_json::json!({"action": "add", "name": "b", "description": "d", "parent": "a"}),
+		);
+		let out = srv.tool_claim_kind(
+			&serde_json::json!({"action": "add", "name": "a", "description": "d", "parent": "b"}),
+		);
+		assert!(is_error(&out), "a->b->a must not close: {out}");
+		assert!(text(&out).contains("ancestor of itself"));
+		let self_loop = srv.tool_claim_kind(
+			&serde_json::json!({"action": "add", "name": "a", "description": "d", "parent": "a"}),
+		);
+		assert!(is_error(&self_loop), "self-parent refused");
+	}
+
+	#[tokio::test]
+	async fn rm_drops_the_kinds_own_edge_and_its_childrens_edges() {
+		let (srv, _) = make_server();
+		srv.tool_claim_kind(&serde_json::json!({"action": "add", "name": "mid", "description": "d", "parent": "fact"}));
+		srv.tool_claim_kind(&serde_json::json!({"action": "add", "name": "leaf", "description": "d", "parent": "mid"}));
+		srv.tool_claim_kind(&serde_json::json!({"action": "rm", "name": "mid"}));
+		let g = srv.graph.read();
+		assert!(g.root.claim_kind_parents.is_empty(), "both edges gone");
+		assert!(
+			!g.root.claim_kind_closure("fact").iter().any(|k| k == "leaf"),
+			"orphaned child floats to top level, not into the grandparent"
+		);
+		assert!(g.root.claim_kinds.contains_key("leaf"), "child kind itself survives");
 	}
 
 	#[tokio::test]

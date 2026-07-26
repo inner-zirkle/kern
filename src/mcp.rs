@@ -3,6 +3,7 @@ pub mod resources;
 pub mod sse;
 pub mod tools;
 mod tools_admin;
+mod tools_delegate;
 mod tools_events;
 mod tools_intake;
 mod tools_mutate;
@@ -262,6 +263,8 @@ impl transport::McpServer for Server {
 			"gc" => self.tool_gc(),
 			"intake_drain" => self.tool_intake_drain(),
 			"setup" => self.tool_setup(),
+			"sign" => self.tool_sign(args),
+			"contract_grant" => self.tool_contract_grant(args),
 			// ponytail: transport for the proxy's `resources/read`, not an agent
 			// tool. Absent from `tool_definitions()` on purpose so `tools/list`
 			// is unchanged; a schema entry would put a second name on the surface.

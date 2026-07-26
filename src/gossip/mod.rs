@@ -1,8 +1,13 @@
+pub mod contract;
 pub mod discovery;
 pub mod handler;
+pub mod identity;
 pub mod ledger;
 pub mod node;
+pub mod privacy;
 pub mod rate;
+pub mod ring;
 pub mod seen;
+pub mod subs;
 pub mod transport;
 pub mod types;

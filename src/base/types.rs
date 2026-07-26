@@ -501,6 +501,11 @@ pub struct Kern {
 	pub by_to: HashMap<String, Vec<String>>,
 	pub source_index: HashMap<String, String>,
 	pub claim_kinds: HashMap<String, String>,
+	// RDFS-lite `subClassOf` over claim kinds: `claim_kind_parents[child] = parent`.
+	// A query filtering on a parent kind also admits its transitive children
+	// (see `claim_kind_closure`). Validation is closed-world — unknown parents
+	// and cycles are refused at registration, never inferred around.
+	pub claim_kind_parents: HashMap<String, String>,
 
 	pub gnn_weights: Vec<u8>,
 
@@ -571,6 +576,69 @@ impl Kern {
 		self.id.starts_with("remote-")
 	}
 
+	// Register a claim kind, optionally as a sub-kind of `parent`. `builtins` is
+	// the caller-supplied builtin set (base must not reach into ingest for
+	// `DEFAULT_KINDS`). The parent must already exist and the edge must not close
+	// a cycle — walking up from `parent` may never reach `name`.
+	pub fn add_claim_kind(
+		&mut self,
+		name: &str,
+		description: &str,
+		parent: Option<&str>,
+		builtins: &[&str],
+	) -> Result<(), String> {
+		if let Some(p) = parent {
+			if p == name {
+				return Err(format!("claim kind {name} cannot be its own parent"));
+			}
+			if !builtins.contains(&p) && !self.claim_kinds.contains_key(p) {
+				return Err(format!("unknown parent claim kind: {p}"));
+			}
+			// Hop cap: a remote merge could have unioned two acyclic maps into a
+			// cycle, so the ancestor walk terminates on hops, not on trust.
+			let mut cur: &str = p;
+			for _ in 0..=self.claim_kind_parents.len() {
+				match self.claim_kind_parents.get(cur) {
+					Some(next) if next.as_str() == name => {
+						return Err(format!("parent {p} would make {name} an ancestor of itself"));
+					}
+					Some(next) => cur = next,
+					None => break,
+				}
+			}
+			self.claim_kind_parents.insert(name.to_string(), p.to_string());
+		} else {
+			self.claim_kind_parents.remove(name);
+		}
+		self.claim_kinds.insert(name.to_string(), description.to_string());
+		Ok(())
+	}
+
+	pub fn rm_claim_kind(&mut self, name: &str) {
+		self.claim_kinds.remove(name);
+		self.claim_kind_parents.remove(name);
+		// Orphaned children float to the top level rather than pointing at a ghost.
+		self.claim_kind_parents.retain(|_, p| p != name);
+	}
+
+	/// `label` plus every registered descendant — the transitive `subClassOf`
+	/// closure a query filter on `label` admits. `out` doubles as the visited
+	/// set, so a cycle a remote merge smuggled in cannot loop this walk.
+	pub fn claim_kind_closure(&self, label: &str) -> Vec<String> {
+		let mut out = vec![label.to_string()];
+		loop {
+			let before = out.len();
+			for (child, parent) in &self.claim_kind_parents {
+				if out.iter().any(|o| o == parent) && !out.iter().any(|o| o == child) {
+					out.push(child.clone());
+				}
+			}
+			if out.len() == before {
+				return out;
+			}
+		}
+	}
+
 	fn empty() -> Self {
 		Self {
 			id: String::new(),
@@ -589,6 +657,7 @@ impl Kern {
 			by_to: HashMap::new(),
 			source_index: HashMap::new(),
 			claim_kinds: HashMap::new(),
+			claim_kind_parents: HashMap::new(),
 			gnn_weights: Vec::new(),
 			mass: 1.0,
 			last_access: None,

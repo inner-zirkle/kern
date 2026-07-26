@@ -3,7 +3,7 @@
 A full technical scrape of everything that actually exists in the kern source
 today. Organized by subsystem. For each: **what** it does, **how** it works,
 **where** it lives in the code, and **gaps** (known limitations / improvement
-opportunities). Version: `1.2.0`. LoC ~59.1k (raw `wc -l` over `git ls-files`) across 174 tracked `.rs` files.
+opportunities). Version: `1.3.0`. LoC ~63.1k (raw `wc -l`, tracked + new federation files) across 180 `.rs` files.
 
 State legend: `active` (runs today), `building` (wired but partial/unverified),
 `off` (present but disabled by default).
@@ -898,28 +898,94 @@ cannot inject text under a content-addressed id. Statements converge through
 full EntitySync bodies. Federation tuning at scale (batch size, push vs pull,
 anti-entropy) is open.
 
-**Security.** **Unauthenticated and unencrypted.** Off by default. Full trust
-model, including what a malicious peer can and cannot do, is the `Security`
-page on the docs site (`docs/site/content/docs/concepts/security.mdx`).
+**Federation plan v0 (2026-07-27, FEDERATION_PLAN.md §1–§6) — `building`.**
+Six layers landed on top of the gossip baseline, each behind its test gate:
 
-**Where.** `src/gossip/*` (1959 LoC, 8 files), `src/crdt.rs` (134 LoC),
-`src/base/merge.rs` (876 LoC).
+- **Identity + signed envelopes** (`src/gossip/identity.rs`) — ed25519 peer
+  key minted owner-only at `<data_dir>/peer.key` (`load_or_mint`, same pattern
+  as `mint_token`); `PeerId = blake3(pubkey)`; ring location
+  `loc = first 8 id bytes / 2^64` (53-bit mantissa, strictly `< 1.0`). Every
+  TCP frame travels in a `SignedFrame { pubkey, sig, lamport, body }`
+  (`types.rs`); signature covers `blake3(body || lamport_le)`. Verification
+  happens inside `transport::decode_msg`, **before** the seen-set, peer list
+  or any rate budget — invalid frames are dropped and counted
+  (`invalid_sig_dropped`). The Question rate budget now keys on the verified
+  PeerId, not the spoofable `origin` string.
+- **Small-world ring** (`src/gossip/ring.rs`) — `RingView`: 4 nearest
+  neighbors per side + 8 long links harmonically sampled (~1/d, Kleinberg
+  exponent 1); greedy `route()` returns only a strictly-closer peer.
+  `FindNearest`/`Nearest` frames; iterative client-driven `join_ring`.
+  Sim gates: 1k peers, 99% of random targets reach the nearest peer in
+  ≤ log²n hops; 20% churn repaired from far links, routing still terminates.
+  Off by default (`gossip.ring = false`).
+- **Contracts** (`src/gossip/contract.rs`) — the key IS the policy:
+  `ContractId = blake3(kind_tag || bincode(ParamsV0))`; `ParamsV0` = owners,
+  `WritePolicy` (Open/Allowlist/OwnersOnly), kind filter, `max_entities`,
+  forced `retention_secs`, optional `PrivacyV0`, and the one legacy mapping
+  (`legacy_contract(network_id)` — an implicit open contract). Builtin
+  `SignedCrdt`: `validate_delta` refuses forged ids (`id_matches_body`), bad
+  or inadmissible writer signatures, off-kind entities and cap breaches —
+  counted (`contract_refused`), never panicked; `apply` is
+  `merge_remote_entity` behind the trait (commutative + idempotent, proven by
+  property tests); `summarize`/`diff` = sorted `(id, lamport)` pairs in 16
+  nibble buckets — divergent states converge byte-identical after one
+  exchange each way. Contract kerns are `remote-contract-<hex>`, so every
+  existing `remote-` trust boundary applies.
+- **Subscription trees + delta sync** (`src/gossip/subs.rs`, `handler.rs`) —
+  bounded LRU `SubTable` (cap 256): `Subscribe` routes toward
+  `loc(ContractId)`, each hosting hop records the asker downstream, answers
+  `SubAck{summary}`, extends the tree once toward the key. First parent wins
+  (a raced SubAck cannot re-root a node) and a downstream peer is never
+  adopted as parent — both guards close the cycle that starved the tree in
+  fuzzing. Live deltas (`ContractDelta`) forward only on `Applied::changed`;
+  anti-entropy (`SyncSummary`/`SyncDiff`, every `gossip.sync_interval_secs`,
+  default 300) reconciles with tree parents. Gate: three real-socket nodes
+  chained; leaf publish reaches all three; a healed partition converges in
+  one sync pass.
+- **Delegates** (`src/mcp/tools_delegate.rs`) — the daemon is the delegate:
+  mcp-token-gated `sign { payload_hash }` returns signature/pubkey/peer-id
+  (the key never crosses the socket); `contract_grant { contract, pubkey }`
+  mints the owner-signed amended params, the NEW ContractId (key = policy
+  hash, so grants move the key) and the tombstone signature subscribers
+  verify (`tombstone_digest`).
+- **Privacy** (`src/gossip/privacy.rs`) — `PrivacyV0` scheme 0 =
+  xchacha20poly1305. `encrypt_entity` seals text client-side; the id becomes
+  the ciphertext's content hash so `id_matches_body` and writer signatures
+  keep holding on relays; vectors are dropped (an embedding of hidden text
+  would leak it). Gate: a relay's whole serialized kern never contains the
+  plaintext sentinel; only a key holder decrypts. Symmetric key = owner-only
+  file (v0 out-of-band distribution).
 
-**Gaps.** No auth/crypto. No anti-entropy merkle/snapshot exchange — EntitySync
-ships the hottest 32 by heat per heartbeat, so cold entities may never
-propagate. No backpressure on remote-id cap (drops new, keeps known). *Corrected
-2026-07-21 — "no per-peer rate limit" was false and this repo's own `ROADMAP.md`
-said so:* a per-origin budget ships and runs, but only on the `Question` path
-(`RateLimiter`, `src/gossip/rate.rs`, 30/min, checked at
-`src/gossip/handler.rs:318`). The `Delta` path — the one that takes the write
-lock — has none, and `origin` is self-declared so the budget is evadable by
-rotating it. No divergence signal at all (`HealthStats`, `src/base/health.rs:9`,
-has no such field) (`ROADMAP.md` — "Backpressure,
-divergence metric, and delta write-lock starvation"). The unauthenticated
-local-row reach is closed: LWW deltas only touch `remote-*` kerns
-(`remote_kern_ids`), `handle_pulse` rejects an unknown kern id and clamps the
-deposit, and a body whose text does not hash to its claimed id is dropped on
-receipt (`id_matches_body`, `src/gossip/handler.rs`).
+**Security.** Legacy `network_id` mode remains **unauthenticated** in trust
+terms (Open implicit contract) but every frame is now envelope-signed and
+invalid signatures are dropped pre-state. Contract kerns are authenticated
+end-to-end: per-entity writer signatures + per-frame envelopes. Off by
+default. Full trust model on the docs-site `Security` page
+(`docs/site/content/docs/concepts/security.mdx`).
+
+**Where.** `src/gossip/*` (13 files), `src/crdt.rs`, `src/base/merge.rs`,
+`src/mcp/tools_delegate.rs`, config in `src/config/gossip.rs`
+(`ring`, `identity_path`, `sync_interval_secs`, `subscriptions`,
+`[[gossip.contracts]]`).
+
+**Gaps.** Legacy EntitySync still ships only the hottest 32 by heat per
+heartbeat (contract kerns get real anti-entropy; legacy kerns do not). No
+backpressure on remote-id cap (drops new, keeps known). The `Delta`
+(CRDT-counter) path has no per-peer budget — but rotating `origin` no longer
+buys a fresh Question budget: that budget keys on the envelope-verified
+PeerId, so evasion now costs a keypair per budget. No divergence signal in
+`HealthStats` (`ROADMAP.md` — "Backpressure, divergence metric, and delta
+write-lock starvation"). Contract signed-body envelopes (`ContractState`)
+live in memory only — after a restart a node re-serves what peers push or
+re-publishes what it authored, but cannot prove foreign bodies it merged
+before the restart until a peer re-serves them; persisting the envelope
+cache is open. Ingest-side routing of local claims INTO a shared kern is a
+publish seam (`publish_to_contract`), not yet a `[ingest]`-config path.
+Wasm contracts stay a reserved seam (extism, `plugins` feature) — not in v0.
+The unauthenticated local-row reach stays closed: LWW deltas only touch
+`remote-*` kerns (`remote_kern_ids`), `handle_pulse` rejects an unknown kern
+id and clamps the deposit, and a body whose text does not hash to its
+claimed id is dropped on receipt (`id_matches_body`).
 
 ---
 
@@ -1450,7 +1516,7 @@ Ranked by leverage:
 
 ---
 
-*Scraped from source at `v1.2.0`, last reconciled against the tree 2026-07-25.
+*Scraped from source at `v1.3.0`, last reconciled against the tree 2026-07-27.
 Update this file when a subsystem's public surface changes — it is the canonical
 feature inventory. The stamp is a date, not a commit: a commit hash here ages
 into a lie the moment the next one lands, and nothing checks it.*

@@ -125,6 +125,14 @@ pub(crate) fn mcp_server_with_embed_url(url: &str) -> crate::mcp::Server {
 	}
 }
 
+// The default rig with a caller-shaped config — for tools that resolve paths
+// (peer key, intake dir) off cfg rather than the graph.
+pub(crate) fn mcp_server_with_config(cfg: crate::config::Config) -> crate::mcp::Server {
+	let mut s = mcp_server();
+	s.cfg = std::sync::Arc::new(cfg);
+	s
+}
+
 #[cfg(unix)]
 pub(crate) fn scratch_endpoint(tag: &str) -> transport::typed::Endpoint {
 	let dir = std::env::temp_dir().join(format!(
@@ -222,6 +230,6 @@ pub(crate) fn commit_extra_kern_via_store(
 	kerns.insert(gg.root.id.clone(), gg.root.clone());
 	kerns.insert(kern.id.clone(), kern);
 	store
-		.save_all_kerns(&kerns, &gg.network_id, gg.quant_mode)
+		.save_all_kerns(&kerns, &gg.network_id, gg.quant_mode, &std::collections::HashSet::new())
 		.expect("external commit through the shared store");
 }

@@ -246,6 +246,7 @@ pub fn absorb_graph(local: &mut GraphGnn, disk: GraphGnn) -> usize {
 		let refs = std::mem::take(&mut dkern.refs);
 		let sources = std::mem::take(&mut dkern.source_index);
 		let claim_kinds = std::mem::take(&mut dkern.claim_kinds);
+		let claim_kind_parents = std::mem::take(&mut dkern.claim_kind_parents);
 		match local.kerns.get_mut(&kid) {
 			Some(lkern) => {
 				for c in &dkern.children {
@@ -290,6 +291,9 @@ pub fn absorb_graph(local: &mut GraphGnn, disk: GraphGnn) -> usize {
 		}
 		for (k, v) in claim_kinds {
 			lkern.claim_kinds.entry(k).or_insert(v);
+		}
+		for (k, v) in claim_kind_parents {
+			lkern.claim_kind_parents.entry(k).or_insert(v);
 		}
 	}
 	changed
