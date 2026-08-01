@@ -12,12 +12,10 @@ pub(crate) fn tool_schemas() -> Vec<serde_json::Value> {
 		"description": "Search the knowledge graph. Returns scored thoughts with edges and path chains — no synthesis: the calling agent reads the passages and synthesizes. Requires at least one of `text` (semantic/lexical search), `id` (direct lookup) or `ids` (batch direct lookup).",
 		"inputSchema": {
 			"type": "object",
-			// Mirrors tool_query's runtime "either text or id is required" guard.
-			"anyOf": [
-				{"required": ["text"]},
-				{"required": ["id"]},
-				{"required": ["ids"]},
-			],
+			// No top-level anyOf/oneOf/allOf: the Anthropic tool API rejects a
+			// combinator at the root of input_schema. The "at least one of text,
+			// id, ids" rule lives in the description and in tool_query's runtime
+			// guard.
 			"properties": {
 				"text":      {"type": "string", "description": "search query text"},
 				"id":        {"type": "string", "description": "thought ID for direct lookup"},

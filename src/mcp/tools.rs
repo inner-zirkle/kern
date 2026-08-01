@@ -106,28 +106,41 @@ mod tests {
 	}
 
 	#[test]
-	fn query_schema_requires_text_or_id() {
+	fn query_schema_states_text_or_id_without_a_root_combinator() {
 		let defs = tool_definitions();
 		let query = defs
 			.iter()
 			.find(|d| d["name"] == "query")
 			.expect("query tool present");
-		let any_of = query["inputSchema"]["anyOf"]
-			.as_array()
-			.expect("query schema declares an anyOf branch");
-		// Must mirror tool_query's runtime "either text or id is required" guard.
-		let required: Vec<&str> = any_of
-			.iter()
-			.filter_map(|b| b["required"][0].as_str())
-			.collect();
+		let schema = &query["inputSchema"];
+		// The Anthropic tool API rejects anyOf/oneOf/allOf at the root of
+		// input_schema, so the "either text or id" rule is prose + a runtime
+		// guard in tool_query, never a schema combinator.
+		for key in ["anyOf", "oneOf", "allOf"] {
+			assert!(
+				schema[key].is_null(),
+				"query schema must not carry a top-level `{key}`"
+			);
+		}
+		let desc = query["description"].as_str().unwrap_or_default();
 		assert!(
-			required.contains(&"text"),
-			"anyOf must allow `text`, got {required:?}"
+			desc.contains("`text`") && desc.contains("`id`") && desc.contains("`ids`"),
+			"description must name text, id and ids as the alternatives"
 		);
-		assert!(
-			required.contains(&"id"),
-			"anyOf must allow `id`, got {required:?}"
-		);
+	}
+
+	#[test]
+	fn no_tool_schema_carries_a_root_combinator() {
+		for def in tool_definitions() {
+			let name = def["name"].as_str().unwrap_or("?").to_string();
+			for key in ["anyOf", "oneOf", "allOf"] {
+				assert!(
+					def["inputSchema"][key].is_null(),
+					"tool `{name}` declares a top-level `{key}` — the Anthropic \
+					 tool API rejects it"
+				);
+			}
+		}
 	}
 
 	#[test]
