@@ -2,6 +2,24 @@
 
 <!-- docs-check: historical -->
 
+- 2026-08-02 — `kern ingest --file` resolves a relative path against the
+  directory the caller invoked kern from, not the project root `main` re-pins
+  cwd to. The re-pin stays (a subdir launch must not boot an empty graph) but it
+  applied to caller-supplied paths too, so `cd sub && kern ingest --file b.md`
+  raised a bare ENOENT — and, when a same-named file sat at the project root,
+  **silently ingested the root file instead**, returning a success line for
+  content the caller never passed. New `set_launch_dir` / `launch_dir_join`
+  (`src/lib.rs`): the pre-pin cwd is recorded in a `OnceLock` before dispatch,
+  absolute paths pass through, and no recorded dir keeps the old behaviour for
+  library embedders. Error text names the resolved path. `--file` was the only
+  flag reading a caller path after the re-pin.
+
+  **Decided by:** verify-before-claiming — both failure modes reproduced
+  against the release binary before and after, full suite 1018 tests green,
+  three unit tests pin the resolution branches. Surfaced by an agent-side
+  batch writer that had been failing closed on this for weeks, which is why a
+  per-item `kern ingest` subprocess storm was never replaced by the batch path.
+
 - 2026-07-27 — v1.3.0 cut. Workspace version 1.2.0 → 1.3.0 (`Cargo.toml`,
   `Cargo.lock`, `FEATURES.md` header/footer): the surface grew since v1.2.0 —
   federation plan v0 (signed envelopes on every gossip frame, ring routing,

@@ -54,6 +54,9 @@ fn main() {
 		// Pin to the project root (nearest ancestor with `.kern`): a subdir launch
 		// would boot an empty graph while still serving queries.
 		let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+		// Before the re-pin: a relative path the caller typed means what it meant
+		// where they typed it, so `launch_dir_join` needs the pre-pin cwd.
+		kern::set_launch_dir(cwd.clone());
 		let root = Config::resolve_root(&cwd);
 		if root != cwd {
 			tracing::info!(

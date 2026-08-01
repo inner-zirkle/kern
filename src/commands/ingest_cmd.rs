@@ -24,10 +24,17 @@ pub(super) async fn cmd_ingest(
 ) {
 	let (embed_key, reason_key) = (&cfg.embed.key, cfg.reason_key());
 	let text = if let Some(path) = file {
-		match std::fs::read_to_string(&path) {
+		// `main` re-pins cwd to the project root before the command runs, so a
+		// relative `--file` given by the caller is resolved against the root and
+		// not against the directory the caller was actually in. That failed with a
+		// bare ENOENT in the good case and, when a same-named file happened to sit
+		// at the root, silently ingested the WRONG file. Resolve against the
+		// launch dir, which is what the caller meant.
+		let resolved = crate::launch_dir_join(&path);
+		match std::fs::read_to_string(&resolved) {
 			Ok(t) => t,
 			Err(e) => {
-				eprintln!("read file: {e}");
+				eprintln!("read file {}: {e}", resolved.display());
 				return;
 			}
 		}
