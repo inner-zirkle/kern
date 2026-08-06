@@ -210,6 +210,19 @@ pub struct ContractState {
 	pub entries: HashMap<String, SignedEntity>,
 }
 
+/// First hex digit of the first byte of a content-hash id (0-15).
+/// Buckets sync summaries by this nibble so peers skip matching buckets.
+fn hex_nibble(id: &str) -> usize {
+	id.bytes()
+		.next()
+		.map(|b| match b {
+			b'0'..=b'9' => (b - b'0') as usize,
+			b'a'..=b'f' => (b - b'a' + 10) as usize,
+			_ => 0,
+		})
+		.unwrap_or(0)
+}
+
 impl ContractState {
 	pub fn len(&self) -> usize {
 		self.entries.len()
@@ -311,15 +324,7 @@ impl SyncContract for SignedCrdt {
 		entries.sort();
 		let mut buckets = vec![blake3::Hasher::new(); 16];
 		for (id, lamport) in &entries {
-			let nibble = id
-				.bytes()
-				.next()
-				.map(|b| match b {
-					b'0'..=b'9' => (b - b'0') as usize,
-					b'a'..=b'f' => (b - b'a' + 10) as usize,
-					_ => 0,
-				})
-				.unwrap_or(0);
+			let nibble = hex_nibble(id);
 			buckets[nibble].update(id.as_bytes());
 			buckets[nibble].update(&lamport.to_le_bytes());
 		}
@@ -351,15 +356,7 @@ impl SyncContract for SignedCrdt {
 		let mut out = Vec::new();
 		for (id, lamport) in &local.entries {
 			// Matching bucket hash = every (id, lamport) in it agrees; skip.
-			let nibble = id
-				.bytes()
-				.next()
-				.map(|b| match b {
-					b'0'..=b'9' => (b - b'0') as usize,
-					b'a'..=b'f' => (b - b'a' + 10) as usize,
-					_ => 0,
-				})
-				.unwrap_or(0);
+			let nibble = hex_nibble(id);
 			if remote.buckets.get(nibble) == local.buckets.get(nibble) {
 				continue;
 			}
