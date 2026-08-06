@@ -11,7 +11,7 @@ pub struct HnswHit {
 }
 
 struct HnswNode {
-	vec: super::types::Embedding,
+	vec: crate::base_types::Embedding,
 	qvec: Option<QuantizedVec>,
 	layers: Vec<Vec<u32>>,
 }
@@ -163,14 +163,14 @@ impl HnswIndex {
 		self.free.append(&mut self.pending_scrub);
 	}
 
-	pub fn insert(&mut self, id: String, vec: super::types::Embedding) {
+	pub fn insert(&mut self, id: String, vec: crate::base_types::Embedding) {
 		if vec.is_empty() || self.slot_of.contains_key(&id) {
 			return;
 		}
 		let level = self.level_for(&id);
 		let (stored_vec, qvec) = match self.quant_mode {
 			QuantizationMode::Int8 | QuantizationMode::Binary => (
-				super::types::Embedding::from(&[][..]),
+				crate::base_types::Embedding::from(&[][..]),
 				Some(QuantizedVec::encode(&vec, self.quant_mode)),
 			),
 			_ => (vec.clone(), None),
@@ -628,8 +628,8 @@ type MaxHeap = Heap<Max>;
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::base::math::cosine_distance as bf_cosine;
-	use crate::base::util::cmp_partial as bf_cmp;
+	use crate::math::cosine_distance as bf_cosine;
+	use crate::util::cmp_partial as bf_cmp;
 	use rand::{RngExt, SeedableRng};
 	use std::collections::HashSet;
 

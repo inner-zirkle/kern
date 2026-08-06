@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
-use crate::base::constants::INGEST_DEDUP_THRESHOLD;
-use crate::base::types::{EntityKind, Source};
+use crate::base_constants::INGEST_DEDUP_THRESHOLD;
+use crate::base_types::{EntityKind, Source};
 use crate::ingest::ReviewPolicy;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -60,7 +60,7 @@ impl IngestConfig {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::base::types::ReviewState;
+	use crate::base_types::ReviewState;
 
 	#[test]
 	fn default_validates_and_bad_knobs_are_rejected() {

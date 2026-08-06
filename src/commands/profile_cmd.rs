@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::time::Instant;
 
-use crate::base::search::search_all_unlocked;
+use crate::search::search_all_unlocked;
 use crate::profile::{render_timeline, Profile};
 use crate::retrieval::seed::Mode;
 

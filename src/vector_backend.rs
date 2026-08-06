@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use super::diskann::DiskIndex;
 use super::hnsw::{HnswHit, HnswIndex};
-use super::types::Embedding;
+use crate::base_types::Embedding;
 use super::util::cmp_rank;
 use crate::quant::QuantizationMode;
 
@@ -157,7 +157,7 @@ fn union_rank(a: Vec<HnswHit>, b: Vec<HnswHit>, k: usize) -> Vec<HnswHit> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::base::diskann::{build_and_save, Params};
+	use crate::diskann::{build_and_save, Params};
 
 	fn vec_of(i: usize) -> Vec<f32> {
 		(0..8)

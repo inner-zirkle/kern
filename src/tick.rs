@@ -3,9 +3,9 @@ use std::time::{Duration, Instant};
 
 use parking_lot::RwLock;
 
-use crate::base::constants::{KERN_COHESION_THRESHOLD, KERN_MIN_CLUSTER_SIZE};
-use crate::base::graph::GraphGnn;
-use crate::base::heat::HeatConfig;
+use crate::base_constants::{KERN_COHESION_THRESHOLD, KERN_MIN_CLUSTER_SIZE};
+use crate::graph::GraphGnn;
+use crate::heat::HeatConfig;
 use crate::config::TickConfig;
 use crate::gnn::propagate::GnnConfig;
 
@@ -189,7 +189,7 @@ fn do_cluster(
 }
 
 fn select_spawn_clusters(
-	kern: &crate::base::types::Kern,
+	kern: &crate::base_types::Kern,
 	max_sample: usize,
 ) -> (Vec<Cluster>, Vec<usize>) {
 	// UNNAMED KERNS NEVER SPAWN — else each pass descends one level unboundedly
@@ -223,10 +223,10 @@ fn spawn_child_clusters(
 	for i in spawn_indices {
 		// One DISTINCT child per cluster: never `get_or_spawn_unnamed_child` — it
 		// reuses the first unnamed child, collapsing every cluster into one kern.
-		let child_id = crate::base::accept::spawn_unnamed_child(graph, kern_id);
+		let child_id = crate::accept::spawn_unnamed_child(graph, kern_id);
 		for m in &clusters[*i].members {
 			// Carries outgoing reasons and reindexes; a rejected move leaves the entity put.
-			if let Err(e) = crate::base::reason::move_entity(graph, kern_id, &child_id, &m.id) {
+			if let Err(e) = crate::reason::move_entity(graph, kern_id, &child_id, &m.id) {
 				tracing::warn!(
 					target: "kern.cluster",
 					from = %kern_id,
@@ -242,8 +242,8 @@ fn spawn_child_clusters(
 	spawned_children
 }
 
-fn collect_follow_up_jobs(kern: &crate::base::types::Kern) -> (Vec<String>, Vec<String>) {
-	use crate::base::types::ReasonKind;
+fn collect_follow_up_jobs(kern: &crate::base_types::Kern) -> (Vec<String>, Vec<String>) {
+	use crate::base_types::ReasonKind;
 
 	let mut enrich_jobs = Vec::new();
 	for r in kern.reasons.values() {
@@ -356,8 +356,8 @@ pub fn tick_sync(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::base::reason::add_reason;
-	use crate::base::types::{Entity, Kern, Reason, ReasonKind};
+	use crate::reason::add_reason;
+	use crate::base_types::{Entity, Kern, Reason, ReasonKind};
 
 	fn parent_child(child_named: bool, child_has_thought: bool) -> (GraphGnn, String, String) {
 		let mut g = GraphGnn::new();
@@ -601,7 +601,7 @@ mod tests {
 	fn select_spawn_clusters_never_spawns_from_an_unnamed_kern() {
 		let mut kern = Kern::new("k", "");
 		assert!(!kern.is_named(), "precondition: kern is unnamed");
-		for i in 0..crate::base::constants::KERN_MIN_CLUSTER_SIZE {
+		for i in 0..crate::base_constants::KERN_MIN_CLUSTER_SIZE {
 			let id = format!("e{i}");
 			kern.entities.insert(
 				id.clone(),
@@ -626,7 +626,7 @@ mod tests {
 		kern.graviton_text = "named".into();
 		kern.graviton_vec = vec![1.0, 0.0];
 		assert!(kern.is_named(), "precondition: kern is named");
-		for i in 0..crate::base::constants::KERN_MIN_CLUSTER_SIZE {
+		for i in 0..crate::base_constants::KERN_MIN_CLUSTER_SIZE {
 			let id = format!("e{i}");
 			kern.entities.insert(
 				id.clone(),
@@ -654,7 +654,7 @@ mod tests {
 		let dir = tempfile::tempdir().unwrap();
 		let mut g = GraphGnn::new();
 		let root_id = g.root.id.clone();
-		let store = crate::base::store::Store::open(&dir.path().to_string_lossy()).unwrap();
+		let store = crate::base_store::Store::open(&dir.path().to_string_lossy()).unwrap();
 		g.set_store(Arc::new(store));
 
 		let mut child = Kern::new("generic", &root_id);
@@ -698,7 +698,7 @@ mod tests {
 		let mut kern = Kern::new("k", "");
 		kern.graviton_text = "named".into();
 		kern.graviton_vec = vec![1.0, 0.0];
-		for i in 0..crate::base::constants::KERN_MIN_CLUSTER_SIZE {
+		for i in 0..crate::base_constants::KERN_MIN_CLUSTER_SIZE {
 			let id = format!("e{i}");
 			kern.entities.insert(
 				id.clone(),
@@ -742,8 +742,8 @@ mod tests {
 
 	#[test]
 	fn spawning_a_cluster_carries_outgoing_reasons_and_reindexes_the_entity() {
-		use crate::base::reason::add_reason;
-		use crate::base::types::{Kern, Reason};
+		use crate::reason::add_reason;
+		use crate::base_types::{Kern, Reason};
 
 		let mut g = GraphGnn::new();
 		let root_id = g.root.id.clone();
@@ -813,7 +813,7 @@ mod tests {
 	fn a_failed_cluster_migration_never_drops_the_entity() {
 		let mut g = GraphGnn::new();
 		let root_id = g.root.id.clone();
-		let mut parent = crate::base::types::Kern::new("parent", &root_id);
+		let mut parent = crate::base_types::Kern::new("parent", &root_id);
 		parent.entities.insert(
 			"e1".into(),
 			Entity {
@@ -883,7 +883,7 @@ mod tests {
 	#[tokio::test]
 	async fn start_contains_a_panicking_task_and_keeps_draining_the_queue() {
 		let mut graph = GraphGnn::new();
-		let mut k = crate::base::types::Kern::new("k", "");
+		let mut k = crate::base_types::Kern::new("k", "");
 		let mut e = Entity {
 			id: "e1".into(),
 			..Default::default()
@@ -931,7 +931,7 @@ mod tests {
 	// merely returns fails here no matter how long the test waits.
 	#[tokio::test]
 	async fn a_gnn_propagate_handed_off_the_loop_still_lands_its_embeddings() {
-		use crate::base::types::{mk_entity, EntityKind};
+		use crate::base_types::{mk_entity, EntityKind};
 
 		let mut graph = GraphGnn::new();
 		let mut k = Kern::new("k", "");

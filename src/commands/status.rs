@@ -34,7 +34,7 @@ pub(super) async fn cmd_status(cfg: &crate::config::Config) {
 
 	// Read AFTER the probes: a daemon that answers but holds no lock is the
 	// state worth seeing, and it is exactly what an older binary produces.
-	match crate::base::lock::holder(&cfg.data_dir) {
+	match crate::lock::holder(&cfg.data_dir) {
 		Some(who) => {
 			println!("writer lock  held by {who}");
 			println!();

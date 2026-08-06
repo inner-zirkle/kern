@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::base::constants::{
+use crate::base_constants::{
 	KERN_IDLE_TIMEOUT, TICK_INTERVAL_SECS, TICK_MAX_CLUSTER_SAMPLE, TICK_QUEUE_CAPACITY,
 };
 

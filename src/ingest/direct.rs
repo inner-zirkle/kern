@@ -1,8 +1,8 @@
 use std::path::Path;
 
-use crate::base::constants::AGENT_SOURCE;
-use crate::base::types::{EntityKind, Scoping, Source};
-use crate::base::util;
+use crate::base_constants::AGENT_SOURCE;
+use crate::base_types::{EntityKind, Scoping, Source};
+use crate::util;
 use crate::ingest::outcome::OutcomeStatus;
 use crate::ingest::Worker;
 
@@ -128,7 +128,7 @@ pub async fn drain_direct_once(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::base::graph::GraphGnn;
+	use crate::graph::GraphGnn;
 	use parking_lot::RwLock;
 	use std::sync::Arc;
 	use std::time::Duration;
@@ -277,7 +277,7 @@ mod tests {
 		let direct = dir.path().join("direct");
 		let mut j = job("a human said so");
 		j.confidence = 1.0;
-		j.source_tag = crate::base::constants::USER_SOURCE.to_string();
+		j.source_tag = crate::base_constants::USER_SOURCE.to_string();
 		intake_direct(&direct, &j).expect("accepted");
 
 		let cfg = crate::ingest::Config {

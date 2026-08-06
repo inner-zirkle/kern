@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use tokio::net::UdpSocket;
 
-use crate::base::constants::{GOSSIP_DISCOVERY_INTERVAL, GOSSIP_DISCOVERY_MULTICAST};
+use crate::base_constants::{GOSSIP_DISCOVERY_INTERVAL, GOSSIP_DISCOVERY_MULTICAST};
 
 use super::node::Node;
 

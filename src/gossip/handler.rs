@@ -1,15 +1,15 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use crate::base::log_throttle::LogThrottle;
+use crate::log_throttle::LogThrottle;
 use std::sync::Arc;
 use std::time::SystemTime;
 
 use parking_lot::RwLock;
 
-use crate::base::constants::*;
-use crate::base::graph::GraphGnn;
-use crate::base::search::search_all_unlocked;
-use crate::base::types::{Kern, ReasonKind};
+use crate::base_constants::*;
+use crate::graph::GraphGnn;
+use crate::search::search_all_unlocked;
+use crate::base_types::{Kern, ReasonKind};
 use crate::crdt::{lww_wins, GCounter};
 
 use super::contract::{
@@ -109,7 +109,7 @@ fn spawn_fetch_entity(d: &Arc<Deps>, network_id: String, kern_id: String, entity
 			Some(b) => b,
 			None => return,
 		};
-		let entity = match bincode::serde::decode_from_slice::<crate::base::types::Entity, _>(
+		let entity = match bincode::serde::decode_from_slice::<crate::base_types::Entity, _>(
 			&body,
 			bincode::config::standard(),
 		) {
@@ -127,7 +127,7 @@ fn spawn_fetch_entity(d: &Arc<Deps>, network_id: String, kern_id: String, entity
 				let k = new_phantom_kern(&g, &phantom);
 				g.register(k);
 			}
-			crate::base::merge::merge_remote_entity(&mut g, &phantom, entity)
+			crate::merge::merge_remote_entity(&mut g, &phantom, entity)
 		};
 		if changed {
 			d.persist();
@@ -159,7 +159,7 @@ pub fn start_announce(node: Arc<Node>, graph: Arc<RwLock<GraphGnn>>) {
 						}
 					};
 					if let Some(payload) = payload {
-						let stamp = crate::base::util::now_nanos();
+						let stamp = crate::util::now_nanos();
 						let msg = GossipMessage {
 							kind: GossipKind::Sphere,
 							id: format!("sphere-{}-{}", node.addr(), stamp),
@@ -189,15 +189,15 @@ const ENTITY_SYNC_BATCH: usize = 32;
 // References cost a pointer each; `select_nth_unstable_by` is linear and uses the
 // same total comparator as the old sort, so the chosen set and its order are
 // unchanged.
-fn hottest_local(g: &GraphGnn, n: usize) -> Vec<crate::base::types::Entity> {
-	let mut refs: Vec<&crate::base::types::Entity> = g
+fn hottest_local(g: &GraphGnn, n: usize) -> Vec<crate::base_types::Entity> {
+	let mut refs: Vec<&crate::base_types::Entity> = g
 		.kerns
 		.iter()
-		.filter(|(kid, _)| !crate::base::merge::is_remote_kern_id(kid))
+		.filter(|(kid, _)| !crate::merge::is_remote_kern_id(kid))
 		.flat_map(|(_, k)| k.entities.values())
 		.collect();
-	let by_heat = |a: &&crate::base::types::Entity, b: &&crate::base::types::Entity| {
-		crate::base::util::cmp_rank(a.heat as f64, &a.id, b.heat as f64, &b.id)
+	let by_heat = |a: &&crate::base_types::Entity, b: &&crate::base_types::Entity| {
+		crate::util::cmp_rank(a.heat as f64, &a.id, b.heat as f64, &b.id)
 	};
 	if n == 0 {
 		return Vec::new();
@@ -231,7 +231,7 @@ pub fn start_entity_sync(node: Arc<Node>, graph: Arc<RwLock<GraphGnn>>) {
 						}
 					};
 					if let Some(payload) = payload {
-						let stamp = crate::base::util::now_nanos();
+						let stamp = crate::util::now_nanos();
 						let msg = GossipMessage {
 							kind: GossipKind::EntitySync,
 							id: format!("esync-{}-{}", node.addr(), stamp),
@@ -274,7 +274,7 @@ pub fn start_delta_flush(node: Arc<Node>, graph: Arc<RwLock<GraphGnn>>) {
 							lww_value: delta.lww_value,
 							orset_delta: Vec::new(),
 						};
-						let stamp = crate::base::util::now_nanos();
+						let stamp = crate::util::now_nanos();
 						let msg = GossipMessage {
 							kind: GossipKind::Delta,
 							id: format!("delta-{}-{}", node.addr(), stamp),
@@ -348,7 +348,7 @@ fn handle_question(d: &Deps, peer: crate::gossip::identity::PeerId, msg: GossipM
 	if !d
 		.node
 		.question_rate
-		.allow(&crate::base::util::hex::encode(peer))
+		.allow(&crate::util::hex::encode(peer))
 	{
 		if QUESTION_RATE_WARN.allow() {
 			tracing::warn!(
@@ -402,7 +402,7 @@ fn handle_pulse(d: &Deps, msg: GossipMessage) {
 	// sending a garbage id drove maintenance straight into it. No design intent
 	// justified that. Reject the id, confine the fan-out to `remote-*`, and clamp
 	// the strength — the wire carries an arbitrary f64 and nothing else bounded it.
-	if !crate::base::merge::is_remote_kern_id(&pulse.kern_id) {
+	if !crate::merge::is_remote_kern_id(&pulse.kern_id) {
 		return;
 	}
 	if !g.kerns.contains_key(&pulse.kern_id) {
@@ -558,7 +558,7 @@ pub fn forged_id_rejected() -> u64 {
 // SHAPE are judged: an id that is not a 64-char lowercase hex digest was never a
 // content hash, so failing it would be an assertion about a format we do not
 // define — and dropping legitimate remote knowledge is worse than the exposure.
-pub(crate) fn id_matches_body(e: &crate::base::types::Entity) -> bool {
+pub(crate) fn id_matches_body(e: &crate::base_types::Entity) -> bool {
 	let looks_hashed = e.id.len() == 64
 		&& e
 			.id
@@ -567,7 +567,7 @@ pub(crate) fn id_matches_body(e: &crate::base::types::Entity) -> bool {
 	if !looks_hashed {
 		return true;
 	}
-	crate::base::util::content_hash(&e.text()) == e.id
+	crate::util::content_hash(&e.text()) == e.id
 }
 
 // Only `remote-*` kerns may be reached by an unauthenticated LWW delta. Reaching a
@@ -578,7 +578,7 @@ pub(crate) fn id_matches_body(e: &crate::base::types::Entity) -> bool {
 fn remote_kern_ids(g: &GraphGnn) -> Vec<String> {
 	g.all_ids()
 		.into_iter()
-		.filter(|k| crate::base::merge::is_remote_kern_id(k))
+		.filter(|k| crate::merge::is_remote_kern_id(k))
 		.collect()
 }
 
@@ -626,7 +626,7 @@ fn handle_entity_sync(d: &Deps, msg: GossipMessage) {
 			continue;
 		}
 		d.node.ledger.put_thought(&e.id, &msg.origin);
-		changed |= crate::base::merge::merge_remote_entity(&mut g, &phantom, e.clone());
+		changed |= crate::merge::merge_remote_entity(&mut g, &phantom, e.clone());
 	}
 	drop(g);
 	if changed {
@@ -691,7 +691,7 @@ fn handle_subscribe(d: &Arc<Deps>, msg: GossipMessage) {
 		&msg.origin,
 		GossipMessage {
 			kind: GossipKind::SubAck,
-			id: format!("suback-{}-{}", d.node.addr(), crate::base::util::now_nanos()),
+			id: format!("suback-{}-{}", d.node.addr(), crate::util::now_nanos()),
 			origin: d.node.addr(),
 			payload: GossipPayload::SubAck(SubAckPayload {
 				contract: cid,
@@ -722,7 +722,7 @@ pub fn subscribe_upstream(d: &Arc<Deps>, cid: &ContractId) {
 		&next,
 		GossipMessage {
 			kind: GossipKind::Subscribe,
-			id: format!("sub-{}-{}", d.node.addr(), crate::base::util::now_nanos()),
+			id: format!("sub-{}-{}", d.node.addr(), crate::util::now_nanos()),
 			origin: d.node.addr(),
 			payload: GossipPayload::Subscribe(SubscribePayload { contract: *cid }),
 		},
@@ -756,7 +756,7 @@ fn handle_suback(d: &Arc<Deps>, msg: GossipMessage) {
 			&msg.origin,
 			GossipMessage {
 				kind: GossipKind::SyncDiff,
-				id: format!("sdiff-{}-{}", d.node.addr(), crate::base::util::now_nanos()),
+				id: format!("sdiff-{}-{}", d.node.addr(), crate::util::now_nanos()),
 				origin: d.node.addr(),
 				payload: GossipPayload::SyncDiff(SyncDiffPayload {
 					contract: cid,
@@ -770,7 +770,7 @@ fn handle_suback(d: &Arc<Deps>, msg: GossipMessage) {
 			&msg.origin,
 			GossipMessage {
 				kind: GossipKind::SyncSummary,
-				id: format!("ssum-{}-{}", d.node.addr(), crate::base::util::now_nanos()),
+				id: format!("ssum-{}-{}", d.node.addr(), crate::util::now_nanos()),
 				origin: d.node.addr(),
 				payload: GossipPayload::SyncSummary(SyncSummaryPayload {
 					contract: cid,
@@ -800,7 +800,7 @@ fn handle_sync_summary(d: &Arc<Deps>, msg: GossipMessage) {
 		&msg.origin,
 		GossipMessage {
 			kind: GossipKind::SyncDiff,
-			id: format!("sdiff-{}-{}", d.node.addr(), crate::base::util::now_nanos()),
+			id: format!("sdiff-{}-{}", d.node.addr(), crate::util::now_nanos()),
 			origin: d.node.addr(),
 			payload: GossipPayload::SyncDiff(SyncDiffPayload {
 				contract: cid,
@@ -828,7 +828,7 @@ fn handle_contract_delta(d: &Arc<Deps>, msg: GossipMessage) {
 				tracing::warn!(
 					target: "kern.gossip",
 					origin = %msg.origin,
-					contract = %crate::base::util::short_id(&crate::base::util::hex::encode(cid)),
+					contract = %crate::util::short_id(&crate::util::hex::encode(cid)),
 					refusal = ?refusal,
 					total_refused = super::contract::contract_refused(),
 					"contract delta refused (further refusals counted, not logged)"
@@ -849,7 +849,7 @@ fn handle_contract_delta(d: &Arc<Deps>, msg: GossipMessage) {
 				&addr,
 				GossipMessage {
 					kind: GossipKind::ContractDelta,
-					id: format!("cdelta-{}-{}", d.node.addr(), crate::base::util::now_nanos()),
+					id: format!("cdelta-{}-{}", d.node.addr(), crate::util::now_nanos()),
 					origin: d.node.addr(),
 					payload: GossipPayload::ContractDelta(ContractDeltaPayload {
 						contract: cid,
@@ -882,8 +882,8 @@ fn handle_tombstone(d: &Arc<Deps>, msg: GossipMessage) {
 	d.subs.remove(&p.contract);
 	tracing::info!(
 		target: "kern.gossip",
-		old = %crate::base::util::short_id(&crate::base::util::hex::encode(p.contract)),
-		new = %crate::base::util::short_id(&crate::base::util::hex::encode(p.new_id)),
+		old = %crate::util::short_id(&crate::util::hex::encode(p.contract)),
+		new = %crate::util::short_id(&crate::util::hex::encode(p.new_id)),
 		"contract tombstoned by its owner; unsubscribed — resubscribe to the new id to follow"
 	);
 }
@@ -895,7 +895,7 @@ fn handle_tombstone(d: &Arc<Deps>, msg: GossipMessage) {
 pub fn publish_to_contract(
 	d: &Arc<Deps>,
 	cid: &ContractId,
-	entity: crate::base::types::Entity,
+	entity: crate::base_types::Entity,
 ) -> Result<Applied, String> {
 	let Some(host) = d.host(cid) else {
 		return Err("contract not hosted on this node".into());
@@ -928,7 +928,7 @@ pub fn publish_to_contract(
 			&addr,
 			GossipMessage {
 				kind: GossipKind::ContractDelta,
-				id: format!("cdelta-{}-{}", d.node.addr(), crate::base::util::now_nanos()),
+				id: format!("cdelta-{}-{}", d.node.addr(), crate::util::now_nanos()),
 				origin: d.node.addr(),
 				payload: GossipPayload::ContractDelta(ContractDeltaPayload {
 					contract: *cid,
@@ -954,7 +954,7 @@ pub fn contract_sync_once(d: &Arc<Deps>) {
 					&up,
 					GossipMessage {
 						kind: GossipKind::SyncSummary,
-						id: format!("ssum-{}-{}", d.node.addr(), crate::base::util::now_nanos()),
+						id: format!("ssum-{}-{}", d.node.addr(), crate::util::now_nanos()),
 						origin: d.node.addr(),
 						payload: GossipPayload::SyncSummary(SyncSummaryPayload {
 							contract: cid,
@@ -996,7 +996,7 @@ fn resolve_question_from_peer(
 
 	let (reason, kern_id, local_net) = {
 		let g = d.graph.read();
-		match crate::base::search::find_reason(&g, reason_id) {
+		match crate::search::find_reason(&g, reason_id) {
 			Some((reason, kern_id)) => (reason, kern_id, g.network_id.clone()),
 			None => return,
 		}
@@ -1017,7 +1017,7 @@ fn resolve_question_from_peer(
 				d.node.ledger.put_routing(&sphere.network_id, origin);
 				d.node.ledger.put_thought(&sphere.entity_id, origin);
 			}
-			r.id = crate::base::math::reason_id(&r.from, &r.to, r.kind, &r.text, &r.to_net_id);
+			r.id = crate::math::reason_id(&r.from, &r.to, r.kind, &r.text, &r.to_net_id);
 		}
 	}
 	drop(g);
@@ -1040,8 +1040,8 @@ fn resolve_question_from_peer(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::base::reason::add_reason;
-	use crate::base::types::{mk_entity as mk_entity_kind, Entity, EntityKind, Reason};
+	use crate::reason::add_reason;
+	use crate::base_types::{mk_entity as mk_entity_kind, Entity, EntityKind, Reason};
 
 	fn mk_entity(id: &str, text: &str, heat: f64) -> Entity {
 		mk_entity_kind(id, text, heat, EntityKind::Fact)
@@ -1295,7 +1295,7 @@ mod tests {
 			.fetch_thought("holdernet", "eF")
 			.await
 			.expect("holder serves the entity body");
-		let (entity, _) = bincode::serde::decode_from_slice::<crate::base::types::Entity, _>(
+		let (entity, _) = bincode::serde::decode_from_slice::<crate::base_types::Entity, _>(
 			&body,
 			bincode::config::standard(),
 		)
@@ -1382,11 +1382,11 @@ mod tests {
 		// creation path, the check drops legitimate remote knowledge. Build through
 		// the shipped constructor rather than by hand.
 		let text = "Ada keeps her bicycle in the garden shed";
-		let e = crate::base::types::Entity {
-			id: crate::base::util::content_hash(text),
+		let e = crate::base_types::Entity {
+			id: crate::util::content_hash(text),
 			statements: vec![text.to_string()],
-			chunks: vec![crate::base::types::ChunkPart {
-				kind: crate::base::types::ChunkPartKind::StatementRef,
+			chunks: vec![crate::base_types::ChunkPart {
+				kind: crate::base_types::ChunkPartKind::StatementRef,
 				text: String::new(),
 				index: 0,
 			}],
@@ -1401,11 +1401,11 @@ mod tests {
 
 	#[test]
 	fn a_body_that_does_not_hash_to_its_id_is_rejected() {
-		let mut e = crate::base::types::Entity {
-			id: crate::base::util::content_hash("the original text"),
+		let mut e = crate::base_types::Entity {
+			id: crate::util::content_hash("the original text"),
 			statements: vec!["attacker-substituted text".to_string()],
-			chunks: vec![crate::base::types::ChunkPart {
-				kind: crate::base::types::ChunkPartKind::StatementRef,
+			chunks: vec![crate::base_types::ChunkPart {
+				kind: crate::base_types::ChunkPartKind::StatementRef,
 				text: String::new(),
 				index: 0,
 			}],
@@ -1423,8 +1423,8 @@ mod tests {
 	#[test]
 	fn remote_kern_ids_excludes_local_kerns() {
 		let mut g = GraphGnn::new();
-		g.register(crate::base::types::Kern::new("remote-netA-k1", &g.root.id));
-		g.register(crate::base::types::Kern::new("local-kern", &g.root.id));
+		g.register(crate::base_types::Kern::new("remote-netA-k1", &g.root.id));
+		g.register(crate::base_types::Kern::new("local-kern", &g.root.id));
 
 		let ids = remote_kern_ids(&g);
 		assert!(ids.iter().any(|k| k == "remote-netA-k1"));
@@ -1439,7 +1439,7 @@ mod tests {
 	}
 	#[test]
 	fn hottest_local_picks_the_top_n_and_skips_remote_kerns() {
-		use crate::base::types::{Entity, Kern};
+		use crate::base_types::{Entity, Kern};
 		let mut g = GraphGnn::new();
 		let local = g.root.id.clone();
 		{
@@ -1483,7 +1483,7 @@ mod tests {
 
 	#[test]
 	fn hottest_local_returns_everything_when_under_the_batch() {
-		use crate::base::types::Entity;
+		use crate::base_types::Entity;
 		let mut g = GraphGnn::new();
 		let local = g.root.id.clone();
 		{
@@ -1509,7 +1509,7 @@ mod tests {
 	}
 	#[test]
 	fn a_flood_of_questions_from_one_peer_is_refused() {
-		use crate::base::types::Entity;
+		use crate::base_types::Entity;
 		use crate::gossip::rate::GOSSIP_QUESTION_PER_MIN;
 		let mut graph = GraphGnn::new();
 		let root = graph.root.id.clone();
@@ -1601,10 +1601,10 @@ mod tests {
 
 	fn fed_entity(text: &str) -> Entity {
 		Entity {
-			id: crate::base::util::content_hash(text),
+			id: crate::util::content_hash(text),
 			statements: vec![text.to_string()],
-			chunks: vec![crate::base::types::ChunkPart {
-				kind: crate::base::types::ChunkPartKind::StatementRef,
+			chunks: vec![crate::base_types::ChunkPart {
+				kind: crate::base_types::ChunkPartKind::StatementRef,
 				text: String::new(),
 				index: 0,
 			}],

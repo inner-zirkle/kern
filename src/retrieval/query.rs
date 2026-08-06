@@ -1,8 +1,8 @@
-use crate::base::constants::QUERY_MAX_CHAINS;
-use crate::base::graph::GraphGnn;
-use crate::base::heat::HeatConfig;
-use crate::base::search::{find_entity, find_reason};
-use crate::base::util;
+use crate::base_constants::QUERY_MAX_CHAINS;
+use crate::graph::GraphGnn;
+use crate::heat::HeatConfig;
+use crate::search::{find_entity, find_reason};
+use crate::util;
 use crate::config::RetrievalConfig;
 use crate::profile::Profiler;
 use crate::retrieval::expand::{self, PathChain, ScoredEntity, ScoredRef};
@@ -80,16 +80,16 @@ fn fuse_hybrid_seeds(
 	g: &GraphGnn,
 	cfg: &RetrievalConfig,
 	opts: Option<&QueryOptions>,
-	lex: &crate::base::lexical::LexicalIndex,
+	lex: &crate::lexical::LexicalIndex,
 	qvec: &[f32],
-	dense_seeds: Vec<crate::base::search::EntityHit>,
+	dense_seeds: Vec<crate::search::EntityHit>,
 	query_text: &str,
-	imp_hits: &[crate::base::search::EntityHit],
-) -> Vec<crate::base::search::EntityHit> {
+	imp_hits: &[crate::search::EntityHit],
+) -> Vec<crate::search::EntityHit> {
 	let lex_hits = seed::seed_lexical(lex, g, query_text, cfg.seed_k * 4, opts);
 	let pr_hits = if cfg.pagerank_enabled {
 		// Teleport personalized at dense + lexical seeds only — importance is query-independent and would make PageRank query-blind.
-		let ppr_seeds: Vec<crate::base::search::EntityHit> =
+		let ppr_seeds: Vec<crate::search::EntityHit> =
 			dense_seeds.iter().chain(lex_hits.iter()).cloned().collect();
 		pagerank::pagerank(
 			g,
@@ -102,7 +102,7 @@ fn fuse_hybrid_seeds(
 		Vec::new()
 	};
 	let gw = cfg.rrf_global_weight;
-	let mut lists: Vec<&[crate::base::search::EntityHit]> = vec![&dense_seeds, &lex_hits, imp_hits];
+	let mut lists: Vec<&[crate::search::EntityHit]> = vec![&dense_seeds, &lex_hits, imp_hits];
 	let mut weights: Vec<f64> = vec![1.0, 1.0, gw];
 	if !pr_hits.is_empty() {
 		lists.push(&pr_hits);
@@ -116,10 +116,10 @@ fn fuse_hybrid_seeds(
 	// query cosine so seeds re-enter the pipeline on the one scale it speaks.
 	for h in &mut fused {
 		h.score = expand::find_entity_ref_in_graph(g, &h.entity_id)
-			.map(|e| crate::base::math::cosine(qvec, &e.vector))
+			.map(|e| crate::math::cosine(qvec, &e.vector))
 			.unwrap_or(0.0);
 	}
-	fused.sort_by(|a, b| crate::base::util::cmp_rank(a.score, &a.entity_id, b.score, &b.entity_id));
+	fused.sort_by(|a, b| crate::util::cmp_rank(a.score, &a.entity_id, b.score, &b.entity_id));
 	fused
 }
 
@@ -223,7 +223,7 @@ pub fn retrieve_profiled(
 		if let Some(lex) = lex_ref {
 			score::apply_lexical_boost(lex, cfg, query_text, &mut results);
 			results
-				.sort_by(|a, b| crate::base::util::cmp_rank(a.score, &a.entity.id, b.score, &b.entity.id));
+				.sort_by(|a, b| crate::util::cmp_rank(a.score, &a.entity.id, b.score, &b.entity.id));
 		}
 	}
 
@@ -314,8 +314,8 @@ pub fn format_chains(g: &GraphGnn, chains: &[PathChain]) -> String {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::base::reason::add_reason;
-	use crate::base::types::{mk_entity, EntityKind, Kern, Reason, ReasonKind};
+	use crate::reason::add_reason;
+	use crate::base_types::{mk_entity, EntityKind, Kern, Reason, ReasonKind};
 
 	// ROADMAP item 94. A dedup keeps the incoming wording on a `Rephrase` reason
 	// and nothing else, so the exact phrasing a user might search for sat in the
@@ -363,7 +363,7 @@ mod tests {
 			.expect("in-ram lexical index")
 			.rebuild_from_graph(&g);
 
-		crate::base::accept::merge_duplicate(
+		crate::accept::merge_duplicate(
 			&mut g,
 			"survivor",
 			"ada stores her velocipede in the outbuilding",
@@ -555,7 +555,7 @@ mod tests {
 
 	#[test]
 	fn query_locked_is_read_only_and_defers_the_access_stamp() {
-		use crate::base::accept;
+		use crate::accept;
 		use parking_lot::RwLock;
 
 		let mut g = GraphGnn::new();
@@ -596,7 +596,7 @@ mod tests {
 
 	mod untrusted_delivery {
 		use super::*;
-		use crate::base::merge::merge_remote_entity;
+		use crate::merge::merge_remote_entity;
 		use crate::retrieval::seed::Mode;
 
 		const PHANTOM: &str = "remote-evilnet-k1";

@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-use crate::base::constants;
-use crate::base::types::Source;
+use crate::base_constants as constants;
+use crate::base_types::Source;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(default)]

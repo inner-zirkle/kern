@@ -2,20 +2,20 @@ use std::sync::Arc;
 
 use parking_lot::RwLock;
 
-use crate::base::accept::{
+use crate::accept::{
 	classify_prompt, parse_contradiction, supersede_by_contradiction, ContradictionClass,
 };
-use crate::base::constants::{
+use crate::base_constants::{
 	DEFAULT_SEED_K, KERN_INNER_RADIUS, KERN_OUTER_RADIUS, PROVENANCE_SCORE,
 	QUESTION_RESOLVE_THRESHOLD,
 };
-use crate::base::graph::GraphGnn;
-use crate::base::heat::HeatConfig;
-use crate::base::math::reason_id;
-use crate::base::reason::{add_reason, remove_reason};
-use crate::base::search::search_all_unlocked;
-use crate::base::types::{Embedding, Reason, ReasonKind, Scoping};
-use crate::base::util;
+use crate::graph::GraphGnn;
+use crate::heat::HeatConfig;
+use crate::math::reason_id;
+use crate::reason::{add_reason, remove_reason};
+use crate::search::search_all_unlocked;
+use crate::base_types::{Embedding, Reason, ReasonKind, Scoping};
+use crate::util;
 use crate::config::TickConfig;
 use crate::ingest::place::build_chunk_entity;
 
@@ -203,7 +203,7 @@ pub fn do_classify_contradiction(
 			}
 			// The wording just became the revision's own text — drop it from the
 			// superseded entity's document, which no longer carries that Rephrase.
-			crate::base::lexical::reindex_entity(&graph, kern_id, &old_id);
+			crate::lexical::reindex_entity(&graph, kern_id, &old_id);
 			if let Some(lex) = graph.lexical() {
 				lex.insert(&new_id, &new_text);
 			}
@@ -287,7 +287,7 @@ pub fn do_name(
 			}
 		}
 
-		crate::base::accept::promote_to_root_if_generic(&mut graph, kern_id)
+		crate::accept::promote_to_root_if_generic(&mut graph, kern_id)
 	};
 
 	{
@@ -485,7 +485,7 @@ pub fn do_persist(g: &Arc<RwLock<GraphGnn>>, kern_id: &str) {
 	// Root authoritative fields live on `graph.root`, not the map entry — persist
 	// through the same merge `save_all` uses so they can't be dropped.
 	if kern_id == graph.root.id {
-		let _ = store.save_one_kern(&crate::base::persist::merged_root(&graph));
+		let _ = store.save_one_kern(&crate::persist::merged_root(&graph));
 		return;
 	}
 	let kern = match graph.loaded(kern_id) {
@@ -544,7 +544,7 @@ pub fn do_reembed(g: &Arc<RwLock<GraphGnn>>, kern_id: &str, embed: Option<&Embed
 				e.dirty = false;
 			}
 		}
-		let endpoint = |k: &crate::base::types::Kern, id: &str| -> Option<Embedding> {
+		let endpoint = |k: &crate::base_types::Kern, id: &str| -> Option<Embedding> {
 			k.entities
 				.get(id)
 				.map(|e| e.vector.clone())
@@ -562,7 +562,7 @@ pub fn do_reembed(g: &Arc<RwLock<GraphGnn>>, kern_id: &str, embed: Option<&Embed
 				None => continue,
 			};
 			let nv = match (endpoint(k, &from), endpoint(k, &to)) {
-				(Some(fv), Some(tv)) => Some(crate::base::math::average_vec(&fv, &tv)),
+				(Some(fv), Some(tv)) => Some(crate::math::average_vec(&fv, &tv)),
 				_ => None,
 			};
 			if let Some(r) = k.reasons.get_mut(&rid) {
@@ -580,8 +580,8 @@ pub fn do_reembed(g: &Arc<RwLock<GraphGnn>>, kern_id: &str, embed: Option<&Embed
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::base::graph::GraphGnn;
-	use crate::base::types::{Entity, Kern};
+	use crate::graph::GraphGnn;
+	use crate::base_types::{Entity, Kern};
 	use parking_lot::RwLock;
 	use std::sync::Arc;
 
@@ -641,7 +641,7 @@ mod tests {
 		let root = g.root.id.clone();
 		let mut old = Entity {
 			id: "old".into(),
-			kind: crate::base::types::EntityKind::Claim,
+			kind: crate::base_types::EntityKind::Claim,
 			vector: vec![1.0, 0.0].into(),
 			..Default::default()
 		};

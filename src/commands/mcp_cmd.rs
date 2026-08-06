@@ -86,7 +86,7 @@ async fn replace_if_stale(
 	via_hub: bool,
 ) -> KernRpcClient<JsonEnvelopeCodec> {
 	use super::mcp_restart::{verdict, Verdict};
-	use crate::base::identity;
+	use crate::identity;
 
 	let caller = crate::rpc::caller_of(cfg);
 
@@ -382,7 +382,7 @@ impl McpServer for ProxyServer {
 }
 
 enum StandaloneEntry {
-	Own(crate::base::lock::WriterLock),
+	Own(crate::lock::WriterLock),
 	Attach(Box<KernRpcClient<JsonEnvelopeCodec>>),
 	Refuse(String),
 }
@@ -400,7 +400,7 @@ async fn claim_standalone(
 	retries: u32,
 	delay: std::time::Duration,
 ) -> StandaloneEntry {
-	let held = match crate::base::lock::acquire(data_dir, "mcp-standalone") {
+	let held = match crate::lock::acquire(data_dir, "mcp-standalone") {
 		Ok(l) => return StandaloneEntry::Own(l),
 		Err(e) => e,
 	};
@@ -512,7 +512,7 @@ async fn run_standalone(cfg: &crate::config::Config) {
 		cfg: Arc::new(cfg.clone()),
 		broadcast_pulse: None,
 		last_activity: Arc::new(std::sync::atomic::AtomicU64::new(
-			crate::base::util::now_ms(),
+			crate::util::now_ms(),
 		)),
 	};
 	// KERN_TRANSPORT names one of the master transports (tcp:9401, ws:9402,
@@ -609,7 +609,7 @@ mod standalone_tests {
 		let dir = std::env::temp_dir().join(format!(
 			"kern-standalone-{}-{}-{tag}",
 			std::process::id(),
-			crate::base::util::now_ms()
+			crate::util::now_ms()
 		));
 		std::fs::create_dir_all(&dir).expect("scratch dir");
 		Endpoint::Unix(dir.join("kern.sock"))
@@ -642,7 +642,7 @@ mod standalone_tests {
 		)
 		.await;
 		match out {
-			StandaloneEntry::Own(l) => assert!(l.path().ends_with(crate::base::lock::LOCK_FILE)),
+			StandaloneEntry::Own(l) => assert!(l.path().ends_with(crate::lock::LOCK_FILE)),
 			_ => panic!("nothing holds the dir — the standalone server is its writer"),
 		}
 	}
@@ -654,7 +654,7 @@ mod standalone_tests {
 	async fn a_held_dir_with_nothing_serving_refuses_rather_than_writing_beside_it() {
 		let dir = tempfile::tempdir().unwrap();
 		let d = dir.path().to_str().unwrap();
-		let _sibling = crate::base::lock::acquire(d, "mcp-standalone").expect("sibling claims it");
+		let _sibling = crate::lock::acquire(d, "mcp-standalone").expect("sibling claims it");
 
 		let out = claim_standalone(
 			d,
@@ -680,7 +680,7 @@ mod standalone_tests {
 	async fn a_held_dir_whose_holder_answers_is_proxied_to_instead() {
 		let dir = tempfile::tempdir().unwrap();
 		let d = dir.path().to_str().unwrap();
-		let _daemon = crate::base::lock::acquire(d, "daemon").expect("the daemon claims it");
+		let _daemon = crate::lock::acquire(d, "daemon").expect("the daemon claims it");
 		let ep = scratch_endpoint("late");
 		serving(&ep).await;
 
@@ -773,7 +773,7 @@ mod proxy_method_tests {
 		let srv = crate::test_support::mcp_server();
 		{
 			let mut g = srv.graph.write();
-			let mut k = crate::base::types::Kern::new("kx", "");
+			let mut k = crate::base_types::Kern::new("kx", "");
 			let mut e = crate::test_support::entity(SEEDED_ID);
 			e.set_text(SEEDED_TEXT.to_string());
 			k.entities.insert(SEEDED_ID.into(), e);

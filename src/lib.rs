@@ -31,8 +31,29 @@ pub fn launch_dir_join(path: impl AsRef<Path>) -> PathBuf {
 	}
 }
 
-pub mod base;
+pub mod accept;
+pub mod base_constants;
 pub mod commands;
+pub mod diskann;
+pub mod graph;
+pub mod health;
+pub mod heat;
+pub mod hnsw;
+pub mod identity;
+pub mod lexical;
+pub mod lock;
+pub mod log_throttle;
+pub mod math;
+pub mod merge;
+pub mod persist;
+pub mod reason;
+pub mod search;
+pub mod base_store;
+pub mod time;
+pub mod base_types;
+pub mod util;
+pub mod validate;
+pub mod vector_backend;
 pub mod config;
 pub mod config_detached_log;
 mod config_embed;

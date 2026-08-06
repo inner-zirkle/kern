@@ -4,7 +4,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use crate::watcher::{FileWatcher, IgnoreRules, IngestPipeline, IngestRecord, IngestSink, WatcherError};
 
-use crate::base::types::{EntityKind, Scoping, Source};
+use crate::base_types::{EntityKind, Scoping, Source};
 use crate::ingest::{Config as IngestRunConfig, Worker};
 
 fn strip_file_uri(uri: &str) -> String {
@@ -179,10 +179,10 @@ mod tests {
 	use tempfile::tempdir;
 	use tokio::time::{sleep, timeout};
 
-	use crate::base::accept;
-	use crate::base::graph::GraphGnn;
-	use crate::base::types::{ChunkPart, ChunkPartKind, Embedding, Entity, EntityStatus};
-	use crate::base::util;
+	use crate::accept;
+	use crate::graph::GraphGnn;
+	use crate::base_types::{ChunkPart, ChunkPartKind, Embedding, Entity, EntityStatus};
+	use crate::util;
 	use crate::crdt::GCounter;
 
 	#[derive(Clone)]
@@ -563,7 +563,7 @@ mod tests {
 		}
 		assert!(!betas.is_empty(), "the watched file reached the graph");
 
-		let agent = 2.0 - crate::base::constants::MAX_AI_CONFIDENCE as f32;
+		let agent = 2.0 - crate::base_constants::MAX_AI_CONFIDENCE as f32;
 		for got in &betas {
 			assert!(
 				(got - agent).abs() < 1e-6,
@@ -643,7 +643,7 @@ mod tests {
 			.filter(|e| matches!(e.kind, EntityKind::Document))
 			.collect();
 		assert!(!docs.is_empty(), "the drain rebuilt the document");
-		let want = 2.0 - crate::base::constants::MAX_AI_CONFIDENCE as f32;
+		let want = 2.0 - crate::base_constants::MAX_AI_CONFIDENCE as f32;
 		for d in &docs {
 			assert_eq!(d.source.scheme(), "file", "it came back as a file");
 			assert!(

@@ -1,5 +1,5 @@
-use crate::base::graph::GraphGnn;
-use crate::base::search::EntityHit;
+use crate::graph::GraphGnn;
+use crate::search::EntityHit;
 use std::cell::Cell;
 use std::collections::HashMap;
 
@@ -278,7 +278,7 @@ fn pagerank_at(
 	if take > 0 {
 		// Unique ids make this a STRICT total order, so the top-k partition + sorting only the survivors equals a full sort + take.
 		let cmp = |a: &(usize, f64), b: &(usize, f64)| {
-			crate::base::util::cmp_rank(a.1, &ids[a.0], b.1, &ids[b.0])
+			crate::util::cmp_rank(a.1, &ids[a.0], b.1, &ids[b.0])
 		};
 		// A zero-rank node loses to every positive one, so once the reached set alone
 		// can fill top_k the untouched majority cannot enter it and never gets scanned.
@@ -320,7 +320,7 @@ fn pagerank_at(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::base::types::Kern;
+	use crate::base_types::Kern;
 
 	use crate::test_support::{edge, entity as ent};
 
@@ -406,7 +406,7 @@ mod tests {
 			return Vec::new();
 		}
 		let mut scored: Vec<(usize, f64)> = rank.iter().copied().enumerate().collect();
-		scored.sort_by(|a, b| crate::base::util::cmp_rank(a.1, &ids[a.0], b.1, &ids[b.0]));
+		scored.sort_by(|a, b| crate::util::cmp_rank(a.1, &ids[a.0], b.1, &ids[b.0]));
 		scored.truncate(take);
 		scored
 			.into_iter()

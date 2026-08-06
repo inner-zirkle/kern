@@ -1,5 +1,5 @@
-use super::constants::*;
-use super::types::{EntityKind, ReasonKind};
+use crate::base_constants::*;
+use crate::base_types::{EntityKind, ReasonKind};
 use super::util;
 
 pub fn cosine(a: &[f32], b: &[f32]) -> f64 {

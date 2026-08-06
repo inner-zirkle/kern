@@ -6,8 +6,8 @@ use heed::{CompactionOption, Database, Env, EnvOpenOptions};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
-use crate::base::log_throttle::LogThrottle;
-use crate::base::types::{Embedding, Entity, Kern};
+use crate::log_throttle::LogThrottle;
+use crate::base_types::{Embedding, Entity, Kern};
 use crate::quant::{QuantizationMode, QuantizedVec};
 
 // Headroom is a DURABILITY requirement: a full env fails even the deletes that
@@ -635,7 +635,7 @@ impl Store {
 			.cold_vec
 			.put(&mut wtxn, &entity.id, &encode_vec(&entity.vector))?;
 		wtxn.commit()?;
-		self.cold_cap_amortized(crate::base::constants::COLD_MAX_ENTRIES)?;
+		self.cold_cap_amortized(crate::base_constants::COLD_MAX_ENTRIES)?;
 		Ok(())
 	}
 
@@ -679,7 +679,7 @@ impl Store {
 				.put(&mut wtxn, &e.id, &encode_vec(&e.vector))?;
 		}
 		wtxn.commit()?;
-		self.cold_cap_amortized(crate::base::constants::COLD_MAX_ENTRIES)?;
+		self.cold_cap_amortized(crate::base_constants::COLD_MAX_ENTRIES)?;
 		Ok(())
 	}
 
@@ -701,7 +701,7 @@ impl Store {
 				if buf.len() != query_vec.len() {
 					continue;
 				}
-				let s = crate::base::math::cosine(query_vec, &buf);
+				let s = crate::math::cosine(query_vec, &buf);
 				if s.is_finite() {
 					scored.push((id.to_string(), s));
 				}
@@ -709,7 +709,7 @@ impl Store {
 		}
 		// Ties broken by id ascending so truncation is deterministic — LMDB scan
 		// order must not decide which equal-cosine entities survive.
-		scored.sort_by(|a, b| crate::base::util::cmp_rank(a.1, &a.0, b.1, &b.0));
+		scored.sort_by(|a, b| crate::util::cmp_rank(a.1, &a.0, b.1, &b.0));
 		scored.truncate(k);
 		let mut out = Vec::with_capacity(scored.len());
 		for (id, s) in scored {
@@ -827,7 +827,7 @@ pub fn compact_dir(dir: &str) -> Result<(u64, u64), StoreError> {
 	let old_len = std::fs::metadata(path.join("data.mdb"))
 		.map(|m| m.len())
 		.unwrap_or(0);
-	if old_len < crate::base::constants::COLD_COMPACT_MIN_BYTES {
+	if old_len < crate::base_constants::COLD_COMPACT_MIN_BYTES {
 		return Ok((old_len, old_len));
 	}
 
@@ -852,7 +852,7 @@ pub fn compact_dir(dir: &str) -> Result<(u64, u64), StoreError> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::base::types::{mk_entity, EntityKind, ReviewState};
+	use crate::base_types::{mk_entity, EntityKind, ReviewState};
 	use std::time::{Duration, UNIX_EPOCH};
 
 	#[derive(Debug, PartialEq, Serialize, Deserialize)]
@@ -1297,7 +1297,7 @@ mod tests {
 			)
 			.unwrap();
 			assert!(
-				s.data_file_len() < crate::base::constants::COLD_COMPACT_MIN_BYTES,
+				s.data_file_len() < crate::base_constants::COLD_COMPACT_MIN_BYTES,
 				"tiny store"
 			);
 		}
@@ -1470,7 +1470,7 @@ mod tests {
 				if e.vector.len() != q.len() {
 					return None;
 				}
-				let sc = crate::base::math::cosine(q, &e.vector);
+				let sc = crate::math::cosine(q, &e.vector);
 				if sc.is_finite() {
 					Some((e.id, sc, e.vector))
 				} else {
@@ -1481,7 +1481,7 @@ mod tests {
 		// Reversed before sorting so the reference never inherits LMDB key order:
 		// it has to reach id-ascending through the tie-break, not through the scan.
 		scored.reverse();
-		scored.sort_by(|a, b| crate::base::util::cmp_rank(a.1, &a.0, b.1, &b.0));
+		scored.sort_by(|a, b| crate::util::cmp_rank(a.1, &a.0, b.1, &b.0));
 		scored.truncate(k);
 		scored
 	}

@@ -1,8 +1,8 @@
-use crate::base::graph::GraphGnn;
-use crate::base::log_throttle::LogThrottle;
-use crate::base::math::clamp_confidence;
-use crate::base::types::*;
-use crate::base::util;
+use crate::graph::GraphGnn;
+use crate::log_throttle::LogThrottle;
+use crate::math::clamp_confidence;
+use crate::base_types::*;
+use crate::util;
 use crate::ingest::config::Config;
 use crate::ingest::embed::embed_chunks;
 use crate::ingest::outcome::{FailureReport, Outcome, OutcomeStatus};
@@ -752,21 +752,21 @@ mod tests {
 
 		assert_eq!(
 			build(1.0, "file").confidence,
-			crate::base::constants::MAX_AI_CONFIDENCE,
+			crate::base_constants::MAX_AI_CONFIDENCE,
 			"a non-user channel is capped, whatever it asked for"
 		);
 		assert_eq!(
-			build(1.0, crate::base::constants::AGENT_SOURCE).confidence,
-			crate::base::constants::MAX_AI_CONFIDENCE,
+			build(1.0, crate::base_constants::AGENT_SOURCE).confidence,
+			crate::base_constants::MAX_AI_CONFIDENCE,
 		);
 		assert_eq!(
-			build(1.0, crate::base::constants::USER_SOURCE).confidence,
+			build(1.0, crate::base_constants::USER_SOURCE).confidence,
 			1.0,
 			"the one path with a human behind it keeps its 1.0"
 		);
 		assert_eq!(
-			build(crate::base::constants::MAX_AI_CONFIDENCE, "file").confidence,
-			crate::base::constants::MAX_AI_CONFIDENCE,
+			build(crate::base_constants::MAX_AI_CONFIDENCE, "file").confidence,
+			crate::base_constants::MAX_AI_CONFIDENCE,
 			"idempotent: a producer that already clamped is not clamped twice"
 		);
 		assert_eq!(
@@ -844,7 +844,7 @@ mod tests {
 			Scoping::default(),
 		);
 
-		let want = crate::base::constants::MAX_AI_CONFIDENCE;
+		let want = crate::base_constants::MAX_AI_CONFIDENCE;
 		let mut seen: Vec<(String, f64)> = Vec::new();
 		let cap = std::time::Instant::now() + std::time::Duration::from_secs(5);
 		while std::time::Instant::now() < cap {

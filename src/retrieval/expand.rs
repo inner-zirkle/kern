@@ -1,7 +1,7 @@
-use crate::base::graph::GraphGnn;
-use crate::base::math::cosine;
-use crate::base::search::EntityHit;
-use crate::base::types::*;
+use crate::graph::GraphGnn;
+use crate::math::cosine;
+use crate::search::EntityHit;
+use crate::base_types::*;
 use crate::config::RetrievalConfig;
 use crate::retrieval::seed::Weights;
 use std::collections::{HashMap, HashSet};
@@ -428,7 +428,7 @@ pub fn find_entity_ref_in_graph<'a>(g: &'a GraphGnn, id: &str) -> Option<&'a Ent
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::base::reason::add_reason;
+	use crate::reason::add_reason;
 
 	use crate::test_support::entity_vec as ent;
 	fn edge(from: &str, to: &str, score: f64) -> Reason {

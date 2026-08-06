@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::base::constants::KERN_CAP_DISABLED;
+use crate::base_constants::KERN_CAP_DISABLED;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(default)]

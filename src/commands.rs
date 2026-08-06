@@ -16,7 +16,7 @@ use std::sync::Arc;
 
 use clap::{Args, Parser, Subcommand};
 
-use crate::base::graph::GraphGnn;
+use crate::graph::GraphGnn;
 
 const SELF_HEAL_BLOAT_BYTES: u64 = 512 * 1024 * 1024;
 
@@ -308,13 +308,13 @@ pub enum UnnamedAction {
 pub(crate) fn apply_graph_config(g: &mut GraphGnn, cfg: &crate::config::GraphConfig) {
 	g.set_max_loaded_kerns(cfg.max_kerns);
 	g.set_disk_threshold(cfg.disk_threshold);
-	if cfg.disk_threshold != crate::base::constants::KERN_CAP_DISABLED {
+	if cfg.disk_threshold != crate::base_constants::KERN_CAP_DISABLED {
 		g.rebuild_index();
 	}
 }
 
 pub(crate) fn load_graph(cfg: &crate::config::Config) -> GraphGnn {
-	let mut g = match crate::base::persist::load_dir(&cfg.data_dir) {
+	let mut g = match crate::persist::load_dir(&cfg.data_dir) {
 		Ok(g) => g,
 		Err(e) => {
 			// The empty fallback boots at epoch 0, so its flushes are refused
@@ -328,7 +328,7 @@ pub(crate) fn load_graph(cfg: &crate::config::Config) -> GraphGnn {
 			);
 			let mut g = GraphGnn::new();
 			g.data_dir = cfg.data_dir.clone();
-			if let Ok(store) = crate::base::store::Store::open(&cfg.data_dir) {
+			if let Ok(store) = crate::base_store::Store::open(&cfg.data_dir) {
 				g.set_store(std::sync::Arc::new(store));
 			}
 			g
@@ -346,7 +346,7 @@ pub(crate) fn load_graph(cfg: &crate::config::Config) -> GraphGnn {
 // here — the stamp is what turns a silent model swap into a reported one.
 fn bind_embed_model(g: &mut GraphGnn, cfg: &crate::config::Config) {
 	g.set_embed_model(&cfg.embed.model);
-	crate::base::persist::check_graph_stamp(g);
+	crate::persist::check_graph_stamp(g);
 }
 
 // Writes the whole kern map with no epoch check, so a commit that landed since
@@ -354,13 +354,13 @@ fn bind_embed_model(g: &mut GraphGnn, cfg: &crate::config::Config) {
 // the writer lock (`gc`, `compact`, `reembed`) or owns the dir outright. Anything
 // else wants `save_graph_guarded`, which refuses a stale flush and absorbs.
 pub(crate) fn save_graph_unguarded(g: &GraphGnn) {
-	if let Err(e) = crate::base::persist::save_all(g) {
+	if let Err(e) = crate::persist::save_all(g) {
 		eprintln!("save: {e}");
 	}
 }
 
 pub(crate) fn reload_graph(cfg: &crate::config::Config, old: &GraphGnn) -> GraphGnn {
-	match crate::base::persist::reload_from_disk(old) {
+	match crate::persist::reload_from_disk(old) {
 		Some(mut g) => {
 			bind_embed_model(&mut g, cfg);
 			apply_graph_config(&mut g, &cfg.graph);
@@ -382,20 +382,20 @@ pub(crate) fn save_graph_guarded(
 		let (snapshot, expected) = {
 			let g = graph.read();
 			(
-				crate::base::persist::snapshot_for_flush(&g),
+				crate::persist::snapshot_for_flush(&g),
 				g.flushed_epoch(),
 			)
 		};
 		let Some(snapshot) = snapshot else {
 			return;
 		};
-		let outcome = crate::base::persist::flush_snapshot(&snapshot, expected);
+		let outcome = crate::persist::flush_snapshot(&snapshot, expected);
 		match outcome {
-			Ok(crate::base::store::FlushOutcome::Flushed { epoch }) => {
+			Ok(crate::base_store::FlushOutcome::Flushed { epoch }) => {
 				graph.write().set_flushed_epoch(epoch);
 				return;
 			}
-			Ok(crate::base::store::FlushOutcome::RefusedStale {
+			Ok(crate::base_store::FlushOutcome::RefusedStale {
 				disk_epoch,
 				expected,
 			}) => {
@@ -408,7 +408,7 @@ pub(crate) fn save_graph_guarded(
 					"refused to flush a stale snapshot — disk advanced under us (another writer); absorbing disk rows and retrying"
 				);
 				let mut w = graph.write();
-				let Some(fresh) = crate::base::persist::reload_from_disk(&w) else {
+				let Some(fresh) = crate::persist::reload_from_disk(&w) else {
 					tracing::error!(
 						target: "kern.persist",
 						data_dir = %cfg.data_dir,
@@ -417,7 +417,7 @@ pub(crate) fn save_graph_guarded(
 					return;
 				};
 				let disk_epoch = fresh.flushed_epoch();
-				crate::base::merge::absorb_graph(&mut w, fresh);
+				crate::merge::absorb_graph(&mut w, fresh);
 				w.set_flushed_epoch(disk_epoch);
 			}
 			Err(e) => {
@@ -493,7 +493,7 @@ fn maybe_self_heal_store(cfg: &crate::config::Config) {
 			eprintln!("kern: self-heal reaped {reaped} empty kerns ({before} -> {after})");
 		}
 	}
-	match crate::base::store::compact_dir(&cfg.data_dir) {
+	match crate::base_store::compact_dir(&cfg.data_dir) {
 		Ok((old, new)) => eprintln!(
 			"kern: self-heal compacted data.mdb {} MiB -> {} MiB",
 			old / (1024 * 1024),
@@ -691,13 +691,13 @@ pub(crate) struct EngineHandle {
 	// Held for the daemon's lifetime so a direct-writer admin command refuses
 	// instead of racing it. Dropped (and released by the OS) when the daemon
 	// exits, kill included.
-	pub _writer_lock: Option<crate::base::lock::WriterLock>,
+	pub _writer_lock: Option<crate::lock::WriterLock>,
 }
 
 pub(crate) async fn bootstrap(cli: &Cli, cfg: &crate::config::Config) -> EngineHandle {
 	// Stamps uptime for the staleness handshake. Before any await so a health
 	// probe on a slow cold boot cannot read 0 and be mistaken for unknown.
-	crate::base::identity::mark_start();
+	crate::identity::mark_start();
 	// Must run BEFORE any env opens: the compaction swaps data.mdb, and only
 	// here — post kern.sock win, pre env open — is the dir held exclusively.
 	// Skipped on takeover: the predecessor holds the env for a few more ms and
@@ -715,7 +715,7 @@ pub(crate) async fn bootstrap(cli: &Cli, cfg: &crate::config::Config) -> EngineH
 		const LOCK_RETRIES: u32 = 10;
 		let mut lock = None;
 		for attempt in 0..LOCK_RETRIES {
-			match crate::base::lock::acquire(&cfg.data_dir, "daemon") {
+			match crate::lock::acquire(&cfg.data_dir, "daemon") {
 				Ok(l) => {
 					lock = Some(l);
 					break;
@@ -835,7 +835,7 @@ pub(crate) async fn bootstrap(cli: &Cli, cfg: &crate::config::Config) -> EngineH
 		cfg: std::sync::Arc::new(cfg.clone()),
 		broadcast_pulse: broadcast_pulse.clone(),
 		last_activity: std::sync::Arc::new(std::sync::atomic::AtomicU64::new(
-			crate::base::util::now_ms(),
+			crate::util::now_ms(),
 		)),
 	});
 
@@ -1274,7 +1274,7 @@ async fn start_gossip(
 				);
 				tracing::info!(
 					target: "kern.gossip",
-					contract = %crate::base::util::hex::encode(cid),
+					contract = %crate::util::hex::encode(cid),
 					"hosting contract"
 				);
 				Some((
@@ -1346,7 +1346,7 @@ async fn start_gossip(
 			}
 			let pulse_node = node.clone();
 			let broadcast_pulse: BroadcastPulseFn = Arc::new(move |kern_id: &str, strength: f64| {
-				let stamp = crate::base::util::now_nanos();
+				let stamp = crate::util::now_nanos();
 				let msg = crate::gossip::types::GossipMessage {
 					kind: crate::gossip::types::GossipKind::Pulse,
 					id: format!("pulse-{}-{}", pulse_node.addr(), stamp),
@@ -1361,7 +1361,7 @@ async fn start_gossip(
 			let q_node = node.clone();
 			let broadcast_q: crate::tick_tasks::BroadcastQuestionFunc =
 				Arc::new(move |rid: &str, rvec: &[f32], rtext: &str| {
-					let stamp = crate::base::util::now_nanos();
+					let stamp = crate::util::now_nanos();
 					let msg = crate::gossip::types::GossipMessage {
 						kind: crate::gossip::types::GossipKind::Question,
 						id: format!("q-{}-{}", q_node.addr(), stamp),
@@ -1548,9 +1548,9 @@ mod entry_point_tests {
 	// model must reach health as a mismatch.
 	#[test]
 	fn a_normal_open_stamps_the_model_and_a_swap_reaches_health() {
-		use crate::base::health::graph_health_stats;
-		use crate::base::store::EmbedStamp;
-		use crate::base::types::{mk_entity, EntityKind, Kern};
+		use crate::health::graph_health_stats;
+		use crate::base_store::EmbedStamp;
+		use crate::base_types::{mk_entity, EntityKind, Kern};
 
 		let dir = tempfile::tempdir().unwrap();
 		let data_dir = dir.path().to_string_lossy().into_owned();
@@ -1619,7 +1619,7 @@ mod entry_point_tests {
 		use parking_lot::RwLock;
 		use std::sync::Arc;
 
-		use crate::base::types::{mk_entity, EntityKind, Kern};
+		use crate::base_types::{mk_entity, EntityKind, Kern};
 
 		let dir = tempfile::tempdir().unwrap();
 		let cfg = crate::config::Config {
@@ -1671,7 +1671,7 @@ mod entry_point_tests {
 		use parking_lot::RwLock;
 		use std::sync::Arc;
 
-		use crate::base::types::Kern;
+		use crate::base_types::Kern;
 
 		let dir = tempfile::tempdir().unwrap();
 		let cfg = crate::config::Config {
@@ -1704,7 +1704,7 @@ mod entry_point_tests {
 		use parking_lot::RwLock;
 		use std::sync::Arc;
 
-		use crate::base::types::{mk_entity, EntityKind, Kern};
+		use crate::base_types::{mk_entity, EntityKind, Kern};
 
 		let dir = tempfile::tempdir().unwrap();
 		let cfg = crate::config::Config {
@@ -1745,7 +1745,7 @@ mod entry_point_tests {
 		use parking_lot::RwLock;
 		use std::sync::Arc;
 
-		use crate::base::types::Kern;
+		use crate::base_types::Kern;
 
 		let dir = tempfile::tempdir().unwrap();
 		let cfg = crate::config::Config {
@@ -1800,8 +1800,8 @@ mod entry_point_tests {
 		use parking_lot::RwLock;
 		use std::sync::Arc;
 
-		use crate::base::constants::KERN_MIN_CLUSTER_SIZE;
-		use crate::base::types::{mk_entity, EntityKind, Kern};
+		use crate::base_constants::KERN_MIN_CLUSTER_SIZE;
+		use crate::base_types::{mk_entity, EntityKind, Kern};
 
 		let dir = tempfile::tempdir().unwrap();
 		let cfg = crate::config::Config {
@@ -1851,10 +1851,10 @@ mod entry_point_tests {
 
 	#[test]
 	fn apply_graph_config_spills_to_disk_when_threshold_enabled() {
-		use crate::base::constants::KERN_CAP_DISABLED;
-		use crate::base::graph::GraphGnn;
-		use crate::base::types::{Entity, EntityStatus, Kern};
-		use crate::base::vector_backend::VectorBackend;
+		use crate::base_constants::KERN_CAP_DISABLED;
+		use crate::graph::GraphGnn;
+		use crate::base_types::{Entity, EntityStatus, Kern};
+		use crate::vector_backend::VectorBackend;
 		use crate::config::GraphConfig;
 
 		let dir = tempfile::tempdir().unwrap();

@@ -103,8 +103,8 @@ mod tests {
 	use crate::test_support::{scratch_endpoint, serving, test_caller};
 
 	fn kern_with_edge() -> crate::mcp::Server {
-		use crate::base::reason::add_reason;
-		use crate::base::types::Kern;
+		use crate::reason::add_reason;
+		use crate::base_types::Kern;
 		let srv = crate::test_support::mcp_server();
 		let mut k = Kern::new("kx", "");
 		k.entities
@@ -216,7 +216,7 @@ mod tests {
 	// would have opened beside it.
 	#[tokio::test(flavor = "multi_thread")]
 	async fn a_routed_forget_by_source_mutates_the_serving_daemons_graph() {
-		use crate::base::types::Source;
+		use crate::base_types::Source;
 
 		let ep = scratch_endpoint("forget-source");
 		let srv = kern_with_edge();

@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use memmap2::Mmap;
 use serde::{Deserialize, Serialize};
 
-use crate::base::hnsw::HnswHit;
+use crate::hnsw::HnswHit;
 
 // Adjacency padding marker: "no neighbour in this slot".
 const SENTINEL: u32 = u32::MAX;

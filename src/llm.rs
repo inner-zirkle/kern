@@ -1,4 +1,4 @@
-use crate::base::log_throttle::LogThrottle;
+use crate::log_throttle::LogThrottle;
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;

@@ -1,12 +1,12 @@
 use serde::Deserialize;
 
-use crate::base::constants::AGENT_SOURCE;
-use crate::base::math::clamp_confidence;
-use crate::base::reason::move_entity;
-use crate::base::search::find_entity;
-use crate::base::types::{Scoping, Source};
-use crate::base::util::explain_relationship_prompt;
-use crate::base::validate::validate_conf;
+use crate::base_constants::AGENT_SOURCE;
+use crate::math::clamp_confidence;
+use crate::reason::move_entity;
+use crate::search::find_entity;
+use crate::base_types::{Scoping, Source};
+use crate::util::explain_relationship_prompt;
+use crate::validate::validate_conf;
 use crate::ingest;
 
 pub(crate) fn tool_schemas() -> Vec<serde_json::Value> {
@@ -396,7 +396,7 @@ impl Server {
 			&p.to,
 			reason_text,
 			reason_embed,
-			crate::base::constants::MAX_AI_CONFIDENCE,
+			crate::base_constants::MAX_AI_CONFIDENCE,
 		);
 		drop(g);
 
@@ -540,8 +540,8 @@ impl Server {
 
 #[cfg(test)]
 mod tests {
-	use crate::base::reason::add_reason;
-	use crate::base::types::{Entity, EntityKind, Kern, Reason};
+	use crate::reason::add_reason;
+	use crate::base_types::{Entity, EntityKind, Kern, Reason};
 	use crate::mcp::Server;
 	use crate::mcp::tools::is_error;
 
@@ -620,7 +620,7 @@ mod tests {
 		Entity {
 			id: id.into(),
 			kind,
-			source: crate::base::types::Source::File {
+			source: crate::base_types::Source::File {
 				path: path.into(),
 				section: section.into(),
 				title: String::new(),
@@ -905,7 +905,7 @@ mod tests {
 	// assertion that only inspects the envelope.
 	#[tokio::test]
 	async fn tool_promote_releases_a_held_row_and_is_idempotent() {
-		use crate::base::types::{ReviewState, Source};
+		use crate::base_types::{ReviewState, Source};
 
 		let srv = make_server();
 		let mut k = Kern::new("kx", "");

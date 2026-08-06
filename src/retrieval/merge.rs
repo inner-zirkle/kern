@@ -1,6 +1,6 @@
-use crate::base::graph::GraphGnn;
-use crate::base::math::OnlineSoftmax;
-use crate::base::search::EntityHit;
+use crate::graph::GraphGnn;
+use crate::math::OnlineSoftmax;
+use crate::search::EntityHit;
 use crate::retrieval::expand::{find_entity_ref_in_graph, ScoredRef};
 use std::collections::HashMap;
 
@@ -43,16 +43,16 @@ pub fn merge<'a>(
 		.collect();
 
 	// Score desc, id asc — the id tie-break is required for determinism (HashMap order varies per process).
-	results.sort_by(|a, b| crate::base::util::cmp_rank(a.score, &a.entity.id, b.score, &b.entity.id));
+	results.sort_by(|a, b| crate::util::cmp_rank(a.score, &a.entity.id, b.score, &b.entity.id));
 	results
 }
 
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::base::types::Kern;
+	use crate::base_types::Kern;
 
-	use crate::base::types::Entity;
+	use crate::base_types::Entity;
 	use crate::test_support::entity as ent;
 	fn hit(id: &str, score: f64) -> EntityHit {
 		EntityHit {

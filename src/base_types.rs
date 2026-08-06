@@ -548,8 +548,8 @@ impl Kern {
 		k.root_id = root_id.to_string();
 		k.graviton_text = name.to_string();
 		k.graviton_vec = vec;
-		k.inner_radius = crate::base::constants::KERN_INNER_RADIUS;
-		k.outer_radius = crate::base::constants::KERN_OUTER_RADIUS;
+		k.inner_radius = crate::base_constants::KERN_INNER_RADIUS;
+		k.outer_radius = crate::base_constants::KERN_OUTER_RADIUS;
 		k
 	}
 

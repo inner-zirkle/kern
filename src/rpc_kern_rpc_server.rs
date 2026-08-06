@@ -196,9 +196,9 @@ impl KernRpc for KernRpcHandler {
 					.get("embed_mismatch")
 					.and_then(|v| v.as_bool())
 					.unwrap_or(false),
-				build_id: crate::base::identity::build_id(),
-				config_id: crate::base::identity::config_id(&kern.cfg),
-				uptime_ms: crate::base::identity::uptime_ms(),
+				build_id: crate::identity::build_id(),
+				config_id: crate::identity::config_id(&kern.cfg),
+				uptime_ms: crate::identity::uptime_ms(),
 			}
 		}
 	}
@@ -340,16 +340,16 @@ mod tests {
 			.worker
 			.enqueue(
 				format!("filler {offered}"),
-				crate::base::types::Source::Inline {
+				crate::base_types::Source::Inline {
 					hash: String::new(),
 					section: String::new(),
 				},
-				crate::base::types::EntityKind::Claim,
+				crate::base_types::EntityKind::Claim,
 				String::new(),
 				1.0,
 				"inline",
 				crate::ingest::Config::default(),
-				crate::base::types::Scoping::default(),
+				crate::base_types::Scoping::default(),
 			)
 			.is_some()
 		{

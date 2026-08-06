@@ -2,7 +2,7 @@ use parking_lot::Mutex;
 use std::collections::{HashMap, VecDeque};
 use std::time::Instant;
 
-use crate::base::constants::{GOSSIP_SEEN_SET_CAP, GOSSIP_SEEN_TTL};
+use crate::base_constants::{GOSSIP_SEEN_SET_CAP, GOSSIP_SEEN_TTL};
 
 // Constant TTL makes expiry monotonic in insertion order, so expired entries sit at
 // the deque front — the reclaim loop relies on this.

@@ -1,4 +1,4 @@
-use crate::base::math::cosine;
+use crate::math::cosine;
 use crate::config::RetrievalConfig;
 use crate::retrieval::expand::Scored;
 use std::collections::HashMap;
@@ -110,7 +110,7 @@ pub fn mmr<T: Scored>(cfg: &RetrievalConfig, query_vec: &[f32], results: &mut Ve
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::base::types::{Entity, Source};
+	use crate::base_types::{Entity, Source};
 	use crate::retrieval::expand::ScoredEntity;
 
 	fn sect(id: &str, section: &str, score: f64) -> ScoredEntity {

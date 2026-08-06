@@ -1,7 +1,7 @@
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
-use crate::base::constants::{GOSSIP_DIAL_TIMEOUT, GOSSIP_FETCH_TIMEOUT, GOSSIP_MAX_FRAME_BYTES};
+use crate::base_constants::{GOSSIP_DIAL_TIMEOUT, GOSSIP_FETCH_TIMEOUT, GOSSIP_MAX_FRAME_BYTES};
 
 use super::identity::{verify_frame, PeerId, PeerIdentity};
 use super::types::*;

@@ -5,7 +5,7 @@ use std::sync::Arc;
 use parking_lot::{Mutex, RwLock};
 use std::time::Instant;
 
-use crate::base::graph::GraphGnn;
+use crate::graph::GraphGnn;
 use crate::config::Config;
 use crate::ingest::Worker;
 use crate::llm::Client as LlmClient;

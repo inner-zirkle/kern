@@ -10,7 +10,7 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use crate::base::identity::{path_fingerprint, self_exe_path};
+use crate::identity::{path_fingerprint, self_exe_path};
 
 /// Set in the successor's environment. Its presence means "fd 0 is the bound
 /// kern.sock listener — adopt it, do not bind, do not self-heal the store

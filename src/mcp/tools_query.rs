@@ -1,8 +1,8 @@
 use serde::Deserialize;
 
-use crate::base::search::find_entity_by_prefix;
-use crate::base::types::EntityKind;
-use crate::base::util::truncate;
+use crate::search::find_entity_by_prefix;
+use crate::base_types::EntityKind;
+use crate::util::truncate;
 
 use crate::retrieval;
 
@@ -46,7 +46,7 @@ fn parse_time_filter(field: &str, value: &str) -> Result<Option<std::time::Syste
 	if value.is_empty() {
 		return Ok(None);
 	}
-	crate::base::time::parse_rfc3339(value)
+	crate::time::parse_rfc3339(value)
 		.map(Some)
 		.map_err(|()| format!("invalid `{field}` timestamp: {value}"))
 }
@@ -67,7 +67,7 @@ fn build_query_options(p: &QueryArgs) -> Result<retrieval::score::QueryOptions, 
 		..Default::default()
 	};
 	if let Some(ref s) = p.scheme {
-		match crate::base::types::Source::parse_scheme(s) {
+		match crate::base_types::Source::parse_scheme(s) {
 			Some(tag) => opts.scheme = Some(tag.to_string()),
 			None => return Err(format!("unknown source scheme: {s}")),
 		}
@@ -304,7 +304,7 @@ impl Server {
 			let mut have: std::collections::HashSet<String> =
 				scored.iter().map(|s| s.entity.id.clone()).collect();
 			for (head_id, head_score) in heads {
-				for anc_id in crate::base::reason::superseded_ancestors(&g, &head_id) {
+				for anc_id in crate::reason::superseded_ancestors(&g, &head_id) {
 					if !have.insert(anc_id.clone()) {
 						continue;
 					}
@@ -338,7 +338,7 @@ impl Server {
 						.kern_of_entity(&st.entity.id)
 						.and_then(|kid| g.kerns.get(kid))
 						.map(|kern| {
-							crate::base::reason::collect_reason_ids(kern, &st.entity.id)
+							crate::reason::collect_reason_ids(kern, &st.entity.id)
 								.into_iter()
 								.filter_map(|rid| kern.reasons.get(&rid))
 								.filter(|r| r.is_enriched())
@@ -384,7 +384,7 @@ const COLD_KERN: &str = "(cold)";
 // would let the routed and local reads disagree about what an id resolves to —
 // prefix or cold, resolved here or resolved by a daemon, same answer.
 pub(crate) fn entity_detail_by_id(
-	g: &crate::base::graph::GraphGnn,
+	g: &crate::graph::GraphGnn,
 	id: &str,
 ) -> Option<serde_json::Value> {
 	let hit = resolve_by_id(g, id)?;
@@ -395,13 +395,13 @@ pub(crate) fn entity_detail_by_id(
 // so the `query` tool can put the row through `matches_filter` — the same
 // predicate the ranked read uses — while still resolving ids exactly one way.
 struct IdHit {
-	thought: crate::base::types::Entity,
+	thought: crate::base_types::Entity,
 	kern_id: String,
 	cold: bool,
 }
 
 impl IdHit {
-	fn detail(&self, g: &crate::base::graph::GraphGnn) -> serde_json::Value {
+	fn detail(&self, g: &crate::graph::GraphGnn) -> serde_json::Value {
 		let mut v = entity_detail(&self.thought, &self.kern_id, g);
 		if self.cold {
 			// The label is for the printer; the flag is for anything reading the
@@ -412,7 +412,7 @@ impl IdHit {
 	}
 }
 
-fn resolve_by_id(g: &crate::base::graph::GraphGnn, id: &str) -> Option<IdHit> {
+fn resolve_by_id(g: &crate::graph::GraphGnn, id: &str) -> Option<IdHit> {
 	if let Some((thought, kern_id)) = find_entity_by_prefix(g, id) {
 		return Some(IdHit {
 			thought,
@@ -429,13 +429,13 @@ fn resolve_by_id(g: &crate::base::graph::GraphGnn, id: &str) -> Option<IdHit> {
 }
 
 fn entity_detail(
-	thought: &crate::base::types::Entity,
+	thought: &crate::base_types::Entity,
 	kern_id: &str,
-	g: &crate::base::graph::GraphGnn,
+	g: &crate::graph::GraphGnn,
 ) -> serde_json::Value {
 	let mut edges = Vec::new();
 	if let Some(kern) = g.kerns.get(kern_id) {
-		let rids = crate::base::reason::collect_reason_ids(kern, &thought.id);
+		let rids = crate::reason::collect_reason_ids(kern, &thought.id);
 		for rid in &rids {
 			if let Some(re) = kern.reasons.get(rid) {
 				edges.push(serde_json::json!({
@@ -491,7 +491,7 @@ fn secs_since_epoch(t: std::time::SystemTime) -> u64 {
 // corpus page rather than surfacing only the scheme it matched on. It is placed first
 // in the envelope on purpose: the wire contract is "ranked recall carries the backlink".
 pub(crate) fn base_entity_json(
-	entity: &crate::base::types::Entity,
+	entity: &crate::base_types::Entity,
 	score: f64,
 ) -> serde_json::Value {
 	let status_str = if entity.is_superseded() { "superseded" } else { "active" };
@@ -516,7 +516,7 @@ pub(crate) fn base_entity_json(
 #[cfg(test)]
 mod envelope_shape_tests {
 	use super::base_entity_json as build_entity_json;
-	use crate::base::types::{ChunkPart, ChunkPartKind, Entity, EntityKind, EntityStatus, Source};
+	use crate::base_types::{ChunkPart, ChunkPartKind, Entity, EntityKind, EntityStatus, Source};
 
 	fn entity_with(kind: EntityKind, status: EntityStatus, source: Source) -> Entity {
 		Entity {
@@ -609,7 +609,7 @@ mod envelope_shape_tests {
 
 #[cfg(test)]
 mod id_filter_tests {
-	use crate::base::types::{Entity, EntityKind, Kern, Source};
+	use crate::base_types::{Entity, EntityKind, Kern, Source};
 	use crate::mcp::Server;
 	use crate::test_support::tool_text as text;
 	use crate::mcp::tools::is_error;
@@ -790,7 +790,7 @@ mod id_filter_tests {
 	#[tokio::test]
 	async fn bare_id_read_still_serves_an_expired_row_flagged() {
 		let mut e = fact("f1");
-		let deadline = crate::base::time::parse_rfc3339("2020-01-01T00:00:00Z").expect("fixed ts");
+		let deadline = crate::time::parse_rfc3339("2020-01-01T00:00:00Z").expect("fixed ts");
 		e.valid_until = Some(deadline);
 		let srv = server_with(e);
 
@@ -819,7 +819,7 @@ mod id_filter_tests {
 	#[tokio::test]
 	async fn id_read_withholds_a_held_row_only_when_exclude_pending_is_asked() {
 		let mut e = fact("f1");
-		e.review = crate::base::types::ReviewState::Pending;
+		e.review = crate::base_types::ReviewState::Pending;
 		let srv = server_with(e);
 
 		let out = srv.tool_query(&serde_json::json!({"id": "f1"}));
@@ -840,7 +840,7 @@ mod id_filter_tests {
 
 #[cfg(test)]
 mod cold_tier_filter_tests {
-	use crate::base::types::{Entity, EntityKind, Source};
+	use crate::base_types::{Entity, EntityKind, Source};
 	use crate::mcp::tools::is_error;
 
 	fn spilled(id: &str, kind: EntityKind) -> Entity {
@@ -876,7 +876,7 @@ mod cold_tier_filter_tests {
 		srv.llm = Some(crate::llm::Client::new_embed_only(&url, "test", ""));
 
 		let dir = tempfile::tempdir().expect("tmpdir");
-		let store = crate::base::store::Store::open(&dir.path().to_string_lossy()).expect("store");
+		let store = crate::base_store::Store::open(&dir.path().to_string_lossy()).expect("store");
 		store
 			.cold_put_all(&[
 				spilled("cold_fact", EntityKind::Fact),

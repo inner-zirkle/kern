@@ -3,8 +3,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use serde::{Deserialize, Serialize};
 
-use crate::base::graph::GraphGnn;
-use crate::base::types::{Entity, EntityKind};
+use crate::graph::GraphGnn;
+use crate::base_types::{Entity, EntityKind};
 
 use super::identity::{loc_of, verify_sig_by};
 
@@ -93,7 +93,7 @@ pub fn contract_loc(id: &ContractId) -> f64 {
 /// The graph kern a contract's entities merge into. The `remote-` prefix
 /// keeps every existing trust boundary (`is_remote_kern_id`) intact.
 pub fn contract_kern_id(id: &ContractId) -> String {
-	format!("remote-contract-{}", crate::base::util::hex::encode(id))
+	format!("remote-contract-{}", crate::util::hex::encode(id))
 }
 
 
@@ -112,7 +112,7 @@ pub fn entity_sig_digest(entity_id: &str, lamport: u64) -> [u8; 32] {
 
 /// Decode a hex-encoded 32-byte key (ed25519 pubkey or contract id).
 pub fn parse_key_hex(s: &str) -> Option<[u8; 32]> {
-	crate::base::util::hex::decode(s.trim())
+	crate::util::hex::decode(s.trim())
 		.filter(|v| v.len() == 32)
 		.and_then(|v| v.try_into().ok())
 }
@@ -397,7 +397,7 @@ impl SyncContract for SignedCrdt {
 					true
 				}
 			};
-			let graph_changed = crate::base::merge::merge_remote_entity(g, kern_id, entity);
+			let graph_changed = crate::merge::merge_remote_entity(g, kern_id, entity);
 			if graph_changed {
 				merged += 1;
 			}
@@ -410,12 +410,12 @@ impl SyncContract for SignedCrdt {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::base::types::{ChunkPart, ChunkPartKind, Kern};
+	use crate::base_types::{ChunkPart, ChunkPartKind, Kern};
 	use crate::gossip::identity::PeerIdentity;
 
 	fn entity_of(text: &str, kind: EntityKind) -> Entity {
 		Entity {
-			id: crate::base::util::content_hash(text),
+			id: crate::util::content_hash(text),
 			kind,
 			statements: vec![text.to_string()],
 			chunks: vec![ChunkPart {

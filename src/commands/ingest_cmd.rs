@@ -2,10 +2,10 @@ use std::sync::Arc;
 
 use parking_lot::RwLock;
 
-use crate::base::math::clamp_confidence;
-use crate::base::store::FlushOutcome;
-use crate::base::types::Source;
-use crate::base::util::truncate;
+use crate::math::clamp_confidence;
+use crate::base_store::FlushOutcome;
+use crate::base_types::Source;
+use crate::util::truncate;
 
 use super::{load_graph, Client, Endpoint};
 
@@ -72,7 +72,7 @@ pub(super) async fn cmd_ingest(
 	// Identity per ingest, not a shared constant: a constant hash made every
 	// CLI ingest the same source, so each one superseded the previous fact.
 	let src = Source::Inline {
-		hash: crate::base::util::content_hash(&text),
+		hash: crate::util::content_hash(&text),
 		section: String::new(),
 	};
 
@@ -83,7 +83,7 @@ pub(super) async fn cmd_ingest(
 		let expected = g.read().flushed_epoch();
 		// Bind before matching: a scrutinee temporary keeps the read guard alive
 		// across the match — deadlocking the write() below.
-		let flushed = crate::base::persist::flush_guarded(&g.read(), expected);
+		let flushed = crate::persist::flush_guarded(&g.read(), expected);
 		match flushed {
 			Ok(FlushOutcome::Flushed { .. }) => break,
 			Ok(FlushOutcome::RefusedStale { .. }) if attempt + 1 < WRITE_RETRIES => {
@@ -129,10 +129,10 @@ pub(super) async fn cmd_ingest(
 #[allow(clippy::too_many_arguments)]
 async fn run_once(
 	worker: &crate::ingest::Worker,
-	_g: &Arc<RwLock<crate::base::graph::GraphGnn>>,
+	_g: &Arc<RwLock<crate::graph::GraphGnn>>,
 	text: &str,
 	src: &Source,
-	kind: crate::base::types::EntityKind,
+	kind: crate::base_types::EntityKind,
 	conf: f64,
 	cfg: &crate::config::Config,
 	valid_until: Option<std::time::SystemTime>,
@@ -146,9 +146,9 @@ async fn run_once(
 			conf,
 			// The CLI is the one path with a human behind it, and `Source::Inline`
 			// cannot record that (ROADMAP item 20), so it names the principal here.
-			crate::base::constants::USER_SOURCE,
+			crate::base_constants::USER_SOURCE,
 			ingest_config(cfg, valid_until),
-			crate::base::types::Scoping::default(),
+			crate::base_types::Scoping::default(),
 		)
 		.await
 }

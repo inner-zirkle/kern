@@ -1,5 +1,5 @@
-use crate::base::constants::INGEST_DEDUP_THRESHOLD;
-use crate::base::types::{EntityKind, ReviewState, Source};
+use crate::base_constants::INGEST_DEDUP_THRESHOLD;
+use crate::base_types::{EntityKind, ReviewState, Source};
 
 use std::collections::BTreeMap;
 use std::time::{Duration, SystemTime};
@@ -104,7 +104,7 @@ impl Config {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::base::types::EntityKind;
+	use crate::base_types::EntityKind;
 
 	#[test]
 	fn runtime_and_serde_ingest_defaults_agree() {

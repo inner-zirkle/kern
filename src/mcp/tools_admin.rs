@@ -119,7 +119,7 @@ impl Server {
 				// embedded separately and mean-pooled, which places the graviton
 				// ~0.16 cosine closer to real matching claims than embedding the
 				// text whole (measured — see seed_examples).
-				let examples = crate::base::accept::seed_examples(&p.text);
+				let examples = crate::accept::seed_examples(&p.text);
 				let vec = match &self.llm {
 					Some(llm) => {
 						let mut vecs = Vec::with_capacity(examples.len());
@@ -130,7 +130,7 @@ impl Server {
 								None => return tool_error("no tokio runtime"),
 							}
 						}
-						match crate::base::accept::mean_pool(&vecs) {
+						match crate::accept::mean_pool(&vecs) {
 							Some(v) => v,
 							None => return tool_error("empty or mismatched embeddings"),
 						}
@@ -138,7 +138,7 @@ impl Server {
 					None => return tool_error("no embed client configured"),
 				};
 				let mut g = self.graph.write();
-				crate::base::accept::add_graviton_with_mass(&mut g, &p.name, vec, p.mass.unwrap_or(1.0));
+				crate::accept::add_graviton_with_mass(&mut g, &p.name, vec, p.mass.unwrap_or(1.0));
 				drop(g);
 				(self.save_fn)();
 				tool_result_json(&serde_json::json!({ "added": p.name }))
@@ -148,7 +148,7 @@ impl Server {
 					return tool_error("remove requires name");
 				}
 				let mut g = self.graph.write();
-				let removed = crate::base::accept::remove_graviton(&mut g, &p.name);
+				let removed = crate::accept::remove_graviton(&mut g, &p.name);
 				drop(g);
 				if removed {
 					(self.save_fn)();
@@ -278,7 +278,7 @@ mod claim_kind_tests {
 
 	#[tokio::test]
 	async fn health_stats_aggregates_entities_and_claim_kinds() {
-		use crate::base::types::{Entity, Kern};
+		use crate::base_types::{Entity, Kern};
 		let (srv, _c) = make_server();
 		{
 			let mut g = srv.graph.write();
@@ -501,7 +501,7 @@ mod claim_kind_tests {
 		let (srv, _) = make_server();
 		{
 			let mut g = srv.graph.write();
-			crate::base::accept::add_graviton_with_mass(&mut g, "docs", vec![1.0, 0.0], 2.5);
+			crate::accept::add_graviton_with_mass(&mut g, "docs", vec![1.0, 0.0], 2.5);
 		}
 		let out = srv.tool_graviton(&serde_json::json!({"action": "list"}));
 		assert!(!is_error(&out));

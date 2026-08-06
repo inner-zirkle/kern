@@ -32,7 +32,7 @@ impl SubTable {
 
 	fn touch_locked(map: &mut HashMap<ContractId, SubEntry>, id: &ContractId) {
 		if let Some(e) = map.get_mut(id) {
-			e.last_touch = crate::base::util::now_secs();
+			e.last_touch = crate::util::now_secs();
 		}
 	}
 

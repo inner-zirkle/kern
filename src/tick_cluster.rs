@@ -1,9 +1,9 @@
-use crate::base::constants::{
+use crate::base_constants::{
 	KERN_COHESION_THRESHOLD, KERN_NAMING_COHESION_THRESHOLD, KERN_NAMING_MIN_CLUSTER_SIZE,
 };
-use crate::base::math::cosine;
-use crate::base::types::Entity;
-use crate::base::util::cmp_partial;
+use crate::math::cosine;
+use crate::base_types::Entity;
+use crate::util::cmp_partial;
 use rayon::prelude::*;
 
 pub struct Cluster {

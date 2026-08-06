@@ -1,11 +1,11 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use crate::base::log_throttle::LogThrottle;
+use crate::log_throttle::LogThrottle;
 use std::time::SystemTime;
 
-use crate::base::constants;
-use crate::base::graph::GraphGnn;
-use crate::base::types::{Entity, EntityStatus, Reason};
+use crate::base_constants as constants;
+use crate::graph::GraphGnn;
+use crate::base_types::{Entity, EntityStatus, Reason};
 use crate::crdt::{lww_wins, GCounter};
 
 // Gossip files every peer's rows into a `remote-<network_id>-<kern_id>` phantom kern
@@ -180,7 +180,7 @@ pub fn merge_remote_entity(g: &mut GraphGnn, target_kern_id: &str, mut remote: E
 		Some(other) => {
 			tracing::warn!(
 				target: "kern.merge",
-				id = %crate::base::util::short_id(&remote.id),
+				id = %crate::util::short_id(&remote.id),
 				owner = %other,
 				target = %target_kern_id,
 				"remote entity id collides with an entity owned by another kern; rejected"
@@ -278,7 +278,7 @@ pub fn absorb_graph(local: &mut GraphGnn, disk: GraphGnn) -> usize {
 					}
 				}
 				None => {
-					crate::base::reason::add_reason(lkern, r);
+					crate::reason::add_reason(lkern, r);
 					changed += 1;
 				}
 			}
@@ -302,8 +302,8 @@ pub fn absorb_graph(local: &mut GraphGnn, disk: GraphGnn) -> usize {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::base::graph::GraphGnn;
-	use crate::base::types::{mk_entity, EntityKind, Kern};
+	use crate::graph::GraphGnn;
+	use crate::base_types::{mk_entity, EntityKind, Kern};
 	use std::time::{Duration, UNIX_EPOCH};
 
 	fn t(secs: u64) -> Option<SystemTime> {
@@ -467,7 +467,7 @@ mod tests {
 			.insert("eX".into(), local);
 		g.index_entity("eX", &kid);
 
-		let before: Vec<String> = crate::base::search::search_all_unlocked(&g, &[1.0, 0.0], 5)
+		let before: Vec<String> = crate::search::search_all_unlocked(&g, &[1.0, 0.0], 5)
 			.into_iter()
 			.map(|h| h.entity_id)
 			.collect();
@@ -491,7 +491,7 @@ mod tests {
 			EntityStatus::Superseded,
 			"CRDT join propagated Superseded",
 		);
-		let after: Vec<String> = crate::base::search::search_all_unlocked(&g, &[1.0, 0.0], 5)
+		let after: Vec<String> = crate::search::search_all_unlocked(&g, &[1.0, 0.0], 5)
 			.into_iter()
 			.map(|h| h.entity_id)
 			.collect();
@@ -511,7 +511,7 @@ mod tests {
 		remote.gnn_vector = vec![1.0, 0.0].into();
 		assert!(merge_remote_entity(&mut g, &kid, remote));
 
-		let hits: Vec<String> = crate::base::search::search_all_unlocked(&g, &[0.0, 1.0], 5)
+		let hits: Vec<String> = crate::search::search_all_unlocked(&g, &[0.0, 1.0], 5)
 			.into_iter()
 			.map(|h| h.entity_id)
 			.collect();
@@ -539,7 +539,7 @@ mod tests {
 		assert!(merge_remote_entity(&mut g, &kid, remote));
 
 		assert!(g.kerns.get(&kid).unwrap().entities.contains_key("eS"));
-		let hits: Vec<String> = crate::base::search::search_all_unlocked(&g, &[0.0, 1.0], 5)
+		let hits: Vec<String> = crate::search::search_all_unlocked(&g, &[0.0, 1.0], 5)
 			.into_iter()
 			.map(|h| h.entity_id)
 			.collect();

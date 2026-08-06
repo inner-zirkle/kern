@@ -2,10 +2,10 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::SystemTime;
 
-use super::constants::KERN_CAP_DISABLED;
+use crate::base_constants::KERN_CAP_DISABLED;
 use super::lexical::LexicalIndex;
-use super::store::{Store, StoreError};
-use super::types::{EntityStatus, Kern};
+use crate::base_store::{Store, StoreError};
+use crate::base_types::{EntityStatus, Kern};
 use super::util;
 use super::vector_backend::VectorBackend;
 use crate::quant::QuantizationMode;
@@ -744,7 +744,7 @@ impl GraphGnn {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::base::types::{Entity, Reason};
+	use crate::base_types::{Entity, Reason};
 
 	fn empty_unnamed(id: &str, parent: &str, children: &[&str]) -> Kern {
 		let mut k = Kern::new(id, parent);
@@ -754,7 +754,7 @@ mod tests {
 
 	#[test]
 	fn adjacency_ignores_edges_a_peer_farmed_inside_its_own_phantom_kern() {
-		use crate::base::types::Reason;
+		use crate::base_types::Reason;
 
 		let edge = |id: &str, from: &str, to: &str| Reason {
 			id: id.into(),
@@ -903,7 +903,7 @@ mod tests {
 
 	#[test]
 	fn rebuild_index_is_deterministic_across_instances() {
-		use crate::base::types::Reason;
+		use crate::base_types::Reason;
 		let vec_of = |i: usize, off: f64| -> Vec<f32> {
 			(0..8)
 				.map(|j| ((i as f64) * (0.11 + 0.05 * j as f64) + off).sin() as f32)
@@ -994,7 +994,7 @@ mod tests {
 			);
 		}
 		g.rebuild_index();
-		let hits: Vec<String> = crate::base::search::search_all_unlocked(&g, &[1.0, 0.0], 5)
+		let hits: Vec<String> = crate::search::search_all_unlocked(&g, &[1.0, 0.0], 5)
 			.into_iter()
 			.map(|h| h.entity_id)
 			.collect();
@@ -1012,7 +1012,7 @@ mod tests {
 	fn disk_index_snapshot_mirrors_in_ram_membership_and_ranking() {
 		// Vectors use distinct per-dim frequencies so the nearest-neighbour structure
 		// is unambiguous despite in-RAM int8 quant noise vs raw f32 on disk.
-		use crate::base::diskann::DiskIndex;
+		use crate::diskann::DiskIndex;
 		let mut g = GraphGnn::new();
 		let kid = g.root.id.clone();
 		let vec_of = |i: usize| -> Vec<f32> {
@@ -1054,7 +1054,7 @@ mod tests {
 		let disk = DiskIndex::open(dir.path()).unwrap();
 		let q32 = vec_of(40);
 
-		let ram: Vec<String> = crate::base::search::search_all_unlocked(&g, &q32, 10)
+		let ram: Vec<String> = crate::search::search_all_unlocked(&g, &q32, 10)
 			.into_iter()
 			.map(|h| h.entity_id)
 			.collect();
@@ -1137,7 +1137,7 @@ mod tests {
 		assert!(matches!(g.gnn_entity_idx, VectorBackend::Resident(_)));
 		assert!(matches!(g.reason_idx, VectorBackend::Resident(_)));
 
-		let hits = crate::base::search::search_all_unlocked(&g, &vec8(7), 5);
+		let hits = crate::search::search_all_unlocked(&g, &vec8(7), 5);
 		assert_eq!(
 			hits.first().map(|h| h.entity_id.clone()),
 			Some("e7".into()),
@@ -1239,13 +1239,13 @@ mod tests {
 			"delta folded into the rebuilt snapshot"
 		);
 
-		let new_hit = crate::base::search::search_all_unlocked(&g, &vec8(108), 5);
+		let new_hit = crate::search::search_all_unlocked(&g, &vec8(108), 5);
 		assert_eq!(
 			new_hit.first().map(|h| h.entity_id.clone()),
 			Some("e108".into()),
 			"folded-in entity searchable"
 		);
-		let old_hit = crate::base::search::search_all_unlocked(&g, &vec8(5), 5);
+		let old_hit = crate::search::search_all_unlocked(&g, &vec8(5), 5);
 		assert_eq!(
 			old_hit.first().map(|h| h.entity_id.clone()),
 			Some("e5".into()),

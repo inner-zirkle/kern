@@ -42,8 +42,8 @@ everywhere, which is what makes conflict-free cross-node merge work.
 
 **How.**
 
-- `Entity` (`src/base/types.rs:277`) — typed (`Fact`/`Claim`/`Document`/
-  `Question`/`Conclusion`, `src/base/types.rs:19`), weighted by
+- `Entity` (`src/base_types.rs:277`) — typed (`Fact`/`Claim`/`Document`/
+  `Question`/`Conclusion`, `src/base_types.rs:19`), weighted by
   confidence (a beta distribution stored as `conf_alpha`/`conf_beta`, read via
   the `conf_mean`/`conf_variance` methods, updated via
   `observe_support`/`observe_contradict`)
@@ -56,29 +56,29 @@ everywhere, which is what makes conflict-free cross-node merge work.
   boundary (socket `0600` + `mcp-token`) is the whole access model, and any
   multi-caller scoping is the embedding host's job (decision 2026-07-22,
   `CHANGELOG.md`).
-- `Reason` (`src/base/types.rs:443`) — an edge `from`→`to` with a `kind`
+- `Reason` (`src/base_types.rs:443`) — an edge `from`→`to` with a `kind`
   (`Similarity`/`Provenance`/`Question`/`Spawn`/`Supersedes`/`Ratification`/
-  `Rephrase`, `src/base/types.rs:90-99`), its own vector (mean of endpoints), a
-  `traversal_count` GCounter (`src/base/types.rs:455`), and a CRDT `score`.
+  `Rephrase`, `src/base_types.rs:90-99`), its own vector (mean of endpoints), a
+  `traversal_count` GCounter (`src/base_types.rs:455`), and a CRDT `score`.
   `is_enriched`/`is_remote` flags. There is no `Contradiction` edge kind —
   `Related` is a `ContradictionClass` verdict, not an edge, and a deferred
   contradiction candidate is carried by a `Rephrase` edge.
-- `Kern` (`src/base/types.rs:486`) — a container node in the kern tree:
+- `Kern` (`src/base_types.rs:486`) — a container node in the kern tree:
   `entities` + `reasons` maps, `children` ids, a `graviton_vec`/`graviton_text` + `mass` (default 1.0),
   radii (`inner_radius`/`outer_radius`) for acceptance gating, and an
   `access_count`. Root, named children, and unnamed (spill) children are all
   `Kern`s distinguished by `is_unnamed`/`is_named`/`has_graviton`.
-- `GraphGnn` (`src/base/graph.rs:64`) — the whole in-memory forest: `kerns`
+- `GraphGnn` (`src/graph.rs:64`) — the whole in-memory forest: `kerns`
   map, `root`, `entity_idx` (HNSW over content vectors), `gnn_entity_idx`
   (HNSW over GNN vectors), `entity_adjacency` (reason-edge incidence),
   source routing, a Lamport clock (a plain `AtomicU64` field driven by
-  `bump_lamport`/`observe_lamport`, `src/base/graph.rs:467`/`:474` — there is no
+  `bump_lamport`/`observe_lamport`, `src/graph.rs:467`/`:474` — there is no
   `Lamport` type), a `mutation_epoch`, pending CRDT deltas, the bound embedding
-  model name (`set_embed_model`/`embed_model`, `src/base/graph.rs:204`), and an
+  model name (`set_embed_model`/`embed_model`, `src/graph.rs:204`), and an
   optional bound `Store` (LMDB) for hot/cold tiers + disk fallback.
 
-**Where.** `src/base/types.rs` (880 LoC), `src/base/graph.rs` (1325 LoC),
-`src/base/reason.rs` (edge add/remove/move), `src/base/search.rs` (graph-wide
+**Where.** `src/base_types.rs` (880 LoC), `src/graph.rs` (1325 LoC),
+`src/reason.rs` (edge add/remove/move), `src/search.rs` (graph-wide
 entity/reason lookup + unlocked vector search).
 
 **Gaps.** `Entity` is a large flat struct (~30 fields); a trait-object or
@@ -92,13 +92,13 @@ statistics (mean heat, fill ratio) that clustering could reuse cheaply.
 **What.** Decides where a new thought lives in the tree and whether it
 supersedes an existing one. The core write path every ingestion funnels through.
 
-**How** (`src/base/accept.rs:26` `accept()`):
+**How** (`src/accept.rs:26` `accept()`):
 
 1. **Dedup** — graph-wide top-1 vector search; if `score >` the preset's dedup
    threshold (0.98 on the default `relaxed`; 0.95 medium, 0.90 tight,
    `src/config_preset.rs`; `DEDUP_EF=64`), the thought is a duplicate and merges
    into the existing entity (no new node).
-2. **Route** (`route_entity`, `src/base/accept.rs:218`) — descend from the
+2. **Route** (`route_entity`, `src/accept.rs:218`) — descend from the
    target kern toward a leaf:
    - For each loaded child, route into the one whose graviton is nearest by
      effective distance `cosine_distance / mass` (`mass` default `1.0`,
@@ -107,19 +107,19 @@ supersedes an existing one. The core write path every ingestion funnels through.
      `generic` catch-all child (empty graviton vec, never matches on similarity) —
      the root never commits entities itself.
    - At a **named** kern with a graviton: compute `acceptance_probability`
-     (`src/base/accept.rs:895`, softmax over cosine distance vs `inner`/`outer`
+     (`src/accept.rs:895`, softmax over cosine distance vs `inner`/`outer`
      radii); below `ACCEPT_FLOOR` (0.5) → spawn an unnamed child and descend.
-   - `MAX_ACCEPT_DEPTH = 64` (`src/base/accept.rs:17`) bounds a runaway descent.
-3. **Commit** (`commit_entity`, `src/base/accept.rs:279`) — stamp `root_id`,
+   - `MAX_ACCEPT_DEPTH = 64` (`src/accept.rs:17`) bounds a runaway descent.
+3. **Commit** (`commit_entity`, `src/accept.rs:279`) — stamp `root_id`,
    insert into the `entity_idx`/`gnn_entity_idx`, attach a `Similarity` reason to
    the nearest existing neighbor and a `Provenance` reason to the source doc.
 
-**Where.** `src/base/accept.rs` (1452 LoC). Radii defaults in `constants.rs`
-(`KERN_INNER_RADIUS=0.35`, `KERN_OUTER_RADIUS=0.75`, `src/base/constants.rs:40-41`).
+**Where.** `src/accept.rs` (1452 LoC). Radii defaults in `constants.rs`
+(`KERN_INNER_RADIUS=0.35`, `KERN_OUTER_RADIUS=0.75`, `src/base_constants.rs:40-41`).
 
 **Gaps.** *Both halves of this block were wrong and are corrected 2026-07-21.*
 Routing does **no** index lookup per level: `route_to_child_id`
-(`src/base/accept.rs:882`) is a linear scan over the parent's loaded, named
+(`src/accept.rs:882`) is a linear scan over the parent's loaded, named
 children, taking `cosine_distance` against each child's stored `graviton_vec`
 directly. The cost is O(depth · children), not O(depth · log n), and the "cached
 per-kern centroid" the old wording wanted is what `graviton_vec` already is —
@@ -127,9 +127,9 @@ root fan-out is already O(gravitons). The remaining scaling question is the
 per-parent fan-out itself, not an index.
 
 Unnamed children are **not** unbounded on the routing path: `route_entity` goes
-through `get_or_spawn_unnamed_child` (`src/base/accept.rs:787`), which reuses the
+through `get_or_spawn_unnamed_child` (`src/accept.rs:787`), which reuses the
 single holding-pen child and auto-loads an evicted one rather than respawning it
-(three tests, both holding pens: `src/base/accept.rs:921`, `:940`, `:963`).
+(three tests, both holding pens: `src/accept.rs:921`, `:940`, `:963`).
 Growth comes only from tick clustering, which deliberately spawns one *distinct*
 child per spawnable cluster (`spawn_child_clusters`, `src/tick.rs:225`) —
 bounded per pass by the cluster count, not by anything per parent.
@@ -144,14 +144,14 @@ stays as history with a stamped `valid_to`; `query` can recover the past via
 
 **How.**
 
-- `supersede_by_contradiction` (`src/base/accept.rs:562`) — inserts the new
+- `supersede_by_contradiction` (`src/accept.rs:562`) — inserts the new
   thought, sets the old `status=Superseded`, `superseded_by=new_id`, and
   `stamp_invalidated(now, new_valid_from)` so the window closes exactly when
   the new claim became true. Removes the old id from both vector indexes (so it
   stops seeding) but keeps it in the kern for history. Adds a `Supersedes`
   reason edge with the averaged vector.
-- Classification is LLM-driven (`classify_prompt` `src/base/accept.rs:693` /
-  `parse_contradiction` `src/base/accept.rs:703`) and **fails open to `Related`**
+- Classification is LLM-driven (`classify_prompt` `src/accept.rs:693` /
+  `parse_contradiction` `src/accept.rs:703`) and **fails open to `Related`**
   (co-exist) — the conservative choice that never loses data. Driven from the
   tick's `do_classify_contradiction` task (`src/tick/tasks.rs:114`) so recall
   stays LLM-free at query time.
@@ -159,14 +159,14 @@ stays as history with a stamped `valid_to`; `query` can recover the past via
   point-in-time membership; the query layer's `include_history` walks the
   `superseded_by` chain.
 - The three stamps survive the **cold tier**. A spilled row is a `ColdRow`
-  (`src/base/store.rs`) = `Entity` ++ `StoredTemporal`, written under
+  (`src/base_store.rs`) = `Entity` ++ `StoredTemporal`, written under
   `FORMAT_VERSION` and decoded strictly, never by parse-sniffing (`decode_cold`) — a
   truncated value errors instead of silently degrading to a stampless `Entity`. So a
   cold-recovered revision keeps `valid_from`/`valid_to`/`invalidated_at` and
   `is_valid_at` answers over the cold tail exactly as it does over the hot graph.
 
-**Where.** `src/base/accept.rs`, `src/base/types.rs` (temporal helpers),
-`src/base/store.rs` (cold-tier round-trip), `src/tick/tasks.rs` (background
+**Where.** `src/accept.rs`, `src/base_types.rs` (temporal helpers),
+`src/base_store.rs` (cold-tier round-trip), `src/tick/tasks.rs` (background
 classification).
 
 **Gaps.** Classification runs once per near-duplicate pair on the tick; a
@@ -197,7 +197,7 @@ profiled via `src/profile.rs`):
 | 9 | **Dedup by section** | `retrieval/diversify.rs:6` | Collapse near-duplicate sections. |
 | 10 | **MMR** | `retrieval/diversify.rs:46` | Maximal-marginal-relevance diversification so the `k` results actually differ. |
 | 11 | **Deliver** | `retrieval/query.rs` | Passages + enriched edges + `format_chains` chain text (`QUERY_MAX_CHAINS=5`), remote entities tagged UNTRUSTED for the synthesizing caller. Chains answer an active filter too (`retrieve`, same file): a chain renders the TEXT of every entity on it, so filtering only the results left it as a second delivery channel — one touching a withheld entity is dropped whole, since a chain with a hole still says the withheld thought exists and what it connects. The whole read path is LLM-free by design (2026-07-21): the calling agent synthesizes; an in-kern small-model answerer set the quality ceiling and made retrieval untunable. |
-| 13 | **Cold backfill** | `src/mcp/tools_query.rs:212` | If hot returns `< k`, cold-tier hits (brute-force `Store::cold_search`, `src/base/store.rs:629`) fill remaining slots, flagged `cold:true` — each first put through `matches_filter`, because `cold_search` is a raw cosine scan that answers no predicate of its own and an unfiltered fill made spilling an entity the way around every filter the hot path enforces. Skipped on the exact-text fast path, which never embedded a query vector. <!-- docs-check: anchor-ok --> |
+| 13 | **Cold backfill** | `src/mcp/tools_query.rs:212` | If hot returns `< k`, cold-tier hits (brute-force `Store::cold_search`, `src/base_store.rs:629`) fill remaining slots, flagged `cold:true` — each first put through `matches_filter`, because `cold_search` is a raw cosine scan that answers no predicate of its own and an unfiltered fill made spilling an entity the way around every filter the hot path enforces. Skipped on the exact-text fast path, which never embedded a query vector. <!-- docs-check: anchor-ok --> |
 | 14 | **Access stamping** | `retrieval/score.rs` | Heat deposits off the hot path: `score::commit_access` stamps delivered hits; the tick's `CommitAccess` task calls `score::commit_access_ids`. |
 
 **Where.** `src/retrieval/*` (5182 LoC, 9 files). Entry: `retrieval::query`
@@ -218,26 +218,26 @@ cold backfill.
 
 **How.**
 
-- **HNSW** (`src/base/hnsw.rs`, 1042 LoC) — id-stable, deterministic-build
+- **HNSW** (`src/hnsw.rs`, 1042 LoC) — id-stable, deterministic-build
   graph ANN. `insert` (`:166`) / `delete` (`:136`) / `search` (`:248`) /
   `search_filtered` (`:273`, pre-filtered ANN that shares one filter predicate
   with post-filtering). Quantization-aware: stores `QuantizedVec` (int8) when
   configured. `structure_digest` for parity checks.
-- **DiskANN** (`src/base/diskann.rs`, 665 LoC) — disk-resident graph index.
+- **DiskANN** (`src/diskann.rs`, 665 LoC) — disk-resident graph index.
   `build_and_save` (Params `r=32, build_l=64, alpha=1.2`) writes
   `meta.bin`/`vectors.bin`/`graph.bin`; `DiskIndex::open`/`search` (`:385`) /
   `search_hits_filtered` (`:400`). Selected when a kern exceeds `disk_threshold`.
-- **BM25 LexicalIndex** (`src/base/lexical.rs:62`) — in-RAM inverted index,
+- **BM25 LexicalIndex** (`src/lexical.rs:62`) — in-RAM inverted index,
   `k1`/`b` tunable (`set_bm25_params`), `rebuild_from_graph` (`:155`),
   `search`/`search_filtered` (`:100`/`:105`). One document per entity id, built
   by `entity_document` (`:15`) from the entity's statements plus every alternate
   wording a dedup merged onto it, so either wording matches and the entity still
   returns once.
-- **VectorBackend** (`src/base/vector_backend.rs`) — enum switch
+- **VectorBackend** (`src/vector_backend.rs`) — enum switch
   (`Resident(HnswIndex)` | `Disk(DiskIndex)`) unifying the search API so the
   retrieval layer is backend-agnostic.
 
-**Where.** `src/base/{hnsw,diskann,lexical,vector_backend,search}.rs`.
+**Where.** `src/{hnsw,diskann,lexical,vector_backend,search}.rs`.
 
 **Gaps.** HNSW delete is not a tombstone — it scrubs inbound edges, nulls the
 node and queues the slot; one `scrub_pending` pass per sweep recycles every slot
@@ -273,22 +273,22 @@ and cold tier live together. Readers never block, writers serialize.
 
 **How.**
 
-- `Store::open` (`src/base/store.rs:314`) opens the env (`heed` 0.20);
+- `Store::open` (`src/base_store.rs:314`) opens the env (`heed` 0.20);
   `StoredKern`/`StoredVec`/`StoredTemporal`/`ColdRow` are the on-disk bincode
   shapes, each value a version byte followed by a `zstd` frame
-  (`encode_at`/`strip_version`, `src/base/store.rs`), vectors int8. Exactly one
+  (`encode_at`/`strip_version`, `src/base_store.rs`), vectors int8. Exactly one
   live format, `FORMAT_VERSION`; any other version byte is rejected, never
   mis-decoded and never migrated.
-- **Guarded flush** (`Store::flush_guarded` `src/base/store.rs:571`,
-  `persist::flush_guarded` `src/base/persist.rs:129`) — a snapshot carries an
+- **Guarded flush** (`Store::flush_guarded` `src/base_store.rs:571`,
+  `persist::flush_guarded` `src/persist.rs:129`) — a snapshot carries an
   expected `mutation_epoch`; if disk advanced under us (another writer /
   external edit), the flush is *refused*, the disk rows are *absorbed* back
   (`merge::absorb_graph`), and the flush retries. Prevents a stale in-memory
   snapshot from clobbering newer on-disk state.
 - **Embedding stamp.** The store records the model and vector dimension it was
   built with (`EmbedStamp`, its own meta key so an unstamped store reads as
-  *unknown*, never as a mismatch). `check_embed_stamp` (`src/base/store.rs:417`)
-  runs at open via `persist::check_graph_stamp` (`src/base/persist.rs:93`),
+  *unknown*, never as a mismatch). `check_embed_stamp` (`src/base_store.rs:417`)
+  runs at open via `persist::check_graph_stamp` (`src/persist.rs:93`),
   wired from `commands::bind_embed_model`: an **unstamped** store adopts the
   configured model and says so once; a **differing** model or dimension sets a
   durable `embed_mismatch` flag, logs through a `LogThrottle`, and leaves the
@@ -297,14 +297,14 @@ and cold tier live together. Readers never block, writers serialize.
   the identity of the stored vectors. `kern reembed` stamps the model it
   *actually embedded with*, not the configured one
   (`src/commands/reembed.rs:66-80`), so `health` can never report a false identity.
-- **Query dimension guard** (`src/base/search.rs:23` `dim_guard`) — `cosine`
+- **Query dimension guard** (`src/search.rs:23` `dim_guard`) — `cosine`
   truncates to the shorter side, so an off-model query vector would score noise
   and rank it as recall. Every graph vector search checks the query dimension
   against the indexed one first. Fail-open by design: a rejected query returns
   no hits rather than panicking, but it is *counted*
-  (`search::query_dim_rejected`, `src/base/search.rs:15`) and logged throttled,
+  (`search::query_dim_rejected`, `src/search.rs:15`) and logged throttled,
   because the silent no-op is what let the mismatch hide.
-- **Cold tier** — `cold_spill` (`src/base/store.rs:624`) / `cold_get` (`:636`) /
+- **Cold tier** — `cold_spill` (`src/base_store.rs:624`) / `cold_get` (`:636`) /
   `cold_all` (`:649`) / `cold_put_all` (`:666`) / `cold_search` (`:684`). Rows are
   stored without their vector; the vector lives alone in `COLD_VEC_DB` (`:26`), so
   the full-tier scan scores off raw floats and decodes only the k winners, and
@@ -313,18 +313,18 @@ and cold tier live together. Readers never block, writers serialize.
   which skips the scan until the tier passes `max + COLD_CAP_SLACK` (1024, `:20`);
   only then does `cold_cap` (`:739`) sort by `created_at` and cut back to `max`. A
   drop is unrecoverable, so `cold_evicted` (`:780`) feeding `health` is its trace.
-- **Compaction** (`compact_dir`, `src/base/store.rs:818`) — the only way to
+- **Compaction** (`compact_dir`, `src/base_store.rs:818`) — the only way to
   shrink LMDB's high-water mark; writes a fresh env to a tmp file then
   `swap_compacted` renames with retry. Requires exclusive access (run offline).
-- **Snapshots** — `snapshot_for_flush` (`src/base/persist.rs:154`) /
+- **Snapshots** — `snapshot_for_flush` (`src/persist.rs:154`) /
   `FlushSnapshot` capture a consistent point-in-time; the maintenance tick runs
   a mutation-epoch-gated snapshot so crash loss is bounded to one tick interval.
 
-**Where.** `src/base/store.rs` (1611 LoC), `src/base/persist.rs` (565 LoC),
-`src/base/search.rs` (dimension guard), `src/store.rs`
+**Where.** `src/base_store.rs` (1611 LoC), `src/persist.rs` (565 LoC),
+`src/search.rs` (dimension guard), `src/store.rs`
 (per-cwd `Registry` of open stores).
 
-**Gaps.** Single-writer is enforced, not assumed — `src/base/lock.rs` is an advisory
+**Gaps.** Single-writer is enforced, not assumed — `src/lock.rs` is an advisory
 lock `reembed`, `gc` and `compact` claim or refuse — but `cmd_hub_merge`
 (`src/commands/admin.rs:1002`) and `maybe_self_heal_store` (`src/commands.rs:444`)
 still `save_graph_unguarded` holding none. No WAL but LMDB's; compaction is offline.
@@ -347,7 +347,7 @@ Nothing is lost on an LLM outage — the delta stays queued until it succeeds.
   built-in claim kinds (`DEFAULT_KINDS`, `src/ingest/distill.rs:9`) or a
   registered one (`root.claim_kinds`, offered to the LLM by `spawn_intake`'s
   kinds closure). The prompt names today's date (UTC `YYYY-MM-DD` via
-  `date_string` in `src/base/time.rs`, from a `now: SystemTime` param callers
+  `date_string` in `src/time.rs`, from a `now: SystemTime` param callers
   pass as `SystemTime::now()`), so a relative-date phrase ("last Tuesday") in
   the delta resolves to an absolute ISO8601 `valid_from` rather than storing
   unresolved (item 50, 2026-07-22).
@@ -491,11 +491,11 @@ maintains itself.
 
 **Where.** `src/tick/*` (3589 LoC, 8 files) + `src/tick.rs` (1070 LoC) — remeasured 2026-07-22, the old 2912/893 had drifted ~660 and ~177 lines behind the tree. `trainer.rs` is the one that is not a queue task: GNN training runs on its own thread.
 
-**Gaps.** `KERN_CAP_DISABLED` (`src/base/constants.rs:30`) is a **kern-eviction**
+**Gaps.** `KERN_CAP_DISABLED` (`src/base_constants.rs:30`) is a **kern-eviction**
 sentinel, not an entity cap. Its two readers are `max_loaded_kerns` (how many
-kerns stay resident, `enforce_kern_cap`, `src/base/graph.rs:227`) and
+kerns stay resident, `enforce_kern_cap`, `src/graph.rs:227`) and
 `disk_threshold` (the per-kern entity count that triggers a DiskANN spill,
-`src/base/graph.rs:296`). `max_kerns` now defaults to **128** (2026-07-22, item
+`src/graph.rs:296`). `max_kerns` now defaults to **128** (2026-07-22, item
 83): a conservative resident bound — eviction is proven safe (`get_mut`
 auto-loads; `spawn_unnamed_child_under_cap_keeps_the_child_in_parent_children`),
 128 bounds the pathological case, and an explicit `usize::MAX` opts out.
@@ -516,7 +516,7 @@ invisible except as work that did not happen.
 Documents are immune while Active** (immunity is revoked once superseded);
 evictions spill to the cold tier before dropping (spill-before-drop). Spill is
 lossless out of RAM, not lossless overall — the cold tier is capped at
-`COLD_MAX_ENTRIES = 50_000` and `Store::cold_cap` (`src/base/store.rs:739`)
+`COLD_MAX_ENTRIES = 50_000` and `Store::cold_cap` (`src/base_store.rs:739`)
 deletes the oldest rows past it, and with no store bound `run_gc` drops the
 victim outright.
 
@@ -528,12 +528,12 @@ A failed batch retries per victim, so a bad row alone stays hot. Runs on the
 maintenance tick gated by `STIGMERGY_GC_INTERVAL = 1 hour` and clock validity.
 
 Past the cold cap the drop is **counted, not silent**: `cold_cap` increments
-`Store::cold_evicted` (`src/base/store.rs:718`) per deleted row and warns once
+`Store::cold_evicted` (`src/base_store.rs:718`) per deleted row and warns once
 per sweep, and `health` reports that total on all three surfaces (MCP JSON,
 `HealthRes`, `kern health` — the daemon's, item 100). The cap stays intentional.
 
-**Where.** `src/tick/stigmergy.rs`, `src/base/reason.rs` (`remove_entity`
-cascade-deletes its edges), `src/base/store.rs` (cap + eviction counter).
+**Where.** `src/tick/stigmergy.rs`, `src/reason.rs` (`remove_entity`
+cascade-deletes its edges), `src/base_store.rs` (cap + eviction counter).
 
 **Gaps.** Victim selection is per-kern linear. No priority/age queue. Cold tier
 is brute-force search only, and an entity dropped past the cap is gone — the
@@ -627,7 +627,7 @@ to external clients (Claude, Cursor, etc.). Protocol version `2024-11-05`.
 | `degrade` | `tools_mutate.rs` | Down-weight edges along a bad retrieval path (`DEGRADE_*` decay). Returns `decayed_edges` and `removed_edges` — the reap count exists so a CLI `degrade` routed through the daemon can print what the local path prints. |
 | `move` | `tools_mutate.rs:467` | Relocate a thought to another kern, carrying outgoing edges and restamping cross-kern references. |
 | `promote` | `tools_mutate.rs` | Release a thought a review policy is holding: flips `ReviewState::Pending` to `Active`, so a `query {exclude_pending: true}` returns it again. The release half of the lifecycle `[ingest] review_policy` opens; idempotent, returning `promoted: false` on an already-active row rather than failing, and a hard `thought not found` on an id nothing resolves — a silent success would tell a curator a claim was released while it is still held. Shares `graph_ops::promote_entity` with the CLI's no-daemon fallback so the routed and local writes cannot disagree. Any caller holding the graph's `mcp-token` may promote — the process boundary is the access model. |
-| `health` | `tools_admin.rs:83` | Graph stats (gravitons/kerns/entities/reasons/unnamed/claim_kinds) **plus the degradation surface**: `queue_depth`, `tasks_done`, `task_avg_ms`, `task_panics`, `last_task_panic`, `task_failures`, `last_task_failure`, `cold_evicted`, `embed_model`, `embed_dim`, `embed_mismatch`, and the eight fail-open counters — `query_dim_rejected`, `below_floor_deliveries`, `clock_skew_skips`, `ingest_dropped_chunks`, `remote_cap_dropped`, `unspilled_drops`, `ingest_queue_refused`, `gnn_train_refused` — each a path that returns something rather than erroring, so the count is the only way to tell a degraded result from a good one (`Server::health_stats`, `src/mcp.rs:116`). The first seven come off `HealthStats` (`src/base/health.rs:9`), `gnn_train_refused` straight from the trainer's own global (`src/mcp.rs:149`) — but all eight are process-scoped counters read in the *serving* process, which is why only a daemon's answer carries real ones and any other reader reports its own zeros (`ROADMAP.md` item 100). Beside the counters, one gauge: `ingest_queue_depth` reads the serving worker's mpsc channel occupancy live (`src/mcp.rs:148`, `Worker::queue_depth` at `src/ingest/worker.rs:148`) — how full the RAM queue is right now, where `ingest_queue_refused` only says its bound was ever hit (item 30). |
+| `health` | `tools_admin.rs:83` | Graph stats (gravitons/kerns/entities/reasons/unnamed/claim_kinds) **plus the degradation surface**: `queue_depth`, `tasks_done`, `task_avg_ms`, `task_panics`, `last_task_panic`, `task_failures`, `last_task_failure`, `cold_evicted`, `embed_model`, `embed_dim`, `embed_mismatch`, and the eight fail-open counters — `query_dim_rejected`, `below_floor_deliveries`, `clock_skew_skips`, `ingest_dropped_chunks`, `remote_cap_dropped`, `unspilled_drops`, `ingest_queue_refused`, `gnn_train_refused` — each a path that returns something rather than erroring, so the count is the only way to tell a degraded result from a good one (`Server::health_stats`, `src/mcp.rs:116`). The first seven come off `HealthStats` (`src/health.rs:9`), `gnn_train_refused` straight from the trainer's own global (`src/mcp.rs:149`) — but all eight are process-scoped counters read in the *serving* process, which is why only a daemon's answer carries real ones and any other reader reports its own zeros (`ROADMAP.md` item 100). Beside the counters, one gauge: `ingest_queue_depth` reads the serving worker's mpsc channel occupancy live (`src/mcp.rs:148`, `Worker::queue_depth` at `src/ingest/worker.rs:148`) — how full the RAM queue is right now, where `ingest_queue_refused` only says its bound was ever hit (item 30). |
 | `graviton` | `tools_admin.rs` | list/add/remove focus attractors (name + text — phrase or full document — + optional mass). Replaced the single per-kern "purpose". |
 | `claim_kind` | `tools_admin.rs` | register/remove claim kinds; registered kinds extend the built-in distill set. |
 | `pulse` | `tools_admin.rs` | Trigger a clustering pass across the tree. |
@@ -764,7 +764,7 @@ Notable:
   however long the retry took. An overflowing `N` is reported and nothing is
   written.
 
-- **The writer lock** (`src/base/lock.rs`) — one advisory lock per data dir
+- **The writer lock** (`src/lock.rs`) — one advisory lock per data dir
   (std `File::try_lock`, MSRV 1.89), held for the daemon's whole lifetime and
   taken by every direct-writer admin command. `reembed`, `compact` and `gc`
   refuse while it is held and name the holder, because "daemon must be stopped"
@@ -801,7 +801,7 @@ Notable:
   (`ingest_health_lines`, `src/commands/admin.rs:201`), daemon-sourced only
   because the CLI's own worker is idle by construction (item 30). From a daemon
   it also prints `convergence: gini 0.NN` — the Gini coefficient over entity
-  access counts (`gini_over_access`, `src/base/health.rs`, item 62 half),
+  access counts (`gini_over_access`, `src/health.rs`, item 62 half),
   `0.0` = uniform access (converged), → `1.0` asymptotically (finite-n max
   `(n−1)/n`); daemon-sourced only because a CLI's fresh-open graph has no
   query history.
@@ -817,7 +817,7 @@ Notable:
   whose config cannot name the host's Ollama; absent flags leave `cfg.embed`
   exactly as loaded.
 
-**Where.** `src/commands/*`, `src/base/lock.rs`, `src/main.rs`.
+**Where.** `src/commands/*`, `src/lock.rs`, `src/main.rs`.
 
 **Gaps.** `ingest` and `link` still open the store directly while a daemon
 holds newer state (`intake drain` routes since 2026-07-21). They deliberately reconcile instead of
@@ -836,7 +836,7 @@ load only when nothing answers. `search` and `list` stay local by decision
 (`ROADMAP.md` item 9). `kern unnamed promote <id> <name> <seed> [--mass N]`
   promotes an existing unnamed kern to named by giving it a graviton in place
   (no move, no id change — it keeps entities/children/parent and becomes
-  `is_named`, so gc keeps it); `accept::promote_unnamed` (`src/base/accept.rs`).
+  `is_named`, so gc keeps it); `accept::promote_unnamed` (`src/accept.rs`).
 
 ---
 
@@ -853,7 +853,7 @@ thought ingested on node A becomes searchable on node B under the same id.
   RPC (`GOSSIP_FETCH_TIMEOUT=5s`), `start_heartbeat`
   (`GOSSIP_HEARTBEAT_INTERVAL=30s`), `GOSSIP_MAX_FRAME_BYTES=4MB` bounds. The
   Lamport counter it stamps messages with lives on the graph, not the node
-  (`GraphGnn::bump_lamport`/`observe_lamport`, `src/base/graph.rs:467`/`:474`).
+  (`GraphGnn::bump_lamport`/`observe_lamport`, `src/graph.rs:467`/`:474`).
 - **Discovery** (`src/gossip/discovery.rs`) — multicast announce/parse on
   `GOSSIP_DISCOVERY_MULTICAST=239.77.75.68` at `gossip.discovery_port`
   (default `7475`, `src/config_gossip.rs:66`) every
@@ -866,7 +866,7 @@ thought ingested on node A becomes searchable on node B under the same id.
   handlers for Sphere/Question/Pulse/PeerExchange/Fetch/CrdtDelta/EntitySync.
 - **CRDTs** (`src/crdt.rs`) — `GCounter`, plus the shared `lww_wins` comparison
   the last-writer-wins call sites now route through (`join_lww_time`
-  `src/base/merge.rs`, `merge_reason`, and both `gossip/handler.rs` sites). There
+  `src/merge.rs`, `merge_reason`, and both `gossip/handler.rs` sites). There
   is no `PnCounter`/`LwwRegister`/`OrSet` type anywhere in the tree. Applied to
   four live `CrdtTarget`s (`src/gossip/types.rs`): `ThoughtAccessCount`
   (GCounter), `ReasonTraversalCount` (GCounter), `ReasonScore` (LWW),
@@ -874,7 +874,7 @@ thought ingested on node A becomes searchable on node B under the same id.
   inert by design — it has no sender, and statements are deliberately never
   imported because entity ids are `content_hash(text)`, so merging them can only
   admit content an id does not hash to.
-- **Merge** (`src/base/merge.rs`) — `merge_entity`/`merge_reason`/
+- **Merge** (`src/merge.rs`) — `merge_entity`/`merge_reason`/
   `merge_remote_entity`/`absorb_graph` apply remote bodies into local kerns
   under `remote-` prefixed ids, capped at `GOSSIP_REMOTE_KERN_ENTITY_CAP=50_000`.
 - **Seen / Ledger** (`src/gossip/seen.rs`, `ledger.rs`) — `SeenSet` dedup
@@ -962,7 +962,7 @@ end-to-end: per-entity writer signatures + per-frame envelopes. Off by
 default. Full trust model on the docs-site `Security` page
 (`docs/site/content/docs/concepts/security.mdx`).
 
-**Where.** `src/gossip/*` (13 files), `src/crdt.rs`, `src/base/merge.rs`,
+**Where.** `src/gossip/*` (13 files), `src/crdt.rs`, `src/merge.rs`,
 `src/mcp/tools_delegate.rs`, config in `src/config_gossip.rs`
 (`ring`, `identity_path`, `sync_interval_secs`, `subscriptions`,
 `[[gossip.contracts]]`).
@@ -1076,7 +1076,7 @@ or stale config indefinitely (the 36h dead-endpoint dogfooding outage,
 
 **How.**
 
-- **Identity** (`src/base/identity.rs`) — `build_id` = sha256 of the
+- **Identity** (`src/identity.rs`) — `build_id` = sha256 of the
   executable's `(len, mtime)` fingerprint (path excluded: `cargo install`
   hardlinks `target/release`; semver excluded: every dev build reports the
   same version), `config_id` = sha256 of the serialized resolved config,
@@ -1432,23 +1432,23 @@ are built, never run.
 
 ## 22. Cross-cutting utilities
 
-- **math** (`src/base/math.rs`) — `cosine`, `cosine_distance`, `l2_normalize`,
+- **math** (`src/math.rs`) — `cosine`, `cosine_distance`, `l2_normalize`,
   `average_vec`, content-hash `reason_id`, `OnlineSoftmax`, `softmax_merge_scores`,
   `clamp_confidence` (caps AI confidence at `MAX_AI_CONFIDENCE=0.95`, Facts at 1.0).
-- **util** (`src/base/util.rs`) — `content_hash`, `now_nanos`, `cmp_rank`
+- **util** (`src/util.rs`) — `content_hash`, `now_nanos`, `cmp_rank`
   (deterministic tiebreak on score then id), token estimation.
-- **time** (`src/base/time.rs`) — clock helpers (graceful on unreadable clock).
-- **health** (`src/base/health.rs`) — `graph_health_stats`: graph counts plus the
+- **time** (`src/time.rs`) — clock helpers (graceful on unreadable clock).
+- **health** (`src/health.rs`) — `graph_health_stats`: graph counts plus the
   store signals (`cold_evicted`, `embed_model`, `embed_dim`, `embed_mismatch`)
   and `query_dim_rejected`. Storeless graphs report zeros, and an unstamped store
   falls back to the dimension the graph actually holds — unknown is never
   reported as a mismatch.
-- **log throttle** (`src/base/log_throttle.rs`) — `LogThrottle`, the one-line-
+- **log throttle** (`src/log_throttle.rs`) — `LogThrottle`, the one-line-
   per-interval guard behind the embed-mismatch, dimension-guard and cold-eviction
   warnings. A degradation that repeats per row must not become the log.
-- **constants** (`src/base/constants.rs`) — every magic number in one file.
+- **constants** (`src/base_constants.rs`) — every magic number in one file.
   The 7 built-in claim kinds are **not** here, and there is no claim-kinds
-  module under `src/base/`: they are the `DEFAULT_KINDS` const in
+  module under `src/`: they are the `DEFAULT_KINDS` const in
   `src/ingest/distill.rs:9`.
 - **test support** (`src/test_support.rs`) — `cfg(test)` graph/entity/edge
   builders shared across the unit tests. There is no `src/log/` or
@@ -1474,14 +1474,14 @@ Ranked by leverage:
    remote bodies hash-verified against their claimed ids.
    Trust model: `docs/site/content/docs/concepts/security.mdx`.
 4. **Nothing bounds memory deterministically** — corrected 2026-07-21, this
-   entry named the wrong knob. `KERN_CAP_DISABLED` (`src/base/constants.rs:30`)
+   entry named the wrong knob. `KERN_CAP_DISABLED` (`src/base_constants.rs:30`)
    is a *kern-eviction* sentinel, not a per-kern entity cap: it defaults both
-   `max_loaded_kerns` (`enforce_kern_cap`, `src/base/graph.rs:227`) and
+   `max_loaded_kerns` (`enforce_kern_cap`, `src/graph.rs:227`) and
    `disk_threshold` (spill trigger, `:296`) to `usize::MAX`, so neither eviction
    nor DiskANN spill is armed. A per-kern entity cap for local kerns does not
    exist at all. A safe cap + escalation policy is still the wanted fix.
 5. **CLI vs daemon race, serving half** — the destructive half is closed:
-   `src/base/lock.rs` is an advisory writer lock and `reembed`/`compact`/`gc`
+   `src/lock.rs` is an advisory writer lock and `reembed`/`compact`/`gc`
    refuse while a daemon holds it, with `kern status` reporting the holder. The
    route decided for the rest exists (`src/commands/route.rs`) and `forget`,
    `degrade`, `graviton add`/`remove` and `claim-kind add`/`rm` take it — the
@@ -1505,7 +1505,7 @@ Ranked by leverage:
 7. **Distill prompt** is one-shot and global — per-kind prompts +
    chunking for long deltas would raise claim quality.
 8. (retired 2026-07-21 — one scrub pass per sweep, not one per victim)
-   `HnswIndex::delete` (`src/base/hnsw.rs:136`) drops the node and pushes the
+   `HnswIndex::delete` (`src/hnsw.rs:136`) drops the node and pushes the
    slot to `pending_scrub`; `scrub_pending` (`:153`) clears every dead slot in a
    single walk, and only then may a slot enter `free`, so nothing can alias it.
 9. (retired 2026-07-21 — the LLM rerank left with the answer leg) a small

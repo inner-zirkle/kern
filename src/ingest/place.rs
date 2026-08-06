@@ -1,7 +1,7 @@
-use crate::base::accept;
-use crate::base::graph::GraphGnn;
-use crate::base::types::*;
-use crate::base::util;
+use crate::accept;
+use crate::graph::GraphGnn;
+use crate::base_types::*;
+use crate::util;
 use crate::crdt::GCounter;
 use crate::ingest::dedup::{find_duplicate, update_existing_entity};
 use crate::ingest::embed::embed_with_retry;

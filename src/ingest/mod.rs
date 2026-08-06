@@ -19,7 +19,7 @@ pub use worker::Worker;
 
 #[cfg(test)]
 pub(crate) fn stub_one_hot(seed: &str) -> Vec<f32> {
-	let h = crate::base::util::content_hash(seed);
+	let h = crate::util::content_hash(seed);
 	let bytes = h.as_bytes();
 	let slot = if bytes.is_empty() {
 		0

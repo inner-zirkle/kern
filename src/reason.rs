@@ -1,5 +1,5 @@
 use super::graph::GraphGnn;
-use super::types::{Kern, Reason, ReasonKind};
+use crate::base_types::{Kern, Reason, ReasonKind};
 use std::collections::HashSet;
 
 pub(crate) fn collect_reason_ids(kern: &Kern, entity_id: &str) -> Vec<String> {
@@ -157,7 +157,7 @@ pub fn move_entity(
 pub fn remove_entity(g: &mut GraphGnn, kern_id: &str, id: &str, force: bool) {
 	// SECURITY: fact-immunity is a LOCAL guarantee. A peer that sets kind=Fact on the
 	// wire would otherwise pin unbounded undeletable rows in a phantom kern.
-	let immune_kern = !crate::base::merge::is_remote_kern_id(kern_id);
+	let immune_kern = !crate::merge::is_remote_kern_id(kern_id);
 	let kern = match g.kerns.get_mut(kern_id) {
 		Some(k) => k,
 		None => return,
@@ -222,7 +222,7 @@ fn remove_string_from_vec(vec: Option<&mut Vec<String>>, s: &str) {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::base::types::{Entity, EntityKind, Kern};
+	use crate::base_types::{Entity, EntityKind, Kern};
 
 	use crate::test_support::{edge, entity_vec as ent};
 

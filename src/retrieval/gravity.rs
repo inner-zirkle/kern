@@ -1,7 +1,7 @@
-use crate::base::accept::root_graviton_ids;
-use crate::base::graph::GraphGnn;
-use crate::base::math::cosine;
-use crate::base::types::Kern;
+use crate::accept::root_graviton_ids;
+use crate::graph::GraphGnn;
+use crate::math::cosine;
+use crate::base_types::Kern;
 use crate::config::RetrievalConfig;
 use crate::retrieval::expand::Scored;
 
@@ -36,8 +36,8 @@ pub fn apply_gravity<T: Scored>(g: &GraphGnn, cfg: &RetrievalConfig, results: &m
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::base::accept::add_graviton_with_mass;
-	use crate::base::types::{mk_entity, EntityKind};
+	use crate::accept::add_graviton_with_mass;
+	use crate::base_types::{mk_entity, EntityKind};
 	use crate::retrieval::expand::ScoredEntity;
 
 	fn scored(id: &str, vector: Vec<f32>, score: f64) -> ScoredEntity {

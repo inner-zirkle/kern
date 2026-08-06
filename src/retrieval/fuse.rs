@@ -1,4 +1,4 @@
-use crate::base::search::EntityHit;
+use crate::search::EntityHit;
 use std::collections::HashMap;
 
 pub fn rrf(lists: &[&[EntityHit]], weights: &[f64], k_rrf: f64, top_k: usize) -> Vec<EntityHit> {
@@ -17,7 +17,7 @@ pub fn rrf(lists: &[&[EntityHit]], weights: &[f64], k_rrf: f64, top_k: usize) ->
 	let mut out: Vec<EntityHit> = agg.into_iter().map(EntityHit::from).collect();
 	// Unique ids make this a STRICT total order, so the top_k partition + sorting only the survivors equals a full sort + truncate.
 	let cmp = |a: &EntityHit, b: &EntityHit| {
-		crate::base::util::cmp_rank(a.score, &a.entity_id, b.score, &b.entity_id)
+		crate::util::cmp_rank(a.score, &a.entity_id, b.score, &b.entity_id)
 	};
 	if top_k < out.len() {
 		out.select_nth_unstable_by(top_k - 1, &cmp);

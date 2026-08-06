@@ -1,5 +1,5 @@
-use crate::base::search::{find_entity, search_all_unlocked};
-use crate::base::util::{short_id, truncate};
+use crate::search::{find_entity, search_all_unlocked};
+use crate::util::{short_id, truncate};
 use crate::mcp::tools_query::base_entity_json;
 
 use super::route::{array_field, f64_field, route, str_field, Routed};

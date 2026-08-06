@@ -1,6 +1,6 @@
-use crate::base::accept::merge_duplicate;
-use crate::base::graph::GraphGnn;
-use crate::base::types::*;
+use crate::accept::merge_duplicate;
+use crate::graph::GraphGnn;
+use crate::base_types::*;
 use std::sync::Arc;
 
 use parking_lot::RwLock;
@@ -13,7 +13,7 @@ pub fn find_duplicate(
 	let g = graph.read();
 	let hits = g
 		.entity_idx
-		.search(vec, 1, crate::base::constants::DEDUP_EF);
+		.search(vec, 1, crate::base_constants::DEDUP_EF);
 	hits
 		.into_iter()
 		.find(|h| h.score >= threshold)
@@ -49,7 +49,7 @@ pub fn update_existing_entity(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::base::types::mk_entity;
+	use crate::base_types::mk_entity;
 
 	fn graph_with_entity(id: &str, text: &str) -> Arc<RwLock<GraphGnn>> {
 		let mut g = GraphGnn::new();

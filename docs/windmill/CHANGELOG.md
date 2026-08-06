@@ -2,6 +2,7 @@
 
 <!-- docs-check: historical -->
 
+- 2026-08-07 — flatten `src/base/` into `src/` root (phase of full src/ flattening): 22 files. `src/base/{store,types,constants}.rs`→`src/base_{store,types,constants}.rs` (collided with existing root `store.rs`/`types.rs`); the other 19 kept bare names (`accept.rs`→`src/accept.rs` etc). `src/base.rs` deleted; `src/lib.rs` declares the 22 modules at crate root (`pub mod`). Rewrites across 70 consumer files: `crate::base::store/types/constants`→`crate::base_store/base_types/base_constants`, `crate::base::X`→`crate::X`; subfile `super::store/types/constants`→`crate::base_store/base_types/base_constants`; `use crate::base_constants as constants;` alias where bare `constants::` used. Build clean, 1096 lib tests pass, guards exit 0. Decided by: single-crate-fold (user-directed full src/ flattening).
 - 2026-08-07 — flatten `src/config/` into `src/` root (phase of full src/ flattening): `src/config/mod.rs`→`src/config.rs`, 17 subfiles→`src/config_*.rs` (config_embed.rs, config_gnn.rs, config_gossip.rs, config_graph.rs, config_hub.rs, config_ingest.rs, config_intake.rs, config_io.rs, config_preset.rs, config_reason.rs, config_reload.rs, config_retrieval.rs, config_secrets.rs, config_serve.rs, config_tick.rs, config_watcher.rs, config_detached_log.rs). Subfiles became crate-root modules declared in lib.rs (`mod` kept private, `pub mod` for detached_log + io — visibility preserved). config.rs re-exports retargeted to `crate::config_*::`; body `io::Error`→`crate::config_io::Error`. External: `crate::config::detached_log::stdio`→`crate::config_detached_log::stdio` (hub_node.rs, commands/mcp_cmd.rs); `kern::config::io::Error`→`kern::config_io::Error` (main.rs). Build clean, 1096 lib tests pass, guards exit 0. Decided by: single-crate-fold (user-directed full src/ flattening).
 
 - 2026-08-06 — inlined the `transport` sub-crate into the root `kern` lib crate as `crate::transport`, completing the single-crate goal. `src/transport/` was a path-only workspace member (27 files, 4250 LoC, no external consumer); moved `src/transport/src/{lib,http,mcp}.rs` + `hub_rpc/`+`kern_rpc/`+`typed/`+`wire/` up to `src/transport/{mod,http,mcp,...}` (`lib.rs`→`mod.rs`), dropped its `Cargo.toml` + the `transport` path-dep + workspace member. Internal `crate::`→`crate::transport::` across moved files (avoids the collision between transport's `mod mcp` envelope and kern's root `pub mod mcp` server); `service!` invokers `crate::service!`→`crate::transport::service!`; removed `extern crate self as transport;`. The `transport-macros` proc-macro stayed its own crate (Rust forbids proc-macros in a lib); its `service!` codegen retargeted `::transport::`→`crate::transport::` (the `::kern::` self-ref did NOT resolve from proc-macro expansion — verified by failed build). 15 consumer files rewritten `transport::`→`crate::transport::`. Folded deps into root: `tokio-util`+codec, `bytes`, `futures`, unix `libc`, windows `windows-sys`. Build clean, 1096 lib tests pass, 59 transport tests pass, all test targets compile, guards exit 0, code-reviewer approved. `transport-macros` is the only remaining workspace member — a forced Rust exception, not actionable. Decided by: single-crate-fold (user-directed structural merge).
@@ -664,15 +665,4 @@
   forgets; `usize::MAX` still opts out. `disk_threshold` stays disabled until
   item 75 (DiskANN crash consistency) closes — arming it exposes the spill
   crash window. 1024 pass. Decided by: verify-before-claiming, fix-the-root, name-the-tradeoff. Supersedes: the stale "currently unsafe" comment in `GraphConfig::default`.
-
-- 2026-07-22 — item 99 half-closed: the watcher now denies `.kern/` whole,
-  not just the two enumerated dirs. `spawn_file_watcher` builds the deny set
-  from a new pure `watcher_denied_paths(cfg, cwd)` (`src/commands.rs`) =
-  `.kern/` + `intake.dir` + `data_dir`. The union is the invariant "everything
-  kern writes under a watched root is denied", whether it lives under `.kern/`
-  (config, logs, mcp-token, default data+intake) or under a `data_dir` /
-  `intake.dir` pointed outside `.kern/` (supported config). A future writer
-  under `.kern/` is covered without remembering to add it. The registry half
-  (a writer outside both `.kern/` and the configured data/intake dirs) stays
-  open — no such writer exists today. 1023 pass, 2 new unit tests. Decided by: fix-the-root, the-oracle. Supersedes: nothing.
 

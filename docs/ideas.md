@@ -76,6 +76,10 @@ _(ranked across all four sections)_
 
 ## Closed
 
+### 2026-08-07 — flatten src/base/ into src/ root (base_ prefix)
+
+Folded the `base` subdir (22 files) into src/ root. `src/base/{store,types,constants}.rs`→`src/base_{store,types,constants}.rs` (collided with root `store.rs`/`types.rs`); the other 19 kept bare names (`accept.rs`→`src/accept.rs` etc). `src/base.rs` deleted; lib.rs declares the 22 modules directly. Rewrote `crate::base::store/types/constants`→`crate::base_store/base_types/base_constants` and `crate::base::X`→`crate::X` across 70 consumer files; subfile `super::store/types/constants`→`crate::base_store/base_types/base_constants`; aliased `use crate::base_constants as constants;` where bare `constants::` was used. Build clean, 1096 lib tests pass, guards exit 0.
+
 ### 2026-08-07 — flatten src/config/ into src/ root (config_* prefix)
 
 Moved `src/config/mod.rs` → `src/config.rs` and all 17 subfiles → `src/config_*.rs` (config_embed.rs, config_gnn.rs, etc.). Subfiles became crate-root modules declared in lib.rs (private `mod` preserved original visibility; `pub mod` for detached_log + io). config.rs re-exports retargeted to `crate::config_*::`. External `crate::config::detached_log::` → `crate::config_detached_log::` (hub_node.rs, commands/mcp_cmd.rs); `kern::config::io::Error` → `kern::config_io::Error` (main.rs). 1096 lib tests pass.

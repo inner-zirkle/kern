@@ -1,4 +1,4 @@
-use crate::base::types::{Entity, Reason};
+use crate::base_types::{Entity, Reason};
 use tokio::task::JoinHandle;
 
 // Lets a test assert on the allocation a call makes. A buffer removal cannot be
@@ -102,7 +102,7 @@ pub(crate) fn mcp_server() -> crate::mcp::Server {
 pub(crate) fn mcp_server_with_embed_url(url: &str) -> crate::mcp::Server {
 	use parking_lot::RwLock;
 	use std::sync::Arc;
-	let graph = Arc::new(RwLock::new(crate::base::graph::GraphGnn::new()));
+	let graph = Arc::new(RwLock::new(crate::graph::GraphGnn::new()));
 	let embedder = crate::llm::Client::new_embed_only(url, "test", "");
 	let worker = Arc::new(crate::ingest::Worker::new(
 		graph.clone(),
@@ -120,7 +120,7 @@ pub(crate) fn mcp_server_with_embed_url(url: &str) -> crate::mcp::Server {
 		cfg: Arc::new(crate::config::Config::default()),
 		broadcast_pulse: None,
 		last_activity: Arc::new(std::sync::atomic::AtomicU64::new(
-			crate::base::util::now_ms(),
+			crate::util::now_ms(),
 		)),
 	}
 }
@@ -138,7 +138,7 @@ pub(crate) fn scratch_endpoint(tag: &str) -> crate::transport::typed::Endpoint {
 	let dir = std::env::temp_dir().join(format!(
 		"kern-route-{}-{}-{tag}",
 		std::process::id(),
-		crate::base::util::now_ms()
+		crate::util::now_ms()
 	));
 	std::fs::create_dir_all(&dir).expect("scratch dir");
 	crate::transport::typed::Endpoint::Unix(dir.join("kern.sock"))
@@ -218,8 +218,8 @@ pub(crate) async fn spawn_http(app: axum::Router) -> (String, JoinHandle<()>) {
 // A second writer committing straight through the shared store — how a daemon
 // advances the epoch underneath a one-shot CLI command mid-flight.
 pub(crate) fn commit_extra_kern_via_store(
-	g: &std::sync::Arc<parking_lot::RwLock<crate::base::graph::GraphGnn>>,
-	kern: crate::base::types::Kern,
+	g: &std::sync::Arc<parking_lot::RwLock<crate::graph::GraphGnn>>,
+	kern: crate::base_types::Kern,
 ) {
 	let gg = g.read();
 	let store = gg.store().expect("graph has a bound store");

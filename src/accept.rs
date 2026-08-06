@@ -1,9 +1,9 @@
-use super::constants::*;
+use crate::base_constants::*;
 use super::graph::GraphGnn;
 use super::math::{average_vec, cosine_distance, reason_id};
 use super::reason::{add_reason, superseded_ancestors};
 use super::search::search_all_unlocked;
-use super::types::*;
+use crate::base_types::*;
 use crate::crdt::GCounter;
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -142,7 +142,7 @@ pub fn merge_valid_until(
 
 	let lww_value =
 		bincode::serde::encode_to_vec(resolved, bincode::config::standard()).unwrap_or_default();
-	g.push_delta(crate::base::graph::PendingDelta {
+	g.push_delta(crate::graph::PendingDelta {
 		object_id: entity_id.to_string(),
 		target: 3,
 		replica: String::new(),
@@ -206,7 +206,7 @@ pub fn merge_duplicate(
 	};
 	add_reason(kern, reason);
 	// The wording is stored now; without this it is stored and searchable nowhere.
-	crate::base::lexical::reindex_entity(g, &kern_id, entity_id);
+	crate::lexical::reindex_entity(g, &kern_id, entity_id);
 
 	Some(MergeOutcome {
 		kern_id,
@@ -857,18 +857,18 @@ pub(crate) fn seed_examples(text: &str) -> Vec<String> {
 		.collect();
 	if lines.len() < 2 {
 		let whole = text.trim();
-		if whole.chars().count() > crate::base::constants::GRAVITON_SEED_CHAR_CHUNK {
+		if whole.chars().count() > crate::base_constants::GRAVITON_SEED_CHAR_CHUNK {
 			// ponytail: char-budget split on a code-point boundary; the caller
 			// embeds each chunk and mean_pools them, same as the multi-line path.
 			let mut out = Vec::new();
 			let mut buf = String::new();
-			let mut budget = crate::base::constants::GRAVITON_SEED_CHAR_CHUNK;
+			let mut budget = crate::base_constants::GRAVITON_SEED_CHAR_CHUNK;
 			for ch in whole.chars() {
 				buf.push(ch);
 				budget -= 1;
 				if budget == 0 {
 					out.push(std::mem::take(&mut buf));
-					budget = crate::base::constants::GRAVITON_SEED_CHAR_CHUNK;
+					budget = crate::base_constants::GRAVITON_SEED_CHAR_CHUNK;
 				}
 			}
 			if !buf.is_empty() {
@@ -976,8 +976,8 @@ fn equivalent_graviton_exists(g: &GraphGnn, name: &str, vec: &[f32]) -> bool {
 		g.loaded(&cid)
 			.map(|c| {
 				!c.graviton_vec.is_empty()
-					&& crate::base::math::cosine(&c.graviton_vec, vec)
-						>= crate::base::constants::GRAVITON_DEDUP_THRESHOLD
+					&& crate::math::cosine(&c.graviton_vec, vec)
+						>= crate::base_constants::GRAVITON_DEDUP_THRESHOLD
 			})
 			.unwrap_or(false)
 	})
@@ -1108,7 +1108,7 @@ pub(crate) static SUPERSEDE_CHAIN_TEST_MUX: std::sync::Mutex<()> = std::sync::Mu
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::base::graph::GraphGnn;
+	use crate::graph::GraphGnn;
 
 	fn ent(id: &str, vector: Vec<f32>) -> Entity {
 		Entity {
@@ -1125,7 +1125,7 @@ mod tests {
 		let mut g = GraphGnn::new();
 		g.data_dir = dir.path().to_string_lossy().into_owned();
 		g.set_store(std::sync::Arc::new(
-			crate::base::store::Store::open(&g.data_dir).unwrap(),
+			crate::base_store::Store::open(&g.data_dir).unwrap(),
 		));
 		g.set_max_loaded_kerns(1);
 		let root = g.root.id.clone();
@@ -1144,7 +1144,7 @@ mod tests {
 		let mut g = GraphGnn::new();
 		g.data_dir = dir.path().to_string_lossy().into_owned();
 		g.set_store(std::sync::Arc::new(
-			crate::base::store::Store::open(&g.data_dir).unwrap(),
+			crate::base_store::Store::open(&g.data_dir).unwrap(),
 		));
 		g.set_max_loaded_kerns(1);
 		let root = g.root.id.clone();
@@ -1167,7 +1167,7 @@ mod tests {
 		let mut g = GraphGnn::new();
 		g.data_dir = dir.path().to_string_lossy().into_owned();
 		g.set_store(std::sync::Arc::new(
-			crate::base::store::Store::open(&g.data_dir).unwrap(),
+			crate::base_store::Store::open(&g.data_dir).unwrap(),
 		));
 		g.set_max_loaded_kerns(1);
 		let root = g.root.id.clone();
@@ -1211,7 +1211,7 @@ mod tests {
 		let mut g = GraphGnn::new();
 		g.data_dir = dir.path().to_string_lossy().into_owned();
 		g.set_store(std::sync::Arc::new(
-			crate::base::store::Store::open(&g.data_dir).unwrap(),
+			crate::base_store::Store::open(&g.data_dir).unwrap(),
 		));
 		let root = g.root.id.clone();
 		let root_net = g.root.root_id.clone();
@@ -1252,7 +1252,7 @@ mod tests {
 	// `old.is_superseded()` early return.
 	#[test]
 	fn supersede_repoints_a_deferred_rephrase_to_the_new_entity() {
-		use crate::base::reason::add_reason;
+		use crate::reason::add_reason;
 		let mut g = GraphGnn::new();
 		let kid = g.root.id.clone();
 		let mut old = Entity {
@@ -2030,7 +2030,7 @@ mod tests {
 
 	#[test]
 	fn seed_examples_char_chunks_a_long_single_paragraph() {
-		let chunk = crate::base::constants::GRAVITON_SEED_CHAR_CHUNK;
+		let chunk = crate::base_constants::GRAVITON_SEED_CHAR_CHUNK;
 		let body = "x".repeat(chunk + 5);
 		let out = seed_examples(&body);
 		assert_eq!(out.len(), 2, "ceil((chunk+5)/chunk) -> 2 chunks");
@@ -2047,7 +2047,7 @@ mod tests {
 	#[test]
 	fn seed_examples_char_chunks_split_on_a_code_point_boundary() {
 		// a multibyte char straddling the boundary must not be split mid-char
-		let chunk = crate::base::constants::GRAVITON_SEED_CHAR_CHUNK;
+		let chunk = crate::base_constants::GRAVITON_SEED_CHAR_CHUNK;
 		let mut body = "a".repeat(chunk - 1);
 		body.push('ß');
 		body.push('z');

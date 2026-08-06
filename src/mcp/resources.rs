@@ -1,7 +1,7 @@
 use serde_json::value::RawValue;
 
-use crate::base::search::{find_entity, find_reason};
-use crate::base::util::truncate;
+use crate::search::{find_entity, find_reason};
+use crate::util::truncate;
 
 use super::{err_resp, ok, Response, Server, ERR_INVALID_REQ, ERR_NOT_FOUND};
 
@@ -111,7 +111,7 @@ fn resource_thoughts(server: &Server) -> String {
 	all.sort_by(|a, b| {
 		let a_id = a.1["id"].as_str().unwrap_or("");
 		let b_id = b.1["id"].as_str().unwrap_or("");
-		crate::base::util::cmp_rank(a.0, a_id, b.0, b_id)
+		crate::util::cmp_rank(a.0, a_id, b.0, b_id)
 	});
 	let top: Vec<serde_json::Value> = all.into_iter().take(TOP_THOUGHTS).map(|(_, v)| v).collect();
 	serde_json::to_string(&top).unwrap_or_default()
@@ -140,7 +140,7 @@ fn resource_claim_kinds(server: &Server) -> String {
 	serde_json::to_string(&g.root.claim_kinds).unwrap_or_default()
 }
 
-fn edge_json(re: &crate::base::types::Reason) -> serde_json::Value {
+fn edge_json(re: &crate::base_types::Reason) -> serde_json::Value {
 	serde_json::json!({
 		"id": re.id,
 		"from": re.from,
@@ -157,7 +157,7 @@ fn resource_thought(server: &Server, id: &str) -> String {
 		Some((thought, kern_id)) => {
 			let mut edges = Vec::new();
 			if let Some(kern) = g.kerns.get(&kern_id) {
-				let rids = crate::base::reason::collect_reason_ids(kern, &thought.id);
+				let rids = crate::reason::collect_reason_ids(kern, &thought.id);
 				for rid in &rids {
 					if let Some(re) = kern.reasons.get(rid) {
 						edges.push(edge_json(re));
@@ -210,8 +210,8 @@ fn resource_content(uri: &str, text: &str) -> serde_json::Value {
 mod tests {
 	use super::*;
 
-	use crate::base::reason::add_reason;
-	use crate::base::types::{Entity, Kern, Reason};
+	use crate::reason::add_reason;
+	use crate::base_types::{Entity, Kern, Reason};
 	use crate::mcp::Server;
 
 	fn make_server() -> Server {

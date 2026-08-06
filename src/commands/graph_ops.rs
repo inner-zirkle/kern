@@ -1,12 +1,12 @@
-use crate::base::constants::{
+use crate::base_constants::{
 	DEGRADE_DECAY_BASE, DEGRADE_DECAY_POW, DEGRADE_FLOOR, DEGRADE_MIN_THRESHOLD,
 };
-use crate::base::graph::GraphGnn;
-use crate::base::math::{average_vec, reason_id};
-use crate::base::reason::{add_reason, remove_entity, remove_reason};
-use crate::base::search::find_entity;
-use crate::base::types::{EntityKind, Kern, Reason, ReasonKind, ReviewState, Source};
-use crate::base::util::{explain_relationship_prompt, short_id, truncate};
+use crate::graph::GraphGnn;
+use crate::math::{average_vec, reason_id};
+use crate::reason::{add_reason, remove_entity, remove_reason};
+use crate::search::find_entity;
+use crate::base_types::{EntityKind, Kern, Reason, ReasonKind, ReviewState, Source};
+use crate::util::{explain_relationship_prompt, short_id, truncate};
 use crate::mcp::tools_query::entity_detail_by_id;
 
 use super::route::{array_field, f64_field, route, str_field, u64_field, Routed};
@@ -153,7 +153,7 @@ pub(crate) fn forget_entity(
 ) -> Result<usize, &'static str> {
 	let (thought, kern_id) = find_entity(g, id).ok_or("thought not found")?;
 	// A remote Fact is a peer's assertion, not durable local knowledge — forgettable.
-	if thought.is_fact() && !force && !crate::base::merge::is_remote_kern_id(&kern_id) {
+	if thought.is_fact() && !force && !crate::merge::is_remote_kern_id(&kern_id) {
 		return Err("cannot forget a fact");
 	}
 	let edges_before = g.kerns.get(&kern_id).map(|k| k.reasons.len()).unwrap_or(0);
@@ -482,7 +482,7 @@ pub(super) async fn cmd_degrade(cfg: &crate::config::Config, id: &str) {
 
 pub(crate) fn degrade_entity_reasons(g: &mut GraphGnn, kern_id: &str, id: &str) -> (usize, usize) {
 	let rids: Vec<String> = match g.kerns.get(kern_id) {
-		Some(kern) => crate::base::reason::collect_reason_ids(kern, id),
+		Some(kern) => crate::reason::collect_reason_ids(kern, id),
 		None => Vec::new(),
 	};
 
@@ -503,7 +503,7 @@ pub(crate) fn degrade_entity_reasons(g: &mut GraphGnn, kern_id: &str, id: &str) 
 				remove_reason(kern, rid);
 			}
 			// A degraded Rephrase takes its alternate wording out of the index with it.
-			crate::base::lexical::reindex_entity(g, kern_id, id);
+			crate::lexical::reindex_entity(g, kern_id, id);
 			removed += 1;
 		} else {
 			let lamport = g.bump_lamport();
@@ -515,7 +515,7 @@ pub(crate) fn degrade_entity_reasons(g: &mut GraphGnn, kern_id: &str, id: &str) 
 					r.score_producer = producer.clone();
 					let lww_value =
 						bincode::serde::encode_to_vec(r.score, bincode::config::standard()).unwrap_or_default();
-					g.push_delta(crate::base::graph::PendingDelta {
+					g.push_delta(crate::graph::PendingDelta {
 						object_id: rid.clone(),
 						target: 2,
 						replica: String::new(),
@@ -535,7 +535,7 @@ pub(crate) fn degrade_entity_reasons(g: &mut GraphGnn, kern_id: &str, id: &str) 
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::base::types::{Entity, Kern, Reason};
+	use crate::base_types::{Entity, Kern, Reason};
 
 	fn edge(from: &str, to: &str, score: f64) -> Reason {
 		Reason {
@@ -612,7 +612,7 @@ mod tests {
 		use parking_lot::RwLock;
 		use std::sync::Arc;
 
-		use crate::base::types::{mk_entity, EntityKind};
+		use crate::base_types::{mk_entity, EntityKind};
 
 		let dir = tempfile::tempdir().unwrap();
 		let cfg = crate::config::Config {
@@ -685,7 +685,7 @@ mod tests {
 		);
 	}
 
-	use crate::base::types::EntityKind;
+	use crate::base_types::EntityKind;
 
 	fn ent(id: &str, kind: EntityKind) -> Entity {
 		Entity {
@@ -978,7 +978,7 @@ mod tests {
 		{
 			let a = g.kerns.get_mut("kx").unwrap().entities.get_mut("a").unwrap();
 			a.set_text("the question".into());
-			a.source = crate::base::types::Source::Session {
+			a.source = crate::base_types::Source::Session {
 				session_id: "session:sess-1".into(),
 				section: "2,5".into(),
 				title: String::new(),

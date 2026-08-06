@@ -1,4 +1,4 @@
-use crate::base::graph::GraphGnn;
+use crate::graph::GraphGnn;
 
 // `Default` is what lets a caller name the one or two counters it cares about
 // without reading the process statics `graph_health_stats` reads — which is the
@@ -123,7 +123,7 @@ pub fn graph_health_stats(g: &GraphGnn) -> HealthStats {
 			unnamed += 1;
 		}
 	}
-	let gravitons: Vec<String> = crate::base::accept::root_graviton_ids(g)
+	let gravitons: Vec<String> = crate::accept::root_graviton_ids(g)
 		.iter()
 		.filter_map(|cid| g.loaded(cid))
 		.map(|c| c.graviton_text.clone())
@@ -162,16 +162,16 @@ pub fn graph_health_stats(g: &GraphGnn) -> HealthStats {
 			d => d,
 		},
 		embed_mismatch: store.map(|s| s.embed_mismatch()).unwrap_or(false),
-		query_dim_rejected: crate::base::search::query_dim_rejected(),
+		query_dim_rejected: crate::search::query_dim_rejected(),
 		below_floor_deliveries: crate::retrieval::score::below_floor_deliveries(),
 		clock_skew_skips: crate::tick_stigmergy::clock_skew_skips(),
 		ingest_dropped_chunks: crate::ingest::worker::ingest_dropped_chunks(),
-		remote_cap_dropped: crate::base::merge::remote_cap_dropped(),
+		remote_cap_dropped: crate::merge::remote_cap_dropped(),
 		unspilled_drops: crate::tick_stigmergy::unspilled_drops(),
 		ingest_queue_refused: crate::ingest::worker::ingest_queue_refused(),
 		gini_access,
 		max_kerns: g.max_loaded_kerns(),
-		supersede_chain_depth_exceeded: crate::base::accept::supersede_chain_depth_exceeded(),
+		supersede_chain_depth_exceeded: crate::accept::supersede_chain_depth_exceeded(),
 		largest_kern_entities,
 		gini_kern_sizes,
 	}
@@ -180,7 +180,7 @@ pub fn graph_health_stats(g: &GraphGnn) -> HealthStats {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::base::store::{EmbedStamp, Store};
+	use crate::base_store::{EmbedStamp, Store};
 
 	#[test]
 	fn empty_graph_reports_no_entities_or_reasons() {
@@ -203,7 +203,7 @@ mod tests {
 
 	#[test]
 	fn store_signals_surface_evictions_and_the_embed_stamp() {
-		use crate::base::types::{mk_entity, EntityKind};
+		use crate::base_types::{mk_entity, EntityKind};
 
 		let d = tempfile::tempdir().unwrap();
 		let store = Store::open(&d.path().to_string_lossy()).unwrap();
@@ -269,7 +269,7 @@ mod tests {
 
 	#[test]
 	fn graph_health_stats_skewed_access_gini_above_half() {
-		use crate::base::types::{mk_entity, EntityKind};
+		use crate::base_types::{mk_entity, EntityKind};
 		use crate::crdt::GCounter;
 
 		let mut g = GraphGnn::new();
@@ -300,7 +300,7 @@ mod tests {
 
 	#[test]
 	fn graph_health_stats_reports_max_kerns() {
-		use crate::base::constants::KERN_CAP_DISABLED;
+		use crate::base_constants::KERN_CAP_DISABLED;
 
 		// Default graph: uncapped.
 		let h = graph_health_stats(&GraphGnn::new());
@@ -318,7 +318,7 @@ mod tests {
 
 	#[test]
 	fn graph_health_stats_reports_largest_kern_entities() {
-		use crate::base::types::{mk_entity, EntityKind, Kern};
+		use crate::base_types::{mk_entity, EntityKind, Kern};
 
 		// Empty graph -> 0.
 		assert_eq!(
@@ -367,7 +367,7 @@ mod tests {
 
 	#[test]
 	fn graph_health_stats_reports_gini_kern_sizes() {
-		use crate::base::types::{mk_entity, EntityKind, Kern};
+		use crate::base_types::{mk_entity, EntityKind, Kern};
 
 		// Empty graph -> 0.0 (one root kern, no entities -> uniform zero-sum).
 		assert!(
@@ -407,7 +407,7 @@ mod tests {
 		let h = graph_health_stats(&GraphGnn::new());
 		assert_eq!(
 			h.supersede_chain_depth_exceeded,
-			crate::base::accept::supersede_chain_depth_exceeded(),
+			crate::accept::supersede_chain_depth_exceeded(),
 			"HealthStats mirrors the process-global counter"
 		);
 	}

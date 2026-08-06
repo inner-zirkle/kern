@@ -18,7 +18,7 @@ use parking_lot::RwLock;
 use serde::Serialize;
 use serde_json::value::RawValue;
 
-use crate::base::graph::GraphGnn;
+use crate::graph::GraphGnn;
 use crate::config::Config;
 use crate::ingest;
 use crate::llm;
@@ -64,12 +64,12 @@ impl Server {
 		let last = self
 			.last_activity
 			.load(std::sync::atomic::Ordering::Relaxed);
-		crate::base::util::now_ms().saturating_sub(last)
+		crate::util::now_ms().saturating_sub(last)
 	}
 
 	pub(crate) fn touch(&self) {
 		self.last_activity.store(
-			crate::base::util::now_ms(),
+			crate::util::now_ms(),
 			std::sync::atomic::Ordering::Relaxed,
 		);
 	}
@@ -116,7 +116,7 @@ impl Server {
 
 	pub(crate) fn health_stats(&self) -> serde_json::Value {
 		let g = self.graph.read();
-		let h = crate::base::health::graph_health_stats(&g);
+		let h = crate::health::graph_health_stats(&g);
 		let claim_kinds = g.root.claim_kinds.len();
 		let tick = self.task_q.as_ref().map(TickHealth::of).unwrap_or_default();
 		serde_json::json!({

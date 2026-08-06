@@ -172,7 +172,7 @@ fn float_cosine_distance(a: &[f32], b: &[f32]) -> f64 {
 	if a.is_empty() || b.is_empty() || a.len() != b.len() {
 		return 1.0;
 	}
-	1.0 - crate::base::math::cosine(a, b)
+	1.0 - crate::math::cosine(a, b)
 }
 
 fn int8_cosine_distance(a: &[i8], b: &[i8]) -> f32 {

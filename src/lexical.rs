@@ -1,5 +1,5 @@
 use super::graph::GraphGnn;
-use super::types::{Entity, Kern, ReasonKind};
+use crate::base_types::{Entity, Kern, ReasonKind};
 use std::collections::HashMap;
 use std::sync::RwLock;
 
@@ -147,7 +147,7 @@ impl LexicalIndex {
 		// Score desc, id-asc tiebreak so the `truncate(k)` boundary is reproducible
 		// (HashMap source; same convention as fuse::rrf).
 		hits.retain(|h| keep(&h.entity_id));
-		hits.sort_by(|a, b| crate::base::util::cmp_rank(a.score, &a.entity_id, b.score, &b.entity_id));
+		hits.sort_by(|a, b| crate::util::cmp_rank(a.score, &a.entity_id, b.score, &b.entity_id));
 		hits.truncate(k);
 		hits
 	}
@@ -254,7 +254,7 @@ fn stem(t: &str) -> String {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::base::types::{Entity, Kern};
+	use crate::base_types::{Entity, Kern};
 
 	#[test]
 	fn stem_strips_known_suffixes_and_guards_short_words() {
@@ -452,8 +452,8 @@ mod tests {
 	// survive exactly until the next reload and nothing would say so.
 	#[test]
 	fn a_rebuild_keeps_the_alternate_wording_a_dedup_merged_on() {
-		use crate::base::reason::add_reason;
-		use crate::base::types::Reason;
+		use crate::reason::add_reason;
+		use crate::base_types::Reason;
 
 		let mut g = GraphGnn::new();
 		let mut k = Kern::new("k", "");

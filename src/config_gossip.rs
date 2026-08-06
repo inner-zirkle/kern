@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::base::constants::{GOSSIP_MAX_PEERS, GOSSIP_SEED_ADDR};
+use crate::base_constants::{GOSSIP_MAX_PEERS, GOSSIP_SEED_ADDR};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
@@ -48,7 +48,7 @@ impl Default for ContractConfig {
 			writers: "owners-only".into(),
 			writer_keys: Vec::new(),
 			kinds: Vec::new(),
-			max_entities: crate::base::constants::GOSSIP_REMOTE_KERN_ENTITY_CAP as u32,
+			max_entities: crate::base_constants::GOSSIP_REMOTE_KERN_ENTITY_CAP as u32,
 			retention_secs: None,
 		}
 	}

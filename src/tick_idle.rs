@@ -3,7 +3,7 @@ use std::time::{Duration, SystemTime};
 
 use parking_lot::RwLock;
 
-use crate::base::graph::GraphGnn;
+use crate::graph::GraphGnn;
 
 pub fn is_idle(last_access: Option<SystemTime>, now: SystemTime, timeout: Duration) -> bool {
 	match last_access {
@@ -61,7 +61,7 @@ pub fn run_idle_sweep(graph: &Arc<RwLock<GraphGnn>>, timeout: Duration) -> usize
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::base::types::Kern;
+	use crate::base_types::Kern;
 
 	fn graph_with(ids: &[(&str, Option<SystemTime>)]) -> GraphGnn {
 		let mut g = GraphGnn::new();
@@ -165,14 +165,14 @@ mod tests {
 		let mut g = GraphGnn::new();
 		g.data_dir = dir.to_string_lossy().into_owned();
 		g.set_store(Arc::new(
-			crate::base::store::Store::open(&g.data_dir).unwrap(),
+			crate::base_store::Store::open(&g.data_dir).unwrap(),
 		));
 		g
 	}
 
 	#[test]
 	fn an_idle_kern_unloads_and_reloads_transparently_with_its_entities() {
-		use crate::base::types::{mk_entity, EntityKind};
+		use crate::base_types::{mk_entity, EntityKind};
 
 		let dir = tempfile::tempdir().unwrap();
 		let mut g = stored_graph(dir.path());

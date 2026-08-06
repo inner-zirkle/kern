@@ -213,7 +213,7 @@ impl Server {
 #[cfg(test)]
 mod tests {
 	use super::EventCursor;
-	use crate::base::types::{Entity, EntityKind, EntityStatus, Kern, Source};
+	use crate::base_types::{Entity, EntityKind, EntityStatus, Kern, Source};
 	use crate::mcp::Server;
 	use crate::test_support::tool_text as text;
 	use crate::mcp::tools::is_error;

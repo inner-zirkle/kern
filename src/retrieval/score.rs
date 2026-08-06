@@ -1,12 +1,12 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use crate::base::constants::CONFIDENCE_BOUND_K;
-use crate::base::graph::GraphGnn;
-use crate::base::heat::{self, HeatConfig};
-use crate::base::lexical::LexicalIndex;
-use crate::base::log_throttle::LogThrottle;
-use crate::base::types::{Entity, EntityKind, EntityStatus, ReviewState};
-use crate::base::util::cmp_partial;
+use crate::base_constants::CONFIDENCE_BOUND_K;
+use crate::graph::GraphGnn;
+use crate::heat::{self, HeatConfig};
+use crate::lexical::LexicalIndex;
+use crate::log_throttle::LogThrottle;
+use crate::base_types::{Entity, EntityKind, EntityStatus, ReviewState};
+use crate::util::cmp_partial;
 use crate::config::RetrievalConfig;
 use crate::retrieval::expand::{Scored, ScoredEntity};
 use std::collections::HashMap;
@@ -176,7 +176,7 @@ pub fn apply_remote_trust<T: Scored>(g: &GraphGnn, cfg: &RetrievalConfig, result
 // Kern id, not a graph load: a cold/unloaded remote kern must still read as remote.
 pub fn is_remote_entity(g: &GraphGnn, entity_id: &str) -> bool {
 	g.kern_of_entity(entity_id)
-		.is_some_and(crate::base::merge::is_remote_kern_id)
+		.is_some_and(crate::merge::is_remote_kern_id)
 }
 
 // A thought's access count and heat may be reinforced at most once per window.
@@ -219,7 +219,7 @@ pub fn filter_delivery<T: Scored>(cfg: &RetrievalConfig, results: &mut Vec<T>) {
 	// cut, so it has to see post-boost order. Without this every boost, gravity pull and
 	// trust penalty is invisible whenever no QueryOptions is supplied.
 	results.sort_by(|a, b| {
-		crate::base::util::cmp_rank(a.score(), &a.entity().id, b.score(), &b.entity().id)
+		crate::util::cmp_rank(a.score(), &a.entity().id, b.score(), &b.entity().id)
 	});
 	let floor = cfg.min_deliver_score;
 	if results.iter().any(|r| r.score() >= floor) {
@@ -422,7 +422,7 @@ pub fn commit_access_ids(g: &mut GraphGnn, ids: &[String], heat_cfg: &HeatConfig
 				continue;
 			}
 			let value = e.access_count.slots().get(&replica).copied().unwrap_or(0);
-			g.push_delta(crate::base::graph::PendingDelta {
+			g.push_delta(crate::graph::PendingDelta {
 				object_id: id.clone(),
 				target: 0,
 				replica,
@@ -438,7 +438,7 @@ pub fn commit_access_ids(g: &mut GraphGnn, ids: &[String], heat_cfg: &HeatConfig
 #[cfg(test)]
 mod query_filter_tests {
 	use super::*;
-	use crate::base::types::{Entity, Source};
+	use crate::base_types::{Entity, Source};
 	use std::collections::BTreeMap;
 
 	fn ent(id: &str, kind: EntityKind, src: Source) -> ScoredEntity {
@@ -722,7 +722,7 @@ mod query_filter_tests {
 
 	#[test]
 	fn commit_access_ids_stamps_the_live_entity_without_bumping_the_epoch() {
-		use crate::base::types::Kern;
+		use crate::base_types::Kern;
 		let mut g = GraphGnn::new();
 		let mut k = Kern::new("k", "");
 		k.entities.insert(
@@ -806,8 +806,8 @@ mod query_filter_tests {
 
 	mod remote_trust {
 		use super::*;
-		use crate::base::merge::merge_remote_entity;
-		use crate::base::types::{mk_entity, Kern};
+		use crate::merge::merge_remote_entity;
+		use crate::base_types::{mk_entity, Kern};
 		use crate::retrieval::query::retrieve;
 		use crate::retrieval::seed::{Mode, Weights};
 

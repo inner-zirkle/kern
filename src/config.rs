@@ -18,7 +18,7 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use crate::base::heat::HeatConfig;
+use crate::heat::HeatConfig;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
@@ -509,7 +509,7 @@ mod tests {
 			.expect("review_policy is not preset-managed");
 		assert_eq!(
 			cfg.ingest.review_policy.get("inline"),
-			Some(&crate::base::types::ReviewState::Pending),
+			Some(&crate::base_types::ReviewState::Pending),
 			"the policy a real file set has to reach the struct the ingest gate reads"
 		);
 
