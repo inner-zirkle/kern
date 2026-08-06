@@ -135,11 +135,7 @@ struct ParamsV0 {
 - Later (phase gated behind existing `plugins` feature): wasm contracts via
   extism, same seam as intake transcoders. `contract_kind_tag` for wasm =
   hash of the wasm module, exactly Freenet's key=code trick. NOT in v0.
-- Migration: `network_id` mode deprecated. A legacy network maps to one
-  implicit contract `SignedCrdt { writers: Open, owners: [] }` whose params
-  include the old network_id string, so old clusters keep converging while
-  the trust model tightens underneath. Alpha rules: no wire compat shims
-  beyond this one mapping.
+- Migration: `network_id` mode removed (alpha, no compat). Old clusters
 
 ## 4. Subscription trees + delta sync
 
@@ -274,8 +270,8 @@ Where the code lives and where it deliberately deviates:
   hashes, so `diff` names missing/stale ids in one round trip instead of
   per-bucket fetches; matched buckets are still skipped. Acceptable at v0
   sizes (`max_entities` caps the list); a fetch-per-bucket protocol can
-  replace it wire-compatibly later. `legacy_contract(network_id)` provides
-  the one migration mapping; legacy frames keep running unchanged.
+  replace it wire-compatibly later. The one migration mapping is removed
+  (alpha, no compat).
 - **§4 Subscriptions** — `src/gossip/subs.rs` + `handler.rs`
   (`handle_subscribe`/`handle_suback`/`handle_contract_delta`/
   `handle_sync_summary`, `start_contract_sync`, `publish_to_contract`).

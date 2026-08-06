@@ -921,8 +921,7 @@ Six layers landed on top of the gossip baseline, each behind its test gate:
 - **Contracts** (`src/gossip/contract.rs`) — the key IS the policy:
   `ContractId = blake3(kind_tag || bincode(ParamsV0))`; `ParamsV0` = owners,
   `WritePolicy` (Open/Allowlist/OwnersOnly), kind filter, `max_entities`,
-  forced `retention_secs`, optional `PrivacyV0`, and the one legacy mapping
-  (`legacy_contract(network_id)` — an implicit open contract). Builtin
+  forced `retention_secs`, optional `PrivacyV0`. Builtin
   `SignedCrdt`: `validate_delta` refuses forged ids (`id_matches_body`), bad
   or inadmissible writer signatures, off-kind entities and cap breaches —
   counted (`contract_refused`), never panicked; `apply` is

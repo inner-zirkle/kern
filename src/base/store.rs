@@ -34,7 +34,7 @@ const EMBED_KEY: &str = "embed";
 // Version byte prepended ahead of the zstd frame so a reader rejects any other
 // format instead of mis-decoding it. Alpha: exactly one version is ever
 // decodable — a mismatch is a clean BadVersion, never a migration.
-const FORMAT_VERSION: u8 = 9; // v9: claim_kind_parents (RDFS-lite subClassOf) on Kern
+const FORMAT_VERSION: u8 = 10; // v10: removed legacy_network_id from ParamsV0
 const ZSTD_LEVEL: i32 = 3;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

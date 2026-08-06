@@ -2,6 +2,13 @@
 
 <!-- docs-check: historical -->
 
+- 2026-08-06 — removed `legacy_network_id` from `ParamsV0` + `legacy_contract`.
+  Alpha has no compat (AGENTS.md): no legacy decode fallbacks, no migration
+  paths. The `legacy_network_id: Option<String>` field on `ParamsV0` and the
+  `legacy_contract()` helper were migration shims for old `network_id`-mode
+  clusters. Removed wholesale from `contract.rs`, `privacy.rs`, `handler.rs`.
+  `FORMAT_VERSION` 9 → 10 (old stores rejected, never migrated). Docs updated.
+
 - 2026-08-02 — the `query` tool's `inputSchema` no longer carries a top-level
   `anyOf`. The Anthropic tool API rejects `anyOf`/`oneOf`/`allOf` at the root of
   `input_schema`, so **every** request from a host that advertised the kern tool

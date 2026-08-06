@@ -1569,7 +1569,6 @@ mod tests {
 			max_entities: 100,
 			retention_secs: None,
 			private: None,
-			legacy_network_id: Some("fed-e2e".into()),
 		};
 		(contract_id(SIGNED_CRDT_V0_TAG, &params), params)
 	}

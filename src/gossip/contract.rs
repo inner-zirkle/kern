@@ -52,9 +52,7 @@ pub struct ParamsV0 {
 	/// Forced TTL stamped on every entity at apply time.
 	pub retention_secs: Option<u64>,
 	pub private: Option<PrivacyV0>,
-	/// The one migration mapping alpha allows: a legacy `network_id` cluster
-	/// is the implicit open contract carrying its old id string.
-	pub legacy_network_id: Option<String>,
+
 }
 
 impl ParamsV0 {
@@ -98,20 +96,7 @@ pub fn contract_kern_id(id: &ContractId) -> String {
 	format!("remote-contract-{}", crate::base::util::hex::encode(id))
 }
 
-/// Legacy `network_id` mode maps to one implicit open contract so old
-/// clusters keep converging while the trust model tightens underneath.
-pub fn legacy_contract(network_id: &str) -> (ContractId, ParamsV0) {
-	let params = ParamsV0 {
-		owners: Vec::new(),
-		writers: WritePolicy::Open,
-		kinds: None,
-		max_entities: crate::base::constants::GOSSIP_REMOTE_KERN_ENTITY_CAP as u32,
-		retention_secs: None,
-		private: None,
-		legacy_network_id: Some(network_id.to_string()),
-	};
-	(contract_id(SIGNED_CRDT_V0_TAG, &params), params)
-}
+
 
 /// What a writer signs: blake3 over a domain tag, the entity id and the
 /// writer's lamport. The id already binds the body (content addressing), so
@@ -177,7 +162,6 @@ pub fn params_from_config(c: &crate::config::ContractConfig) -> Option<ParamsV0>
 		max_entities: c.max_entities,
 		retention_secs: c.retention_secs,
 		private: None,
-		legacy_network_id: None,
 	})
 }
 
@@ -471,7 +455,6 @@ mod tests {
 			max_entities: 100,
 			retention_secs: None,
 			private: None,
-			legacy_network_id: None,
 		}
 	}
 
@@ -509,9 +492,7 @@ mod tests {
 			"the kind tag participates in the key"
 		);
 
-		let (legacy_a, _) = legacy_contract("net-a");
-		let (legacy_b, _) = legacy_contract("net-b");
-		assert_ne!(legacy_a, legacy_b, "each legacy network is its own contract");
+
 	}
 
 	#[test]

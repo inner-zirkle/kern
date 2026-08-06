@@ -217,7 +217,6 @@ mod tests {
 				scheme: PRIVACY_SCHEME_XCHACHA20,
 				key_hint: key_hint(&key),
 			}),
-			legacy_network_id: None,
 		};
 		assert_eq!(
 			SignedCrdt.validate_delta(
@@ -256,7 +255,6 @@ mod tests {
 				scheme: PRIVACY_SCHEME_XCHACHA20,
 				key_hint: key_hint(&key),
 			}),
-			legacy_network_id: None,
 		};
 		let cid = contract_id(SIGNED_CRDT_V0_TAG, &params);
 		let kid = contract_kern_id(&cid);
