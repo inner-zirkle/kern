@@ -2,7 +2,7 @@ use std::path::Path;
 
 use tokio::sync::mpsc;
 
-use super::event::{WatchEvent, WatchKind};
+use crate::watcher_event::{WatchEvent, WatchKind};
 
 pub const MAX_INGEST_BYTES: u64 = 1024 * 1024;
 

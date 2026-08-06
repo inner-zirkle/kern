@@ -7,6 +7,7 @@
 - 2026-08-06 — inlined the `watcher` sub-crate into the root `kern` lib crate as `crate::watcher`. `src/watcher/` was a path-only workspace member (no external consumer); folded its 6 files up to `src/watcher/{mod,event,ignore_rules,pipeline,file}.rs` (inner `watcher.rs`→`file.rs` to avoid clippy `module_inception`), dropped its `Cargo.toml` + the `watcher` path-dep + workspace member, folded its unique deps (`notify`,`ignore`) into root (the rest were already root deps), rewrote the two consumers (`src/ingest/file_watcher.rs`, `src/commands.rs`) `use watcher::`→`use crate::watcher::`, fixed the two internal `use crate::event::`→`use super::event::`, and moved the integration test to `tests/watcher_tests.rs` (`use watcher::`→`use kern::watcher::`). One step in a 2-fire move to a single source crate; `transport` is the next fire. `transport-macros` stays its own crate — proc-macros cannot live in a lib crate. Build clean, 7/7 watcher tests pass, code-reviewer approved. Decided by: single-crate-fold (user-directed structural merge).
 - 2026-08-06 — flatten `rpc` and `hub` subdirs into `src/` root (phase 1 of full src/ flattening): `src/rpc/`→`src/rpc.rs` + `src/rpc_kern_rpc_server.rs`; `src/hub/`→`src/hub.rs` + `src/hub_node.rs` + `src/hub_serve.rs`. Submodule paths `crate::rpc::kern_rpc_server`→`crate::rpc_kern_rpc_server`, `crate::hub::node`→`crate::hub_node`; re-exports kept public API stable. Build clean, 36 tests pass, guards exit 0. Decided by: single-crate-fold (user-directed full src/ flattening).
 - 2026-08-06 — flatten `tick` subdir (8 files) into `src/` root (phase 2 of full src/ flattening): `src/tick/{cluster,gnn_propagate,idle,pulse,queue,stigmergy,tasks,trainer}.rs`→`src/tick_*.rs`. Parent `src/tick.rs` kept; removed its `pub mod` block; sibling `use cluster::`→`use crate::tick_cluster::` etc; inline `trainer::Trainer`→`crate::tick_trainer::Trainer`, `stigmergy::run_gc`→`crate::tick_stigmergy::`, `idle::`→`crate::tick_idle::`. Subfiles: `use super::queue::`→`use crate::tick_queue::`, `use super::cluster::`→`use crate::tick_cluster::`. External consumers (~8 files): `crate::tick::queue::`→`crate::tick_queue::`, bare `tick::pulse::`→`crate::tick_pulse::`; removed unused `use crate::tick;`. Build clean, 1096 lib tests + 101 tick tests pass, guards exit 0. Decided by: single-crate-fold (user-directed full src/ flattening).
+- 2026-08-06 — flatten `watcher` subdir (4 files + mod.rs) into `src/` root (phase 3 of full src/ flattening): `src/watcher/{event,file,ignore_rules,pipeline}.rs`→`src/watcher_*.rs`, `src/watcher/mod.rs`→`src/watcher.rs` (removed `mod` block, re-exports via `pub use crate::watcher_*`). Subfile `use super::event::`→`use crate::watcher_event::`, `use super::ignore_rules::`→`use crate::watcher_ignore_rules::`. External consumers unchanged (use top-level `crate::watcher::` re-exports only). Build clean, 7 watcher_tests + 37 lib tests pass, guards exit 0. Decided by: single-crate-fold (user-directed full src/ flattening).
 
 - 2026-08-06 — deleted `pub fn is_semantic` from `ReasonKind` (`src/base/types.rs`). The predicate (`matches! Similarity | Provenance | Ratification`) had zero callers — `rg 'is_semantic' src/` returns nothing; the enum variants stay live (Similarity used in tick/accept/commands/query). A dead `pub` predicate is surface area with no consumer; if the classification is ever needed it's a one-line `matches!` at the call site. Also reconciled `docs/ideas.md`: the stale open copies of B6/B3/B4/B1 (all already closed) were pruned and B6 got its `## Closed` entry. Net -99 lines of dead doc.
 
@@ -672,21 +673,4 @@
   under `.kern/` is covered without remembering to add it. The registry half
   (a writer outside both `.kern/` and the configured data/intake dirs) stays
   open — no such writer exists today. 1023 pass, 2 new unit tests. Decided by: fix-the-root, the-oracle. Supersedes: nothing.
-
-- 2026-07-22 — item 93 fenced-block residual closed: `tests/docs_check.py`
-  tracks ```` ``` ```` fence state per page and skips `REF` / bare-continuation /
-  bare-name matching inside a fenced block (heading-scope reset and the `GONE`
-  skip bypassed too — a `#` shell comment or `deleted` word in code is not a
-  heading or retirement). Guarded by a new `anchor_selftest` fixture (real
-  `src/base/store.rs:624` citation before a fence, then fenced `` `:8080` `` +
-  `` `graph.rs:9999` ``; with the skip 0 failures total==1; negative control
-  reds on `` `:8080` `` as `store.rs:8080 beyond EOF`). **Honest finding — the
-  skip is NOT a no-op on the real tree:** three fenced `` `src/llm.rs:11434` ``
-  tokens in `docs/oracle/FEATURES.md:918` and `docs/oracle/ROADMAP.md:2916`/`:2925`
-  were matched as dead references (`llm.rs` has 991 lines); with the skip they
-  are silent. Before: 3 dead references, 129 nominations. After: 0 dead
-  references, 129 nominations — nomination count unchanged, three false
-  positives fixed. `python3 tests/docs_check.py --selftest` prints `selftest OK`.
-  Decided by: fix-the-root, name-the-tradeoff, verify-before-claiming.
-  Symbolic anchors remain open; this closes the fenced-block residual only.
 

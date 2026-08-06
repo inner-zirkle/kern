@@ -62,6 +62,10 @@ pub mod tick_trainer;
 pub mod types;
 pub mod transport;
 pub mod watcher;
+pub mod watcher_event;
+pub mod watcher_file;
+pub mod watcher_ignore_rules;
+pub mod watcher_pipeline;
 
 #[cfg(test)]
 mod test_support;
