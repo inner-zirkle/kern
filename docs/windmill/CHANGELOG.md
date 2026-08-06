@@ -2,6 +2,7 @@
 
 <!-- docs-check: historical -->
 
+- 2026-08-06 — build-fix: retarget missed consumers `src/mcp/tools_mutate.rs` (5 refs) + `src/mcp/tools_admin.rs` (1 ref) from `crate::commands::graph_ops::`/`crate::commands::admin::` → `crate::commands_graph_ops::`/`crate::commands_admin::`. The commands flatten (2104fde) left these dangling; build was red (8 errors) for 2 commits. Build green, 1096 tests pass. Decided by: feb.
 - 2026-08-06 — flattened `gossip` subdir: 13 `src/gossip/*.rs` → `src/gossip_*.rs` at src/ root (prefix-rename, dodges identity/types collisions). mod.rs deleted; lib.rs gained 13 `pub mod gossip_*`. Rewrites: `crate::gossip::X`→`crate::gossip_X`, `super::X` (sibling)→`crate::gossip_X`, grouped `use crate::gossip::{X,Y}`→split, test `use super::*` kept. External tools_delegate.rs+commands.rs retargeted. Build green, 11 test suites pass, guards 0. Decided by: single-crate-fold (user-directed full src/ flattening).
 - 2026-08-06 — flattened `commands` subdir: 11 `src/commands/*.rs` → `src/commands_*.rs` at src/ root (prefix-rename). Parent `src/commands.rs` mod-block dropped; lib.rs gained the 11 module declarations. Sibling refs `super::route`→`crate::commands_route`, parent-item refs `super::{load_graph,...}`→`crate::commands::{...}`, `pub(super)`→`pub(crate)`. External `crate::commands::graph_ops::`→`crate::commands_graph_ops::`. Build green, tests pass, guards 0. Decided by: feb.
 - 2026-08-07 — flatten `src/base/` into `src/` root (phase of full src/ flattening): 22 files. `src/base/{store,types,constants}.rs`→`src/base_{store,types,constants}.rs` (collided with existing root `store.rs`/`types.rs`); the other 19 kept bare names (`accept.rs`→`src/accept.rs` etc). `src/base.rs` deleted; `src/lib.rs` declares the 22 modules at crate root (`pub mod`). Rewrites across 70 consumer files: `crate::base::store/types/constants`→`crate::base_store/base_types/base_constants`, `crate::base::X`→`crate::X`; subfile `super::store/types/constants`→`crate::base_store/base_types/base_constants`; `use crate::base_constants as constants;` alias where bare `constants::` used. Build clean, 1096 lib tests pass, guards exit 0. Decided by: single-crate-fold (user-directed full src/ flattening).
@@ -629,15 +630,5 @@
   Supersedes: nothing.
 
 
-- 2026-07-22 — item 83 resident-cap half closed: `GraphConfig::default().
-  max_kerns` is now 128 (was `KERN_CAP_DISABLED`/`usize::MAX`). The old
-  "currently unsafe — eviction drops unpersisted children pushes" comment was
-  stale, verified: `get_mut` auto-loads from the store, so a parent evicted
-  inside `spawn_unnamed_child`'s `register` is reloaded by the post-register
-  `get_mut` and the children-push persists — no re-spawn loop. A new test pins
-  it under `max_kerns = 2` with a store bound. 128 is a conservative resident
-  bound (normal use <10 kerns); eviction unloads to the cold tier, never
-  forgets; `usize::MAX` still opts out. `disk_threshold` stays disabled until
-  item 75 (DiskANN crash consistency) closes — arming it exposes the spill
   crash window. 1024 pass. Decided by: verify-before-claiming, fix-the-root, name-the-tradeoff. Supersedes: the stale "currently unsafe" comment in `GraphConfig::default`.
 

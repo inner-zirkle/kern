@@ -98,7 +98,7 @@ impl Server {
 		match action {
 			"list" => {
 				let g = self.graph.read();
-				let gravitons: Vec<serde_json::Value> = crate::commands::admin::graviton_rows(&g)
+				let gravitons: Vec<serde_json::Value> = crate::commands_admin::graviton_rows(&g)
 					.into_iter()
 					.map(|r| {
 						serde_json::json!({

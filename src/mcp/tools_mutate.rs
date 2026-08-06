@@ -390,7 +390,7 @@ impl Server {
 		};
 
 		let mut g = self.graph.write();
-		let res = crate::commands::graph_ops::link_entities(
+		let res = crate::commands_graph_ops::link_entities(
 			&mut g,
 			&p.from,
 			&p.to,
@@ -416,7 +416,7 @@ impl Server {
 		};
 
 		let mut g = self.graph.write();
-		let res = crate::commands::graph_ops::forget_entity(&mut g, &p.id, false);
+		let res = crate::commands_graph_ops::forget_entity(&mut g, &p.id, false);
 		drop(g);
 
 		match res {
@@ -446,7 +446,7 @@ impl Server {
 		}
 
 		let mut g = self.graph.write();
-		let out = crate::commands::graph_ops::forget_by_source(&mut g, scheme, &p.object_id, p.force);
+		let out = crate::commands_graph_ops::forget_by_source(&mut g, scheme, &p.object_id, p.force);
 		drop(g);
 
 		if out.removed_entities > 0 {
@@ -472,7 +472,7 @@ impl Server {
 		};
 
 		let (decayed, removed) =
-			crate::commands::graph_ops::degrade_entity_reasons(&mut g, &kern_id, &p.query_id);
+			crate::commands_graph_ops::degrade_entity_reasons(&mut g, &kern_id, &p.query_id);
 		drop(g);
 		(self.save_fn)();
 
@@ -521,7 +521,7 @@ impl Server {
 		let mut g = self.graph.write();
 		// An id nothing resolves is an error, never a quiet success: a caller
 		// curating a typo would otherwise be told the row was released.
-		let promoted = match crate::commands::graph_ops::promote_entity(&mut g, &p.id) {
+		let promoted = match crate::commands_graph_ops::promote_entity(&mut g, &p.id) {
 			Ok(v) => v,
 			Err(e) => return tool_error(&format!("{e}: {}", p.id)),
 		};
