@@ -425,32 +425,6 @@ pub fn find_entity_ref_in_graph<'a>(g: &'a GraphGnn, id: &str) -> Option<&'a Ent
 	find_entity_and_kern(g, id).map(|(t, _)| t)
 }
 
-// The endpoints expand() can traverse from `id`, minus scoring — same edge
-// filters as the walk above, so path diagnostics measure what retrieval sees.
-pub fn neighbor_ids<'a>(g: &'a GraphGnn, id: &str) -> Vec<&'a str> {
-	let Some((_, kern)) = find_entity_and_kern(g, id) else {
-		return Vec::new();
-	};
-	kern
-		.by_from
-		.get(id)
-		.into_iter()
-		.flatten()
-		.chain(kern.by_to.get(id).into_iter().flatten())
-		.filter_map(|rid| kern.reasons.get(rid))
-		.filter(|r| !r.is_remote())
-		.filter(|r| r.kind != ReasonKind::Spawn || r.to.is_empty())
-		.map(|r| {
-			if r.from == id {
-				r.to.as_str()
-			} else {
-				r.from.as_str()
-			}
-		})
-		.filter(|n| !n.is_empty())
-		.collect()
-}
-
 #[cfg(test)]
 mod tests {
 	use super::*;

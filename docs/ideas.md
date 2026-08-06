@@ -6,6 +6,38 @@ item carrying the grep that produced it. Driven by the `/improve` skill.
 ## A. Combine
 ## B. Simplify
 
+### B6. Dead `pub fn is_semantic` — unused ReasonKind predicate
+
+**Claim:** `pub fn is_semantic(self) -> bool` on `ReasonKind` in
+`src/base/types.rs` classifies `Similarity | Provenance | Ratification`. The
+enum variants are live (Similarity used in tick/accept/commands/query), but
+the *predicate* has zero callers — nothing asks "is this semantic?".
+
+**Evidence:**
+```
+src/base/types.rs:124:	pub fn is_semantic(self) -> bool {
+src/base/types.rs:125:		matches!(self, ReasonKind::Similarity | ReasonKind::Provenance | ReasonKind::Ratification)
+```
+`rg -n '\bis_semantic\b' src/ -g '*.rs' | grep -v 'fn is_semantic' | grep -v '//.*is_semantic'`
+→ no hits.
+
+**Do:** delete the fn (6 lines incl. match block).
+
+**Payoff:** removes 1 dead `pub` predicate. Pure deletion.
+**Size:** tiny, one sitting.
+
+### Dead-`pub` scrape rejects (Pass 4, for the record)
+
+- `for_eval` / `with_temperature` (src/llm.rs builder methods, seed+temperature
+  pins) — zero callers, but `docs/vllm.md:16` documents "seed/temperature (eval
+  pins) are forwarded; vLLM honors both" → planned-feature scaffolding. Keep;
+  close `dropped — feature WIP`.
+- `forged_id_rejected()` (src/gossip/handler.rs) — read accessor dead, but its
+  counter `FORGED_ID` IS incremented at handler.rs:616 (live write path).
+  Deleting only the reader leaves a zombie counter; deleting the counter too
+  loses a diagnostic intent that may be wired later → needs a decision, not a
+  clean fold. Keep for now.
+
 ### B3. Test-only `add_graviton` kept alive by a `dead_code` escape hatch
 
 **Claim:** `pub(crate) fn add_graviton(g, name, vec)` in `base/accept.rs` is a
@@ -79,6 +111,23 @@ _(ranked across all four sections)_
 
 ## Closed
 
+### 2026-08-06 — B5: dead `pub fn neighbor_ids` deleted (cross-crate dead-pub axis)
+
+`pub fn neighbor_ids<'a>(g: &'a GraphGnn, id: &str) -> Vec<&'a str>` in
+`src/retrieval/expand.rs` (~22 lines) mirrored `expand()`'s edge filters
+without scoring; its doc comment said "path diagnostics measure what retrieval
+sees." Zero callers anywhere in the crate (tests included). No diagnostics
+command/surface exists in `src/commands/` or `src/mcp/`, and no
+prd/roadmap entry for a diagnostics feature — dead aspirational code, not
+planned-feature scaffolding. REPOS.md documents nothing compile-depends on
+the kern lib (reached only as an external MCP tool), so a `pub` fn with no
+in-crate caller is genuinely dead, not a real public-API change. Deleted the
+fn + its 2-line doc comment. The old shape was wrong because a named helper
+with no caller earns nothing (persona: names earn their keep, delete-first).
+Net -24 lines. `cargo build --lib` + `cargo test --lib` (1020 tests) green;
+no new clippy (D1 noise unchanged, 12 pre-existing, none in expand.rs).
+Reviewer APPROVED.
+
 ### 2026-08-06 — B4: hand-rolled `parse_ipv4` replaced by std `Ipv4Addr`
 
 Private `fn parse_ipv4(host) -> Option<[u8;4]>` in `src/llm.rs` hand-rolled a
@@ -145,6 +194,19 @@ collapse to 1; reviewer APPROVED, no behaviour bug. Pre-existing red WIP
 as B2 / D1 above, not fixed here.
 
 ## Method
+
+### Pass 4 — cross-crate dead-`pub` axis (no external compile consumer)
+
+REPOS.md: nothing compile-depends on the kern lib crate (ctrl/agent/ui reach
+kern only as an external MCP tool). So a `pub` fn with no in-crate caller is
+genuinely dead, not a real public-API change. Scraped 540 `pub fn` names for
+zero non-definition references in `src/` (tests included). 5 candidates:
+`for_eval`, `with_temperature`, `is_semantic`, `neighbor_ids`,
+`forged_id_rejected`. Two rejected (see "Dead-`pub` scrape rejects" above:
+for_eval/with_temperature = feature-WIP eval pins per docs/vllm.md;
+forged_id_rejected = reader dead but counter write live → zombie if reader
+deleted). Two folds filed: B5 `neighbor_ids` (this fire), B6 `is_semantic`
+(next).
 
 ### Pass 3 — deletion axis (residual dead code + duplicated test helpers)
 
