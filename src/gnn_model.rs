@@ -1,8 +1,8 @@
-use crate::gnn::backward::{BackwardGraphLayer, GraphLayer};
-use crate::gnn::gcn::GCNLayer;
-use crate::gnn::graph::Graph;
-use crate::gnn::layer::{Backward, Layer, LinearLayer};
-use crate::gnn::tensor::Tensor;
+use crate::gnn_backward::{BackwardGraphLayer, GraphLayer};
+use crate::gnn_gcn::GCNLayer;
+use crate::gnn_graph::Graph;
+use crate::gnn_layer::{Backward, Layer, LinearLayer};
+use crate::gnn_tensor::Tensor;
 use crate::gnn::GnnError;
 
 // A `forward` must precede its `backward`; call `zero_grads` before each backward.
@@ -95,7 +95,7 @@ impl Model {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::gnn::gcn::GCNLayer;
+	use crate::gnn_gcn::GCNLayer;
 	use rand::rngs::StdRng;
 	use rand::SeedableRng;
 

@@ -1,4 +1,4 @@
-use crate::gnn::tensor::Tensor;
+use crate::gnn_tensor::Tensor;
 use crate::gnn::GnnError;
 
 pub trait Layer {

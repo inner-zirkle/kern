@@ -1,5 +1,5 @@
-use crate::gnn::layer::{Backward, Layer};
-use crate::gnn::tensor::Tensor;
+use crate::gnn_layer::{Backward, Layer};
+use crate::gnn_tensor::Tensor;
 use crate::gnn::GnnError;
 
 pub struct LayerNorm {

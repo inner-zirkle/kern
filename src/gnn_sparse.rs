@@ -1,6 +1,6 @@
 use rayon::prelude::*;
 
-use crate::gnn::tensor::{Tensor, TensorError};
+use crate::gnn_tensor::{Tensor, TensorError};
 
 /// Compressed sparse rows: `row_start[i]..row_start[i+1]` indexes `col`/`val`.
 ///
@@ -123,7 +123,7 @@ impl SparseMatrix {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::gnn::graph::Graph;
+	use crate::gnn_graph::Graph;
 
 	/// `==` on f64 says `0.0 == -0.0`, which is the one difference a dense/sparse
 	/// swap can actually introduce, so equality here is over the bit patterns.

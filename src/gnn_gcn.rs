@@ -1,10 +1,10 @@
-use crate::gnn::activation::Activation;
-use crate::gnn::backward::{act_deriv_mul, BackwardGraphLayer, GraphLayer};
-use crate::gnn::graph::Graph;
-use crate::gnn::layer::{Backward, Layer, LinearLayer};
-use crate::gnn::norm::LayerNorm;
-use crate::gnn::sparse::SparseMatrix;
-use crate::gnn::tensor::Tensor;
+use crate::gnn_activation::Activation;
+use crate::gnn_backward::{act_deriv_mul, BackwardGraphLayer, GraphLayer};
+use crate::gnn_graph::Graph;
+use crate::gnn_layer::{Backward, Layer, LinearLayer};
+use crate::gnn_norm::LayerNorm;
+use crate::gnn_sparse::SparseMatrix;
+use crate::gnn_tensor::Tensor;
 use crate::gnn::GnnError;
 
 pub struct GCNLayer {

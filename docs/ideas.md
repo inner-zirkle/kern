@@ -6,7 +6,18 @@ item carrying the grep that produced it. Driven by the `/improve` skill.
 ## A. Combine
 ## B. Simplify
 
-### Flatten `gossip` subdir into src/ root — DONE 2026-08-06 (this fire)
+### Flatten `gnn` subdir into src/ root — DONE 2026-08-06 (this fire)
+
+Moved all 13 `src/gnn/*.rs` up to `src/gnn_*.rs` (prefix-rename to dodge
+`graph`/`persist` collisions + keep grouping); dropped `gnn/mod.rs`; `src/gnn.rs`
+shim re-exports the 13 submodules (`pub use crate::gnn_gcn as gcn;` etc.) so
+`crate::gnn::X` still resolves for the 60 existing refs — shim minimizes churn
+vs full rewrite. lib.rs gained 13 `pub mod gnn_*` (all pub). Rewrites in moved
+files: `super::X`(sibling)→`crate::gnn_X`, `crate::gnn::X`(own submod)→`crate::gnn_X`;
+`crate::gnn::GnnError` kept (parent item, not mangled). Build clean, 1096 tests
+pass, guards 0.
+
+### Flatten `gossip` subdir into src/ root — DONE 2026-08-06
 
 Moved all 13 `src/gossip/*.rs` up to `src/gossip_*.rs` (prefix-rename to dodge
 `identity`/`types` collisions + keep grouping); dropped `gossip/mod.rs`; lib.rs

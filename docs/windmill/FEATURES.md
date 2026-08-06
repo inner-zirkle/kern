@@ -153,7 +153,7 @@ stays as history with a stamped `valid_to`; `query` can recover the past via
 - Classification is LLM-driven (`classify_prompt` `src/accept.rs:693` /
   `parse_contradiction` `src/accept.rs:703`) and **fails open to `Related`**
   (co-exist) — the conservative choice that never loses data. Driven from the
-  tick's `do_classify_contradiction` task (`src/tick/tasks.rs:114`) so recall
+  tick's `do_classify_contradiction` task (`src/tick_tasks.rs:114`) so recall
   stays LLM-free at query time.
 - `is_valid_at(instant)` / `valid_from_or_created()` on `Entity` answer
   point-in-time membership; the query layer's `include_history` walks the
@@ -166,7 +166,7 @@ stays as history with a stamped `valid_to`; `query` can recover the past via
   `is_valid_at` answers over the cold tail exactly as it does over the hot graph.
 
 **Where.** `src/accept.rs`, `src/base_types.rs` (temporal helpers),
-`src/base_store.rs` (cold-tier round-trip), `src/tick/tasks.rs` (background
+`src/base_store.rs` (cold-tier round-trip), `src/tick_tasks.rs` (background
 classification).
 
 **Gaps.** Classification runs once per near-duplicate pair on the tick; a
@@ -433,15 +433,15 @@ maintains itself.
 
 **How.**
 
-- **Queue** (`src/tick/queue.rs`) — bounded (`TICK_QUEUE_CAPACITY=512`) mpsc
-  with backpressure, `TaskKind` enum (`src/tick/queue.rs:8`: Cluster/Name/
+- **Queue** (`src/tick_queue.rs`) — bounded (`TICK_QUEUE_CAPACITY=512`) mpsc
+  with backpressure, `TaskKind` enum (`src/tick_queue.rs:8`: Cluster/Name/
   Enrich/ResolveQuestion/SeedQuestions/ClassifyContradiction/Persist/
   GnnPropagate/StigmergyGc/Reembed/DiskConsolidate/IdleSweep/CommitAccess).
   Records per-task latency, pending/done metrics, and two separate degradation
   counters: `panics` (a task that died) and `failures` (a task that ended early
   and re-enqueues forever), each keeping the most recent `TaskFault`
-  (`src/tick/queue.rs:38` — kind, kern, message).
-- **Driver** (`tick::start`, `src/tick.rs:38`) — one async task drains the
+  (`src/tick_queue.rs:38` — kind, kern, message).
+- **Driver** (`crate::tick::start`, `src/tick.rs:38`) — one async task drains the
   queue and dispatches via `process_task`. Every task runs inside `run_guarded`
   (`src/tick.rs:65`), which wraps `process_task` in
   `catch_unwind(AssertUnwindSafe(…))`: a panicking maintenance task now costs
@@ -457,39 +457,39 @@ maintains itself.
 - **Maintenance tick** (`spawn_maintenance_tick`, `src/commands.rs`) — periodic
   driver at `TICK_INTERVAL_SECS=60` (0 = event-driven only): pulses the root,
   gates GC and disk consolidation on clock validity + elapsed interval
-  (`pulse::should_run_gc`, `src/tick/pulse.rs:52`), enqueues persist.
-- **Pulse** (`src/tick/pulse.rs`) — `pulse` (`src/tick/pulse.rs:15`) fans Cluster tasks out from the root,
+  (`crate::tick_pulse::should_run_gc`, `src/tick_pulse.rs:52`), enqueues persist.
+- **Pulse** (`src/tick_pulse.rs`) — `pulse` (`src/tick_pulse.rs:15`) fans Cluster tasks out from the root,
   decaying strength by `PULSE_DECAY=0.5` per level; below `PULSE_THRESHOLD=0.05` it
   stops, covering 5 levels. Deposits **no** heat, takes the graph by shared reference.
   Heat decays lazily by age (`heat::decayed`, half-life based), *not* per tick.
-- **Cluster** (`src/tick/cluster.rs` + `tick::do_cluster`) — `vector_cluster`
-  (`src/tick/cluster.rs:13`) samples up to `TICK_MAX_CLUSTER_SAMPLE=200`
+- **Cluster** (`src/tick_cluster.rs` + `crate::tick::do_cluster`) — `vector_cluster`
+  (`src/tick_cluster.rs:13`) samples up to `TICK_MAX_CLUSTER_SAMPLE=200`
   entities and groups them; a cluster
   that is `≥ KERN_MIN_CLUSTER_SIZE=10` and `cohesion ≥ KERN_COHESION_THRESHOLD=0.60`
   and not a core cluster spawns a distinct unnamed child and migrates its
   members. Unnamed kerns never spawn (bounds descent). Empty unnamed children
   are evicted back to the parent each pass.
-- **Name** (`do_name`, `src/tick/tasks.rs:236`) — LLM names an unnamed kern from
+- **Name** (`do_name`, `src/tick_tasks.rs:236`) — LLM names an unnamed kern from
   its centroid (`cluster::graviton_prompt`) once it crosses the naming
   thresholds (`KERN_NAMING_COHESION_THRESHOLD=0.50`,
   `KERN_NAMING_MIN_CLUSTER_SIZE=5`).
-- **Enrich** (`do_enrich`, `src/tick/tasks.rs:315`) — LLM writes the explanatory
+- **Enrich** (`do_enrich`, `src/tick_tasks.rs:315`) — LLM writes the explanatory
   text for an un-enriched reason edge.
-- **Resolve question** (`do_resolve`, `src/tick/tasks.rs:383`) — open `Question`
+- **Resolve question** (`do_resolve`, `src/tick_tasks.rs:383`) — open `Question`
   edges (`to` empty) get answered by retrieval; if a hit scores above
   `QUESTION_RESOLVE_THRESHOLD=0.80` the edge is closed.
-- **Seed questions** (`do_seed_questions`, `src/tick/tasks.rs:42`) — broadcasts
+- **Seed questions** (`do_seed_questions`, `src/tick_tasks.rs:42`) — broadcasts
   open questions to peers (federation).
-- **Commit access** (`do_commit_access`, `src/tick/tasks.rs:455`) — flushes
+- **Commit access** (`do_commit_access`, `src/tick_tasks.rs:455`) — flushes
   queued access-count/heat updates.
-- **Idle sweep** (`src/tick/idle.rs`) — graph-global; unloads kerns idle past
+- **Idle sweep** (`src/tick_idle.rs`) — graph-global; unloads kerns idle past
   `tick.kern_idle_timeout_secs`. Residency, not forgetting: an unloaded kern is
   persisted first and reloads on next access.
 - **Persist / reembed / disk consolidate** — `do_persist`
-  (`src/tick/tasks.rs:466`), `do_reembed` (`src/tick/tasks.rs:498`),
-  `do_disk_consolidate` (`src/tick/tasks.rs:451`).
+  (`src/tick_tasks.rs:466`), `do_reembed` (`src/tick_tasks.rs:498`),
+  `do_disk_consolidate` (`src/tick_tasks.rs:451`).
 
-**Where.** `src/tick/*` (3589 LoC, 8 files) + `src/tick.rs` (1070 LoC) — remeasured 2026-07-22, the old 2912/893 had drifted ~660 and ~177 lines behind the tree. `trainer.rs` is the one that is not a queue task: GNN training runs on its own thread.
+**Where.** `src/tick_* (flattened)` (3589 LoC, 8 files) + `src/tick.rs` (1070 LoC) — remeasured 2026-07-22, the old 2912/893 had drifted ~660 and ~177 lines behind the tree. `trainer.rs` is the one that is not a queue task: GNN training runs on its own thread.
 
 **Gaps.** `KERN_CAP_DISABLED` (`src/base_constants.rs:30`) is a **kern-eviction**
 sentinel, not an entity cap. Its two readers are `max_loaded_kerns` (how many
@@ -505,7 +505,7 @@ kerns at all; the only one in the tree is `GOSSIP_REMOTE_KERN_ENTITY_CAP` for
 `remote-*`.
 Clustering is vector-only; no semantic/structural features. Naming/enrich are
 LLM-cold per kern. Only `GnnPropagate` reports a *contained* failure today
-(`src/tick/gnn_propagate.rs:57`); every other task's early return is still
+(`src/tick_gnn_propagate.rs:57`); every other task's early return is still
 invisible except as work that did not happen.
 
 ---
@@ -520,7 +520,7 @@ lossless out of RAM, not lossless overall — the cold tier is capped at
 deletes the oldest rows past it, and with no store bound `run_gc` drops the
 victim outright.
 
-**How.** `stigmergy::run_gc` (`src/tick/stigmergy.rs`) collects victims per
+**How.** `crate::tick_stigmergy::run_gc` (`src/tick_stigmergy.rs`) collects victims per
 kern where `is_cold_victim` holds (heat below `COLD_HEAT_THRESHOLD=0.01` *and*
 not accessed within `COLD_GC_AGE = 7 days` *and* not an Active `Fact`/`Document`),
 spills the whole list to the cold store in ONE transaction, then `remove_entity`.
@@ -532,7 +532,7 @@ Past the cold cap the drop is **counted, not silent**: `cold_cap` increments
 per sweep, and `health` reports that total on all three surfaces (MCP JSON,
 `HealthRes`, `kern health` — the daemon's, item 100). The cap stays intentional.
 
-**Where.** `src/tick/stigmergy.rs`, `src/reason.rs` (`remove_entity`
+**Where.** `src/tick_stigmergy.rs`, `src/reason.rs` (`remove_entity`
 cascade-deletes its edges), `src/base_store.rs` (cap + eviction counter).
 
 **Gaps.** Victim selection is per-kern linear. No priority/age queue. Cold tier
@@ -545,32 +545,32 @@ counter records that it happened, nothing recovers it.
 
 **What.** A from-scratch graph neural network that re-embeds each thought from
 *graph structure* (not just content), so the dense seed blends content + structure.
-Trained per-kern, off the tick loop on a dedicated thread (`src/tick/trainer.rs`).
+Trained per-kern, off the tick loop on a dedicated thread (`src/tick_trainer.rs`).
 
 **How.**
 
-- **Graph** (`src/gnn/graph.rs`) — `add_node` (`:39`) / `add_edge` (`:51`) /
+- **Graph** (`src/gnn_graph.rs`) — `add_node` (`:39`) / `add_edge` (`:51`) /
   `add_self_loops` (`:111`) / `feature_matrix` (`:83`) / the symmetric normalized
   adjacency, sparse (`:178`, what trains) and dense (`:134`, its reference).
-- **Layers** — `LinearLayer` (`src/gnn/layer.rs:17`), `GCNLayer`
-  (`src/gnn/gcn.rs:10`: linear + optional `LayerNorm` + `Activation`),
-  `LayerNorm` (`src/gnn/norm.rs:5`). No dropout ships.
-  `Activation` (`src/gnn/activation.rs:27`) is exactly two variants — `Relu` and
+- **Layers** — `LinearLayer` (`src/gnn_layer.rs:17`), `GCNLayer`
+  (`src/gnn_gcn.rs:10`: linear + optional `LayerNorm` + `Activation`),
+  `LayerNorm` (`src/gnn_norm.rs:5`). No dropout ships.
+  `Activation` (`src/gnn_activation.rs:27`) is exactly two variants — `Relu` and
   `Sigmoid` — each with its derivative. Nothing else is implemented.
-- **Model** (`src/gnn/model.rs:9`) — `Model::new(layers, out_layer)` over a
+- **Model** (`src/gnn_model.rs:9`) — `Model::new(layers, out_layer)` over a
   `Vec<GCNLayer>` plus an optional `LinearLayer` head; `parameters(_mut)`,
   `param_grads(_mut)`, `zero_grads`. Manual autograd via `backward.rs`
   (`GraphLayer`/`BackwardGraphLayer` traits).
-- **Fallible forward/backward.** `Model::forward` (`src/gnn/model.rs:19`) and
+- **Fallible forward/backward.** `Model::forward` (`src/gnn_model.rs:19`) and
   `Model::backward` (`:30`) return `Result<_, GnnError>` and every layer call
   inside them is a `try_` variant, so a shape or missing-forward-state error
   propagates instead of silently zeroing. `GnnError::MissingForwardState`
-  (`src/gnn/mod.rs`) is the specific case a backward-without-forward raises.
-- **Training** (`run_learned_propagation`, `src/gnn/propagate.rs:67`) — builds
+  (`src/gnn.rs`) is the specific case a backward-without-forward raises.
+- **Training** (`run_learned_propagation`, `src/gnn_propagate.rs:67`) — builds
   a `GnnSnapshot` (features + positive reason edges + last weights), samples
   negative edges, trains a 2-layer GCN (`dim → (dim/2).clamp(16,256) → dim`) for
   `DEFAULT_TRAIN_EPOCHS=24` with `Adam` (`DEFAULT_TRAIN_LEARNING_RATE=0.01`) on
-  the link-prediction gradient (`link_prediction_grad`, `src/gnn/loss.rs:34`;
+  the link-prediction gradient (`link_prediction_grad`, `src/gnn_loss.rs:34`;
   `link_prediction_loss` at `:13` is the scalar form). Output embeddings blended
   with input features at `DEFAULT_SELF_WEIGHT=0.6`, normalized, written back as
   `gnn_vector`. Requires `≥ DEFAULT_MIN_THOUGHTS=128` thoughts. The whole
@@ -578,34 +578,34 @@ Trained per-kern, off the tick loop on a dedicated thread (`src/tick/trainer.rs`
   backward, the inference forward, and the weight marshal are `?`-propagated, so
   **a failed propagation writes nothing** — no half-trained embeddings, no
   weights that produced them.
-- **Failure surfacing** (`src/tick/gnn_propagate.rs:50-57`) — on `Err` the tick
+- **Failure surfacing** (`src/tick_gnn_propagate.rs:50-57`) — on `Err` the tick
   logs `kern.gnn` with the kern id and calls `Queue::record_task_failure`, which
   `health` reports as `task_failures` / `last_task_failure`. Embeddings and
   weights are left untouched.
-- **Success surfacing** (`src/tick/gnn_propagate.rs:40-45`) — on `Ok` the tick
+- **Success surfacing** (`src/tick_gnn_propagate.rs:40-45`) — on `Ok` the tick
   logs `kern.gnn` at INFO with the kern id and `nodes`, the number of embeddings
   the run produced. It is the only trace a *completed* propagation leaves outside
   the graph: `gnn_vector` is dropped on persist, so nothing on disk can say the
   GNN ever ran. `tests/e2e/test_gnn_recall.py` gates on this line.
-- **Optimizers** (`src/gnn/optim.rs`) — `Adam` (`:14`) behind an `Optimizer`
+- **Optimizers** (`src/gnn_optim.rs`) — `Adam` (`:14`) behind an `Optimizer`
   trait. No SGD ships.
-- **Persist** (`src/gnn/persist.rs`) — `marshal_weights` (`:52`) /
+- **Persist** (`src/gnn_persist.rs`) — `marshal_weights` (`:52`) /
   `unmarshal_weights` (`:69`) to and from a byte blob carried on the snapshot,
   versioned `WEIGHT_FILE_VERSION=1` with typed `PersistError` variants for
   version, parameter-count and per-parameter shape mismatch. There is no
   separate weight *file* API — the blob rides the kern.
-- **Tensor** (`src/gnn/tensor.rs`) — own 2D tensor + matmul. `SparseMatrix` (`src/gnn/sparse.rs:14`) is the CSR counterpart the GCN aggregation runs on; its columns ascend inside a row, so `matmul` (`:53`) and `transpose` (`:84`) visit the same nonzeros in the same order the dense product does and the swap is bit-identical rather than merely close.
+- **Tensor** (`src/gnn_tensor.rs`) — own 2D tensor + matmul. `SparseMatrix` (`src/gnn_sparse.rs:14`) is the CSR counterpart the GCN aggregation runs on; its columns ascend inside a row, so `matmul` (`:53`) and `transpose` (`:84`) visit the same nonzeros in the same order the dense product does and the swap is bit-identical rather than merely close.
 
-**Where.** `src/gnn/*` (2766 LoC, 14 files). Driven by
+**Where.** `src/gnn_* (and src/gnn.rs shim)` (2766 LoC, 14 files). Driven by
 `tick::gnn_propagate::do_gnn_propagate`.
 
-**Gaps.** Training is linear in edges since 2026-07-22 — 73.4s → 11.6s at 4096 measured back to back under load, 6.6s idle (`tests/gnn_scale.rs`); off the tick since 2026-07-21 (`src/tick/trainer.rs`). No GPU.
-Weights are per-kern, not shared across the tree. Link prediction only — no node-classification objective. **A propagation is reproducible since 2026-07-22** (`ROADMAP.md` item 102): one seed derived from the sorted node ids (`gnn_seed`, `src/tick/gnn_propagate.rs:182`) drives both weight init and negative-edge sampling (`src/gnn/propagate.rs:80`), and the two `HashMap` walks that outranked it are sorted — the snapshot's node order (`src/tick/gnn_propagate.rs:71`) and the `updates` write-back that fixes HNSW insert order (`src/tick/gnn_propagate.rs:212`) — so the same corpus re-embeds identically in every process and `tests/e2e/test_gnn_recall.py` prints the same numbers on every run rather than scoring a draw.
+**Gaps.** Training is linear in edges since 2026-07-22 — 73.4s → 11.6s at 4096 measured back to back under load, 6.6s idle (`tests/gnn_scale.rs`); off the tick since 2026-07-21 (`src/tick_trainer.rs`). No GPU.
+Weights are per-kern, not shared across the tree. Link prediction only — no node-classification objective. **A propagation is reproducible since 2026-07-22** (`ROADMAP.md` item 102): one seed derived from the sorted node ids (`gnn_seed`, `src/tick_gnn_propagate.rs:182`) drives both weight init and negative-edge sampling (`src/gnn_propagate.rs:80`), and the two `HashMap` walks that outranked it are sorted — the snapshot's node order (`src/tick_gnn_propagate.rs:71`) and the `updates` write-back that fixes HNSW insert order (`src/tick_gnn_propagate.rs:212`) — so the same corpus re-embeds identically in every process and `tests/e2e/test_gnn_recall.py` prints the same numbers on every run rather than scoring a draw.
 *Corrected 2026-07-21:* a repeatedly failing
 propagation does **not** re-enqueue every tick. `GnnPropagate` is enqueued only
 when `do_cluster` did structural work (`if did_structural_work`, `src/tick.rs:190`),
 so a quiescent kern retries nothing; the climbing `task_failures` count
-(`src/tick/gnn_propagate.rs:57`) is still the only visibility when it does.
+(`src/tick_gnn_propagate.rs:57`) is still the only visibility when it does.
 
 ---
 
@@ -885,7 +885,7 @@ thought ingested on node A becomes searchable on node B under the same id.
 seeded `peers` (the reliable path). Multicast discovery only pairs same-
 `network_id` nodes. The **Delta, Pulse and Question senders are all live**
 (`src/gossip_handler.rs`, wired from `src/commands.rs`, driven from
-`src/tick/tasks.rs`). The **fetch RPC is live**: `wire_fetch`
+`src/tick_tasks.rs`). The **fetch RPC is live**: `wire_fetch`
 (`src/gossip_handler.rs:53`) installs the handler at startup
 (`src/commands.rs`) and `spawn_fetch_entity` (`src/gossip_handler.rs:74`)
 issues fetches from the question path. OR-Set deltas for `statements` are

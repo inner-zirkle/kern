@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use crate::gnn::sparse::SparseMatrix;
-use crate::gnn::tensor::Tensor;
+use crate::gnn_sparse::SparseMatrix;
+use crate::gnn_tensor::Tensor;
 use rayon::prelude::*;
 
 #[derive(Debug, Clone)]

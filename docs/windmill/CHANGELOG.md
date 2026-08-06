@@ -2,6 +2,7 @@
 
 <!-- docs-check: historical -->
 
+- 2026-08-06 — flattened `gnn` subdir: 13 `src/gnn/*.rs` → `src/gnn_*.rs` at src/ root (prefix-rename, dodges graph/persist collisions). `gnn/mod.rs` → `gnn.rs` shim re-exporting the 13 submodules (`pub use crate::gnn_gcn as gcn;` etc.) so `crate::gnn::X` still resolves (60 refs unchanged). lib.rs gained 13 `pub mod gnn_*`. Rewrites: `super::X`(sibling)→`crate::gnn_X`, `crate::gnn::X`(own submod)→`crate::gnn_X`, `crate::gnn::GnnError` kept. Build green, 1096 tests pass, guards 0. Decided by: single-crate-fold (user-directed full src/ flattening).
 - 2026-08-06 — build-fix: retarget missed consumers `src/mcp/tools_mutate.rs` (5 refs) + `src/mcp/tools_admin.rs` (1 ref) from `crate::commands::graph_ops::`/`crate::commands::admin::` → `crate::commands_graph_ops::`/`crate::commands_admin::`. The commands flatten (2104fde) left these dangling; build was red (8 errors) for 2 commits. Build green, 1096 tests pass. Decided by: feb.
 - 2026-08-06 — flattened `gossip` subdir: 13 `src/gossip/*.rs` → `src/gossip_*.rs` at src/ root (prefix-rename, dodges identity/types collisions). mod.rs deleted; lib.rs gained 13 `pub mod gossip_*`. Rewrites: `crate::gossip::X`→`crate::gossip_X`, `super::X` (sibling)→`crate::gossip_X`, grouped `use crate::gossip::{X,Y}`→split, test `use super::*` kept. External tools_delegate.rs+commands.rs retargeted. Build green, 11 test suites pass, guards 0. Decided by: single-crate-fold (user-directed full src/ flattening).
 - 2026-08-06 — flattened `commands` subdir: 11 `src/commands/*.rs` → `src/commands_*.rs` at src/ root (prefix-rename). Parent `src/commands.rs` mod-block dropped; lib.rs gained the 11 module declarations. Sibling refs `super::route`→`crate::commands_route`, parent-item refs `super::{load_graph,...}`→`crate::commands::{...}`, `pub(super)`→`pub(crate)`. External `crate::commands::graph_ops::`→`crate::commands_graph_ops::`. Build green, tests pass, guards 0. Decided by: feb.
@@ -592,43 +593,4 @@
   The re-classification wiring (re-point a deferred Rephrase to the replacer
   when one side of a pair is superseded) stays open. Decided by: name-the-tradeoff,
   verify-before-claiming. Supersedes: nothing.
-
-- 2026-07-22 — item 49 chunking half-closed: `distill` (`src/ingest/distill.rs`)
-  now batches a long conversation into turn-groups of `DISTILL_CHUNK_TURNS`
-  (new, `src/base/constants.rs`, default `48`), calls `llm` + `parse_claims`
-  per batch, and concats the claims — so a long delta stops truncating past the
-  model's context window with no signal. The common case (`turns.len() <=
-  batch`) stays one call, bit-identical to today. Turn-batched (not char-batched)
-  preserves the 1-based turn markers `split_turns` produces, so
-  `Source::Session.section` turn-citations stay well-formed per chunk. A batch
-  returning no parseable array (prose / empty) is a format failure for the
-  **whole delta** → `None` (retry), so a partially-distilled conversation never
-  archives having silently dropped every later batch. Proved by
-  `distill_short_conversation_is_one_call`,
-  `distill_chunks_long_conversation_turn_batched`,
-  `distill_chunk_markers_carry_global_turn_index`,
-  `distill_batch_format_failure_retries_whole_delta`. Existing distill tests
-  green unedited. `cargo test -p kern --lib` 932 passed, 0 failed, 4 ignored.
-  Negative control: `DISTILL_CHUNK_TURNS=usize::MAX` reds the chunk test, green
-  on revert. Decided by: fix-the-root, name-the-tradeoff, verify-before-claiming.
-  Still open: per-kind branch / label-accuracy half (the ~33% figure is
-  unreproducible, a lead not a number).
-
-- 2026-07-22 — item 75 cross-segment-atomicity half closed: `build_and_save`
-  now builds into a staging dir, `atomic_write` fsyncs each segment, the staging
-  dir is fsync'd, and the publish is ONE rename of the staging dir over the live
-  dir. Three independent renames used to leave meta from build N+1 beside vectors
-  from build N if a crash hit between them — and `open`'s shape checks pass
-  whenever the two builds share count/dim/r, the common case. Now a crash before
-  the swap leaves the old build intact; a crash in the remove→rename window
-  leaves no index, which is non-fatal (`build_entity_disk_snapshot` falls back to
-  the in-RAM index) — silent staleness until next rebuild, never a mixed-build
-  read. New test pins two consecutive builds over one dir (second is whole, no
-  staging lingers). POSIX-only: Windows cannot delete an open file so a
-  concurrent reader would fail the swap; DiskANN is off-by-default, Linux-first.
-  1025 pass. Decided by: fix-the-root, verify-before-claiming, name-the-tradeoff.
-  Supersedes: nothing.
-
-
-  crash window. 1024 pass. Decided by: verify-before-claiming, fix-the-root, name-the-tradeoff. Supersedes: the stale "currently unsafe" comment in `GraphConfig::default`.
 

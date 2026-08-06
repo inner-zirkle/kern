@@ -1,6 +1,6 @@
-use crate::gnn::activation::Activation;
-use crate::gnn::graph::Graph;
-use crate::gnn::tensor::Tensor;
+use crate::gnn_activation::Activation;
+use crate::gnn_graph::Graph;
+use crate::gnn_tensor::Tensor;
 
 pub fn act_deriv_mul(act: Activation, d_out: &Tensor, pre_act: &Tensor) -> Tensor {
 	let mut out = Tensor::zeros(d_out.rows, d_out.cols);
@@ -46,11 +46,11 @@ mod tests {
 
 #[cfg(test)]
 mod gnn_math_tests {
-	use crate::gnn::activation::Activation;
-	use crate::gnn::backward::BackwardGraphLayer;
-	use crate::gnn::gcn::GCNLayer;
-	use crate::gnn::graph::Graph;
-	use crate::gnn::tensor::Tensor;
+	use crate::gnn_activation::Activation;
+	use crate::gnn_backward::BackwardGraphLayer;
+	use crate::gnn_gcn::GCNLayer;
+	use crate::gnn_graph::Graph;
+	use crate::gnn_tensor::Tensor;
 	use rand::SeedableRng;
 
 	fn tiny_graph() -> (Graph, Tensor) {

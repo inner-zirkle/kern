@@ -1,5 +1,5 @@
-use crate::gnn::activation::sigmoid;
-use crate::gnn::tensor::Tensor;
+use crate::gnn_activation::sigmoid;
+use crate::gnn_tensor::Tensor;
 
 fn row_dot(t: &Tensor, i: usize, j: usize) -> f64 {
 	let d = t.cols;

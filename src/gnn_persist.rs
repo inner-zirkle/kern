@@ -1,4 +1,4 @@
-use crate::gnn::model::Model;
+use crate::gnn_model::Model;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -106,7 +106,7 @@ pub fn unmarshal_weights(model: &mut Model, data: &[u8]) -> Result<(), PersistEr
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::gnn::gcn::GCNLayer;
+	use crate::gnn_gcn::GCNLayer;
 	use rand::rngs::StdRng;
 	use rand::SeedableRng;
 
