@@ -8,7 +8,7 @@ item carrying the grep that produced it. Driven by the `/improve` skill.
 
 ### Flatten `transport` nested subdirs (kern_rpc, typed, wire) into src/ root — IN PROGRESS
 
-hub_rpc done this fire. Remaining: `src/transport/kern_rpc/` (4 files), `src/transport/typed/` (5 files), `src/transport/wire/` (7 files). Same shim pattern: leaf → `src/transport_<subdir>_<name>.rs`, `mod.rs`→`src/transport_<subdir>.rs` shim, `transport/mod.rs` re-exports. `transport/{http,mcp}.rs` also move to `src/transport_{http,mcp}.rs`. wire/mod.rs holds real definitions (Sink/Dispatch/Transport/serve/select/error/line_frame) — those stay in the `transport_wire.rs` shim; its private `mod X;` leaves widen to `pub(crate)` at crate root.
+hub_rpc + kern_rpc done. Remaining: `src/transport/typed/` (5 files), `src/transport/wire/` (7 files), `transport/{http,mcp}.rs`. Same shim pattern: leaf → `src/transport_<subdir>_<name>.rs`, `mod.rs`→`src/transport_<subdir>.rs` shim, `transport/mod.rs` re-exports. wire/mod.rs holds real definitions (Sink/Dispatch/Transport/serve/select/error/line_frame) — those stay in the `transport_wire.rs` shim; its private `mod X;` leaves widen to `pub(crate)` at crate root.
 
 ### Flatten `ingest` subdir into src/ root — DONE 2026-08-06 (this fire)
 

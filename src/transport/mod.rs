@@ -1,4 +1,4 @@
-mod http;
+pub(crate) mod http;
 // The portable transport layer, copied byte-for-byte into every project:
 //   wire  — seven framings of one JSON-RPC contract
 //   mcp   — the MCP envelope (McpServer, dispatch, serve, bridge)
@@ -23,7 +23,7 @@ pub mod typed;
 pub use transport_macros::service;
 
 pub use crate::transport_hub_rpc as hub_rpc;
-pub mod kern_rpc;
+pub use crate::transport_kern_rpc as kern_rpc;
 
 // Re-exports solely for service!-generated code (::transport::__private::*).
 // NOT public API — may change in any release; never import directly.

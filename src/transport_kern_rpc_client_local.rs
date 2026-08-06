@@ -2,8 +2,8 @@ use std::time::Duration;
 
 use crate::transport::typed::{connect_kern, AdapterError, Channel, Endpoint, JsonEnvelopeCodec};
 
-use super::auth::{present_auth, AuthReq};
-use super::svc::KernRpcClient;
+use crate::transport_kern_rpc_auth::{present_auth, AuthReq};
+use crate::transport_kern_rpc_svc::KernRpcClient;
 
 pub const RETRIES: u32 = 5;
 pub const RETRY_DELAY_MS: u64 = 100;

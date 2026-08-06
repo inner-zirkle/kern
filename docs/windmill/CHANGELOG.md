@@ -2,6 +2,7 @@
 
 <!-- docs-check: historical -->
 
+- 2026-08-07 — flattened `transport/kern_rpc` nested subdir: 4 `src/transport/kern_rpc/{auth,client_local,dto,svc}.rs` → `src/transport_kern_rpc_{auth,client_local,dto,svc}.rs` at src/ root. `kern_rpc/mod.rs` → `src/transport_kern_rpc.rs` shim re-exporting auth/client_local/dto/svc + items (present_auth..KernRpcClient). lib.rs gained 5 `pub mod transport_kern_rpc*`. transport/mod.rs: `pub mod kern_rpc;`→`pub use crate::transport_kern_rpc as kern_rpc;`. `mod http;` widened to `pub(crate)` (auth.rs now a crate-root sibling needs crate::transport::http::ct_eq). Build green, 1096 tests pass, guards 0. Decided by: single-crate-fold (user-directed full src/ flattening).
 - 2026-08-07 — flattened `transport/hub_rpc` nested subdir: 3 `src/transport/hub_rpc/{client,dto,svc}.rs` → `src/transport_hub_rpc_{client,dto,svc}.rs` at src/ root. `hub_rpc/mod.rs` → `src/transport_hub_rpc.rs` shim re-exporting client/dto/svc + items (HubStatusRes..HubRpcClient) so `crate::transport::hub_rpc::X` resolves unchanged. lib.rs gained 4 `pub mod transport_hub_rpc*`. transport/mod.rs: `pub mod hub_rpc;`→`pub use crate::transport_hub_rpc as hub_rpc;`. Rewrites: super::svc/dto → crate::transport_hub_rpc_*. Build green, 1096 tests pass, guards 0. Decided by: single-crate-fold (user-directed full src/ flattening).
 
 - 2026-08-07 — flattened `retrieval` subdir: 9 `src/retrieval/*.rs` → `src/retrieval_*.rs` at src/ root (prefix-rename, dodges merge collision). `retrieval.rs` kept as shim re-exporting all 9 submodules + EmbedFunc/LlmFunc so ~11 external `crate::retrieval::score::X`/`crate::retrieval::query::X`/`crate::retrieval::seed::X`/`crate::retrieval::LlmFunc` refs resolve unchanged. lib.rs gained 9 `pub mod retrieval_*`. No rewrites in moved files needed. Build green, 1096 tests pass, guards 0. Decided by: single-crate-fold (user-directed full src/ flattening).
@@ -531,7 +532,6 @@
   seed_examples+mean_pool, resolves the short id `kern unnamed` prints, async +
   local (with_graph, guarded flush). 1033 pass, 2 new tests. Decided by: fix-the-root, the-oracle. Supersedes: nothing.
 
-- 2026-07-22 — item 47 (c)/(d) closed: TLS = TOFU pin, network_id =
   config-owned. kern is local-first, zero-config and coordinator-free
   (`VISION.md`); operator PKI needs a CA the operator runs — a coordinator the
   federation refuses to need. TOFU pins the first-seen peer key and warns on
