@@ -134,14 +134,14 @@ pub(crate) fn mcp_server_with_config(cfg: crate::config::Config) -> crate::mcp::
 }
 
 #[cfg(unix)]
-pub(crate) fn scratch_endpoint(tag: &str) -> transport::typed::Endpoint {
+pub(crate) fn scratch_endpoint(tag: &str) -> crate::transport::typed::Endpoint {
 	let dir = std::env::temp_dir().join(format!(
 		"kern-route-{}-{}-{tag}",
 		std::process::id(),
 		crate::base::util::now_ms()
 	));
 	std::fs::create_dir_all(&dir).expect("scratch dir");
-	transport::typed::Endpoint::Unix(dir.join("kern.sock"))
+	crate::transport::typed::Endpoint::Unix(dir.join("kern.sock"))
 }
 
 // The secret a scratch daemon demands, and the identity its scratch clients
@@ -151,14 +151,14 @@ pub(crate) fn scratch_endpoint(tag: &str) -> transport::typed::Endpoint {
 pub(crate) const TEST_TOKEN: &str = "scratch-token";
 
 #[cfg(unix)]
-pub(crate) fn test_caller() -> transport::kern_rpc::AuthReq {
-	transport::kern_rpc::AuthReq::new(TEST_TOKEN)
+pub(crate) fn test_caller() -> crate::transport::kern_rpc::AuthReq {
+	crate::transport::kern_rpc::AuthReq::new(TEST_TOKEN)
 }
 
 #[cfg(unix)]
-pub(crate) async fn serving(srv: crate::mcp::Server, endpoint: &transport::typed::Endpoint) {
+pub(crate) async fn serving(srv: crate::mcp::Server, endpoint: &crate::transport::typed::Endpoint) {
 	use std::sync::Arc;
-	use transport::typed::{bind_kern_listener, BindOutcome};
+	use crate::transport::typed::{bind_kern_listener, BindOutcome};
 
 	let BindOutcome::Bound(listener) = bind_kern_listener(endpoint).await.expect("bind") else {
 		panic!("scratch endpoint already bound");

@@ -1,12 +1,12 @@
 use std::sync::Arc;
 
 use serde_json::Value;
-use transport::kern_rpc::{
+use crate::transport::kern_rpc::{
 	serve_kern_rpc, verify_auth, CallToolReq, CallToolRes, HealthRes, KernRpc, ListToolsReq,
 	ListToolsRes, ShutdownRes,
 };
-use transport::typed::{AdapterError, Channel, JsonEnvelopeCodec, LocalListener};
-use transport::McpServer;
+use crate::transport::typed::{AdapterError, Channel, JsonEnvelopeCodec, LocalListener};
+use crate::transport::McpServer;
 
 #[derive(Clone)]
 pub struct KernRpcHandler {
@@ -116,7 +116,7 @@ impl KernRpc for KernRpcHandler {
 				qbst_recency_half_life_secs: u64_at("qbst_recency_half_life_secs"),
 				retrieval: {
 					let r = payload.get("retrieval");
-					let mw = |key: &str| transport::kern_rpc::dto::ModeWeightsHealth {
+					let mw = |key: &str| crate::transport::kern_rpc::dto::ModeWeightsHealth {
 						content: r
 							.and_then(|r| r.get(key))
 							.and_then(|w| w.get("content"))
@@ -133,7 +133,7 @@ impl KernRpc for KernRpcHandler {
 							.and_then(|v| v.as_f64())
 							.unwrap_or(0.0),
 					};
-					transport::kern_rpc::dto::RetrievalHealth {
+					crate::transport::kern_rpc::dto::RetrievalHealth {
 						rrf_k: r
 							.and_then(|r| r.get("rrf_k"))
 							.and_then(|v| v.as_f64())
@@ -419,8 +419,8 @@ mod tests {
 mod auth_gate_tests {
 	use super::*;
 	use std::sync::atomic::{AtomicUsize, Ordering};
-	use transport::kern_rpc::AuthReq;
-	use transport::typed::InprocAdapter;
+	use crate::transport::kern_rpc::AuthReq;
+	use crate::transport::typed::InprocAdapter;
 
 	const TOKEN: &str = "the-real-token";
 

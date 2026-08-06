@@ -17,10 +17,8 @@ pub use wire::{select, serve, Dispatch, Sink, Transport};
 
 pub const PROTOCOL_VERSION: &str = "2024-11-05";
 
-// `service!` emits `::transport::*` paths; the self-alias makes them resolve
-// when the macro is invoked inside this crate.
-extern crate self as transport;
-
+// `service!` emits `::kern::transport::*` paths (transport-macros retargeted on
+// merge; the proc-macro crate stays separate, Rust forbids proc-macros in a lib).
 pub mod typed;
 pub use transport_macros::service;
 

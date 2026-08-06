@@ -2,6 +2,8 @@
 
 <!-- docs-check: historical -->
 
+- 2026-08-06 — inlined the `transport` sub-crate into the root `kern` lib crate as `crate::transport`, completing the single-crate goal. `src/transport/` was a path-only workspace member (27 files, 4250 LoC, no external consumer); moved `src/transport/src/{lib,http,mcp}.rs` + `hub_rpc/`+`kern_rpc/`+`typed/`+`wire/` up to `src/transport/{mod,http,mcp,...}` (`lib.rs`→`mod.rs`), dropped its `Cargo.toml` + the `transport` path-dep + workspace member. Internal `crate::`→`crate::transport::` across moved files (avoids the collision between transport's `mod mcp` envelope and kern's root `pub mod mcp` server); `service!` invokers `crate::service!`→`crate::transport::service!`; removed `extern crate self as transport;`. The `transport-macros` proc-macro stayed its own crate (Rust forbids proc-macros in a lib); its `service!` codegen retargeted `::transport::`→`crate::transport::` (the `::kern::` self-ref did NOT resolve from proc-macro expansion — verified by failed build). 15 consumer files rewritten `transport::`→`crate::transport::`. Folded deps into root: `tokio-util`+codec, `bytes`, `futures`, unix `libc`, windows `windows-sys`. Build clean, 1096 lib tests pass, 59 transport tests pass, all test targets compile, guards exit 0, code-reviewer approved. `transport-macros` is the only remaining workspace member — a forced Rust exception, not actionable. Decided by: single-crate-fold (user-directed structural merge).
+
 - 2026-08-06 — inlined the `watcher` sub-crate into the root `kern` lib crate as `crate::watcher`. `src/watcher/` was a path-only workspace member (no external consumer); folded its 6 files up to `src/watcher/{mod,event,ignore_rules,pipeline,file}.rs` (inner `watcher.rs`→`file.rs` to avoid clippy `module_inception`), dropped its `Cargo.toml` + the `watcher` path-dep + workspace member, folded its unique deps (`notify`,`ignore`) into root (the rest were already root deps), rewrote the two consumers (`src/ingest/file_watcher.rs`, `src/commands.rs`) `use watcher::`→`use crate::watcher::`, fixed the two internal `use crate::event::`→`use super::event::`, and moved the integration test to `tests/watcher_tests.rs` (`use watcher::`→`use kern::watcher::`). One step in a 2-fire move to a single source crate; `transport` is the next fire. `transport-macros` stays its own crate — proc-macros cannot live in a lib crate. Build clean, 7/7 watcher tests pass, code-reviewer approved. Decided by: single-crate-fold (user-directed structural merge).
 
 - 2026-08-06 — deleted `pub fn is_semantic` from `ReasonKind` (`src/base/types.rs`). The predicate (`matches! Similarity | Provenance | Ratification`) had zero callers — `rg 'is_semantic' src/` returns nothing; the enum variants stay live (Similarity used in tick/accept/commands/query). A dead `pub` predicate is surface area with no consumer; if the classification is ever needed it's a one-line `matches!` at the call site. Also reconciled `docs/ideas.md`: the stale open copies of B6/B3/B4/B1 (all already closed) were pruned and B6 got its `## Closed` entry. Net -99 lines of dead doc.
@@ -707,58 +709,3 @@
   already shipped; this records the decision. Decided by: name-the-tradeoff,
   one-dispatch-core. Supersedes: nothing.
 
-- 2026-07-22 — item 84 sub-fix closed: the `query` MCP tool now takes an
-  `ids` array for batch direct lookup, returning `{results, missing}` — a
-  caller can tell a filter-drop (in `results`, flagged) from a non-existent id
-  (in `missing`). Each id resolves a prefix and the cold tier and honours the
-  same filters the single-`id` path honours (the per-row predicate, not a
-  silent skip). 1021 pass, 2 new tests. The hand-rolled-schemas half stays
-  (style debt, not correctness). Decided by: fix-the-root, the-oracle.
-  Supersedes: nothing.
-
-- 2026-07-22 — item 84 sub-fix closed: kern now warns at boot when running
-  under WSL and a configured `embed.url` / `reason.url` is loopback
-  (`127.0.0.0/8`, `::1`, `localhost`) — a Linux loopback does not reach a
-  Windows-host Ollama, and the LoCoMo run had to hand-pin the WSL2 gateway IP
-  with no hint. `crate::llm::is_wsl` reads the Microsoft marker in
-  `/proc/sys/kernel/osrelease`; `is_loopback_url` is the loopback-only subset
-  of `is_local_url` (WSL2 gateway `172.27.x.x` is local but not loopback, so
-  silent); `Config::wsl_loopback_warnings` emits one non-fatal `tracing::warn!`
-  per loopback endpoint. Non-WSL hosts silent. No URL rewriting (config is the
-  user's). 1019 pass, 3 new tests. Decided by: fix-the-root, the-oracle.
-  Supersedes: nothing.
-
-- 2026-07-22 — item 59 floor half-closed: `degrade_entity_reasons`
-  (`src/commands/graph_ops.rs`) clamps `r.score = (r.score - decay).max(DEGRADE_FLOOR)`
-  with `DEGRADE_FLOOR` (new, `src/base/constants.rs`, default `0.0`), so a
-  surviving reason score never goes below the floor. **Honest gap:** under
-  current constants `DEGRADE_MIN_THRESHOLD` (0.05) > `DEGRADE_FLOOR` (0.0), so
-  `should_remove` fires and removes an edge before the clamped decay runs — an
-  edge that survives has `score - decay >= 0.05 > 0.0`, so `.max(0.0)` is a
-  no-op at default. The clamp is **defensive at default**: it holds the
-  invariant "no surviving reason score is below the floor" and goes live the
-  moment a score arrives below the floor (e.g. a gossip merge of a pre-floor-era
-  negative) or the threshold is lowered below the floor. The item's premise
-  ("score can go negative") is already guarded by the threshold — one decrement
-  site, always preceded by the threshold check; the brief's negative control
-  ("clamp removed → negative") is unwritable at default because removal
-  preempts the clamp. Verified by temporarily raising `DEGRADE_FLOOR` above the
-  threshold (survivors clamp to the floor) and reverting. Shipped test pins the
-  invariant; `degrade_decays_survivors_and_removes_below_threshold` green
-  unedited. `cargo test -p kern --lib` green.
-  Decided by: fix-the-root, name-the-tradeoff, verify-before-claiming.
-  Still open: audit trail + undo halves.
-
-- 2026-07-22 — item 84 sub-fix closed: a renamed-and-edited file now supersedes
-  the old-path `Document` instead of leaving it dangling. `build_record`
-  carries the old file URI on a `Renamed` event; the sink resolves it to the
-  old `source_id()` and threads it through `Worker::submit` -> `Job.replaces`
-  -> `place_document`, which calls a new `accept::supersede_renamed` after
-  placing the new entity. `supersede_renamed` scans for the old external-id
-  owner (`source_index` is not populated at plain ingest), stamps it
-  `Superseded`, evicts it from the ANN indices, drops the old source-keyed
-  entry, and adds a `Supersedes` reason edge — reusing `stamp_superseded`
-  extracted from the same-external-id `supersede`. Pure rename (same content)
-  and rename-with-no-old-entity are noops. Watcher is off by default; the rare
-  dedup-survivor edge is noted in `place_document`. 1015 pass, 2 new tests pin
-  both directions. Decided by: fix-the-root, the-oracle. Supersedes: nothing.

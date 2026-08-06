@@ -21,19 +21,31 @@ in `watcher.rs`/`pipeline.rs`→`use super::event::`; moved the integration test
 7/7 watcher tests pass, all test targets compile, code-reviewer approved.
 `transport-macros` (proc-macro) stays separate by Rust constraint.
 
-### Inline `transport` sub-crate into the root `kern` crate — NEXT fire
+### Inline `transport` sub-crate into the root `kern` crate — DONE 2026-08-06 (this fire)
 
-**Claim:** `src/transport/` (27 files, 4250 LoC) is a path-only workspace member
-with no external consumer; inlining it completes the single-crate goal.
-**Do:** mirror the watcher fire — `src/transport/src/*.rs`→`src/transport/*.rs`,
-`mod.rs` from `lib.rs`, drop `transport` path-dep + member, fold its unique deps
-(`tokio-util`,`bytes`,`futures`,`async-stream`,`libc`,`windows-sys`) into root,
-rewrite `use transport::`→`use crate::transport::` across consumers, fix internal
-`use crate::`→`use super::`. **One real snag:** the `transport-macros`
-proc-macro's `service!` codegen emits `::transport::typed::Channel` absolute
-paths → retarget to `::kern::transport::typed::Channel` (one line in the macro).
-**Payoff:** erases the last non-proc-macro workspace member; single source tree.
-**Size:** larger than watcher but mechanical; one fire.
+Folded the `transport` workspace member into `kern` as `crate::transport`.
+`src/transport/src/{lib,http,mcp}.rs` + `hub_rpc/`+`kern_rpc/`+`typed/`+`wire/`
+moved up to `src/transport/{mod,http,mcp,...}`; `lib.rs`→`mod.rs`; dropped
+`src/transport/Cargo.toml` + the `transport` path-dep + workspace member.
+Internal `crate::`→`crate::transport::` across the moved files (critical: avoids
+the collision between transport's `mod mcp` envelope and kern's root `pub mod
+mcp` server). `service!` invokers `crate::service!`→`crate::transport::service!`.
+The `transport-macros` proc-macro stayed its own crate (Rust forbids
+proc-macros in a lib); its `service!` codegen retargeted `::transport::`→
+`crate::transport::` (call-site crate = kern; `::kern::` self-ref did NOT resolve
+from proc-macro expansion — verified by failed build). Removed
+`extern crate self as transport;`. 15 consumer files rewritten
+`transport::`→`crate::transport::`. Folded deps into root: `tokio-util`+codec,
+`bytes`, `futures`, unix `libc`, windows `windows-sys`. Build clean, 1096 lib
+tests pass, 59 transport tests pass, all test targets compile, guards exit 0,
+code-reviewer approved.
+
+### Remaining: `transport-macros` stays a separate crate (Rust constraint)
+
+`src/transport/macros/` is a `proc-macro = true` crate — Rust forbids
+proc-macros inside a lib/bin crate, so it cannot be inlined. This is the only
+remaining workspace member; the single-crate goal is complete modulo this
+forced exception. No action; record only.
 
 ### Dead-`pub` scrape rejects (Pass 4, for the record)
 

@@ -4414,3 +4414,4 @@ number ("blocked on item 13") and renumbering would silently repoint them.
   to overlap. Nothing to kill. (`KernRpc` mirroring the MCP tool list 1:1 was
   carried as item 24's second half; that half is retired 2026-07-21 — verified
   false on this same reading.)
+

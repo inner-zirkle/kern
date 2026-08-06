@@ -49,6 +49,7 @@ pub mod store;
 pub mod takeover;
 pub mod tick;
 pub mod types;
+pub mod transport;
 pub mod watcher;
 
 #[cfg(test)]

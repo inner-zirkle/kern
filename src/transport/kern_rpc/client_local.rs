@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use crate::typed::{connect_kern, AdapterError, Channel, Endpoint, JsonEnvelopeCodec};
+use crate::transport::typed::{connect_kern, AdapterError, Channel, Endpoint, JsonEnvelopeCodec};
 
 use super::auth::{present_auth, AuthReq};
 use super::svc::KernRpcClient;

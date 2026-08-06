@@ -2,8 +2,8 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::time::Duration;
 
-use transport::kern_rpc::KernRpcClient;
-use transport::typed::{Endpoint, JsonEnvelopeCodec};
+use crate::transport::kern_rpc::KernRpcClient;
+use crate::transport::typed::{Endpoint, JsonEnvelopeCodec};
 
 use crate::base::identity::strip_deleted_marker;
 
@@ -36,7 +36,7 @@ impl NodeHandle {
 // FNV hash of the path, so the socket name cannot produce the node's token —
 // only the root can, via the config that names its data_dir. The endpoint is
 // derived here from the same root, so the two can never drift apart.
-fn node_caller(root: &Path) -> transport::kern_rpc::AuthReq {
+fn node_caller(root: &Path) -> crate::transport::kern_rpc::AuthReq {
 	crate::rpc::caller_at(root)
 }
 

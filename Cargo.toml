@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["src/transport", "src/transport/macros"]
+members = ["src/transport/macros"]
 
 [workspace.package]
 version = "1.3.0"
@@ -74,20 +74,38 @@ futures-core = "0.3"
 futures-util = "0.3"
 tracing-subscriber.workspace = true
 tracing.workspace = true
-transport = { path = "src/transport" }
 notify = "8"
 ignore = "0.4"
 async-trait = "0.1"
+tokio-util = { version = "0.7", features = ["codec"] }
+bytes = "1"
+futures = "0.3"
 # HELD at 0.20: 0.22 breaks the external-commit reconcile path
 # (a_link_racing_an_external_commit_keeps_both — "from thought not found");
 # env/read-txn snapshot semantics changed. Bumping needs a store-layer pass.
 heed = "0.20"
+transport-macros = { path = "src/transport/macros" }
 anyhow.workspace = true
 zstd = "0.13"
 parking_lot.workspace = true
 ed25519-dalek = "3"
 blake3 = "1"
 chacha20poly1305 = "0.11"
+
+# Unix socket ownership: std exposes the owner of a *file* but never the
+# identity of this process — `geteuid` spells whose socket it is.
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+# Windows named-pipe ACLs: a pipe has no mode bits, so owner-only is a security
+# descriptor, spelled via windows-sys.
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = [
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_Security_Authorization",
+  "Win32_System_Threading",
+] }
 
 [dev-dependencies]
 tempfile = "3"

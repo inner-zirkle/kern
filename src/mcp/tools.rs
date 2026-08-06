@@ -9,10 +9,10 @@ pub fn tool_definitions() -> Vec<serde_json::Value> {
 	defs
 }
 
-pub(crate) fn typed_tool_schemas() -> Vec<transport::ToolSchema> {
+pub(crate) fn typed_tool_schemas() -> Vec<crate::transport::ToolSchema> {
 	tool_definitions()
 		.into_iter()
-		.filter_map(|v| transport::ToolSchema::from_value(&v))
+		.filter_map(|v| crate::transport::ToolSchema::from_value(&v))
 		.collect()
 }
 

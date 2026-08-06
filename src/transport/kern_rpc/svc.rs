@@ -1,6 +1,6 @@
 use super::dto::{CallToolReq, CallToolRes, HealthRes, ListToolsReq, ListToolsRes, ShutdownRes};
 
-crate::service! {
+crate::transport::service! {
 		pub trait KernRpc {
 				async fn health() -> HealthRes;
 				async fn shutdown() -> ShutdownRes;

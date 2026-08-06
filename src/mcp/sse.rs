@@ -16,5 +16,5 @@ pub async fn run_sse(server: Arc<Server>, addr: &str) -> Result<(), std::io::Err
 		token_file = %crate::config::mcp_token_path(Path::new(&server.cfg.data_dir)).display(),
 		"MCP-over-HTTP requires a bearer token"
 	);
-	transport::serve_http(server, addr, Some(&token)).await
+	crate::transport::serve_http(server, addr, Some(&token)).await
 }

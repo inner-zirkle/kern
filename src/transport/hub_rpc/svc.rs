@@ -1,6 +1,6 @@
 use super::dto::{HubStatusRes, ResolveReq, ResolveRes, StopRes, UnloadReq, UnloadRes};
 
-crate::service! {
+crate::transport::service! {
 		pub trait HubRpc {
 				async fn resolve(req: ResolveReq) -> ResolveRes;
 				async fn status() -> HubStatusRes;

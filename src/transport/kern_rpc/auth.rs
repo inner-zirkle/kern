@@ -1,9 +1,9 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::typed::{AdapterError, Channel, JsonEnvelopeCodec};
+use crate::transport::typed::{AdapterError, Channel, JsonEnvelopeCodec};
 
-use crate::http::ct_eq;
+use crate::transport::http::ct_eq;
 
 /// The one frame a caller sends before any `KernRpc` method is reachable.
 ///
@@ -117,8 +117,8 @@ mod tests {
 	use tokio::io::{AsyncRead, ReadBuf};
 
 	use super::*;
-	use crate::typed::adapter::{Adapter, DynRead, DynWrite};
-	use crate::typed::InprocAdapter;
+	use crate::transport::typed::adapter::{Adapter, DynRead, DynWrite};
+	use crate::transport::typed::InprocAdapter;
 
 	fn pair() -> (Channel<JsonEnvelopeCodec>, Channel<JsonEnvelopeCodec>) {
 		let (a, b) = InprocAdapter::pair();
