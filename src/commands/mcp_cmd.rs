@@ -446,12 +446,12 @@ async fn run_standalone(cfg: &crate::config::Config) {
 	let save_fn: Arc<dyn Fn() + Send + Sync> = Arc::new(move || {
 		super::save_graph_guarded(&save_g, &save_cfg);
 	});
-	let q = Arc::new(crate::tick::queue::Queue::new(512));
+	let q = Arc::new(crate::tick_queue::Queue::new(512));
 	let defer: crate::ingest::worker::DeferQuestionsFn = {
 		let defer_q = q.clone();
 		Arc::new(move |entity_id: &str| {
-			let _ = defer_q.enqueue(crate::tick::queue::task_extra(
-				crate::tick::queue::TaskKind::SeedQuestions,
+			let _ = defer_q.enqueue(crate::tick_queue::task_extra(
+				crate::tick_queue::TaskKind::SeedQuestions,
 				"",
 				entity_id,
 			));
@@ -460,8 +460,8 @@ async fn run_standalone(cfg: &crate::config::Config) {
 	let defer_contradiction: crate::ingest::worker::DeferContradictionFn = {
 		let contra_q = q.clone();
 		Arc::new(move |kern_id: &str, reason_id: &str| {
-			let _ = contra_q.enqueue(crate::tick::queue::task_extra(
-				crate::tick::queue::TaskKind::ClassifyContradiction,
+			let _ = contra_q.enqueue(crate::tick_queue::task_extra(
+				crate::tick_queue::TaskKind::ClassifyContradiction,
 				kern_id,
 				reason_id,
 			));
@@ -475,8 +475,8 @@ async fn run_standalone(cfg: &crate::config::Config) {
 		Some(save_fn.clone()),
 	));
 
-	let tick_llm: crate::tick::tasks::LlmFunc = Arc::new(llm_client.complete_func());
-	let tick_embed: crate::tick::tasks::EmbedFunc = {
+	let tick_llm: crate::tick_tasks::LlmFunc = Arc::new(llm_client.complete_func());
+	let tick_embed: crate::tick_tasks::EmbedFunc = {
 		let c = llm_client.clone();
 		Arc::new(move |text: &str| -> Result<Vec<f32>, String> {
 			let c = c.clone();

@@ -6,6 +6,7 @@
 
 - 2026-08-06 — inlined the `watcher` sub-crate into the root `kern` lib crate as `crate::watcher`. `src/watcher/` was a path-only workspace member (no external consumer); folded its 6 files up to `src/watcher/{mod,event,ignore_rules,pipeline,file}.rs` (inner `watcher.rs`→`file.rs` to avoid clippy `module_inception`), dropped its `Cargo.toml` + the `watcher` path-dep + workspace member, folded its unique deps (`notify`,`ignore`) into root (the rest were already root deps), rewrote the two consumers (`src/ingest/file_watcher.rs`, `src/commands.rs`) `use watcher::`→`use crate::watcher::`, fixed the two internal `use crate::event::`→`use super::event::`, and moved the integration test to `tests/watcher_tests.rs` (`use watcher::`→`use kern::watcher::`). One step in a 2-fire move to a single source crate; `transport` is the next fire. `transport-macros` stays its own crate — proc-macros cannot live in a lib crate. Build clean, 7/7 watcher tests pass, code-reviewer approved. Decided by: single-crate-fold (user-directed structural merge).
 - 2026-08-06 — flatten `rpc` and `hub` subdirs into `src/` root (phase 1 of full src/ flattening): `src/rpc/`→`src/rpc.rs` + `src/rpc_kern_rpc_server.rs`; `src/hub/`→`src/hub.rs` + `src/hub_node.rs` + `src/hub_serve.rs`. Submodule paths `crate::rpc::kern_rpc_server`→`crate::rpc_kern_rpc_server`, `crate::hub::node`→`crate::hub_node`; re-exports kept public API stable. Build clean, 36 tests pass, guards exit 0. Decided by: single-crate-fold (user-directed full src/ flattening).
+- 2026-08-06 — flatten `tick` subdir (8 files) into `src/` root (phase 2 of full src/ flattening): `src/tick/{cluster,gnn_propagate,idle,pulse,queue,stigmergy,tasks,trainer}.rs`→`src/tick_*.rs`. Parent `src/tick.rs` kept; removed its `pub mod` block; sibling `use cluster::`→`use crate::tick_cluster::` etc; inline `trainer::Trainer`→`crate::tick_trainer::Trainer`, `stigmergy::run_gc`→`crate::tick_stigmergy::`, `idle::`→`crate::tick_idle::`. Subfiles: `use super::queue::`→`use crate::tick_queue::`, `use super::cluster::`→`use crate::tick_cluster::`. External consumers (~8 files): `crate::tick::queue::`→`crate::tick_queue::`, bare `tick::pulse::`→`crate::tick_pulse::`; removed unused `use crate::tick;`. Build clean, 1096 lib tests + 101 tick tests pass, guards exit 0. Decided by: single-crate-fold (user-directed full src/ flattening).
 
 - 2026-08-06 — deleted `pub fn is_semantic` from `ReasonKind` (`src/base/types.rs`). The predicate (`matches! Similarity | Provenance | Ratification`) had zero callers — `rg 'is_semantic' src/` returns nothing; the enum variants stay live (Similarity used in tick/accept/commands/query). A dead `pub` predicate is surface area with no consumer; if the classification is ever needed it's a one-line `matches!` at the call site. Also reconciled `docs/ideas.md`: the stale open copies of B6/B3/B4/B1 (all already closed) were pruned and B6 got its `## Closed` entry. Net -99 lines of dead doc.
 
@@ -688,13 +689,4 @@
   positives fixed. `python3 tests/docs_check.py --selftest` prints `selftest OK`.
   Decided by: fix-the-root, name-the-tradeoff, verify-before-claiming.
   Symbolic anchors remain open; this closes the fenced-block residual only.
-
-- 2026-07-22 — item 67 closed by decision: binary quantization stays
-  non-user-selectable. Its recall floor is too low without a rescoring pass, and
-  kern claims no retrieval quality it has not measured — exposing `binary`
-  through `QuantizationMode::parse` would hand a config an unmeasured recall
-  knob. `int8` is already user-selectable (`kern compress`); `binary` returns to
-  the parse surface only when a rescoring pass ships and the floor is measured
-  (a separate, larger item). No code change. Decided by: verify-before-claiming.
-  Supersedes: nothing.
 

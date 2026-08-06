@@ -7,7 +7,7 @@ use crate::base::constants::{
 };
 use crate::base::graph::GraphGnn;
 
-use super::queue::{task, Queue, TaskKind};
+use crate::tick_queue::{task, Queue, TaskKind};
 
 // Unix-seconds of the last GC fan-out; single-flighted by compare_exchange.
 static LAST_GC_AT_SECS: AtomicU64 = AtomicU64::new(0);
@@ -201,7 +201,7 @@ mod tests {
 	fn at_equal_usage_survival_does_not_depend_on_depth() {
 		use crate::base::heat::HeatConfig;
 		use crate::retrieval::score::commit_access_ids;
-		use crate::tick::stigmergy::run_gc;
+		use crate::tick_stigmergy::run_gc;
 		use parking_lot::RwLock;
 
 		const DEPTHS: usize = 8;

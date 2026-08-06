@@ -1,12 +1,3 @@
-pub mod cluster;
-pub mod gnn_propagate;
-pub mod idle;
-pub mod pulse;
-pub mod queue;
-pub mod stigmergy;
-pub mod tasks;
-pub mod trainer;
-
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -18,10 +9,10 @@ use crate::base::heat::HeatConfig;
 use crate::config::TickConfig;
 use crate::gnn::propagate::GnnConfig;
 
-use cluster::{cohesion, is_core_cluster, vector_cluster, Cluster};
-use gnn_propagate::do_gnn_propagate;
-use queue::{task, task_extra, Queue, Task, TaskKind};
-use tasks::{
+use crate::tick_cluster::{cohesion, is_core_cluster, vector_cluster, Cluster};
+use crate::tick_gnn_propagate::do_gnn_propagate;
+use crate::tick_queue::{task, task_extra, Queue, Task, TaskKind};
+use crate::tick_tasks::{
 	do_classify_contradiction, do_commit_access, do_disk_consolidate, do_enrich, do_name, do_persist,
 	do_reembed, do_resolve, do_seed_questions, BroadcastQuestionFunc, EmbedFunc, LlmFunc,
 };
@@ -57,9 +48,9 @@ pub fn start(
 	})
 }
 
-fn gnn_trainer(q: &Arc<Queue>, g: &Arc<RwLock<GraphGnn>>, ctx: &TickContext) -> trainer::Trainer {
+fn gnn_trainer(q: &Arc<Queue>, g: &Arc<RwLock<GraphGnn>>, ctx: &TickContext) -> crate::tick_trainer::Trainer {
 	let (tq, tg, cfg) = (q.clone(), g.clone(), ctx.gnn_cfg);
-	trainer::Trainer::spawn(q.clone(), move |kern_id| {
+	crate::tick_trainer::Trainer::spawn(q.clone(), move |kern_id| {
 		do_gnn_propagate(&tq, &tg, kern_id, &cfg)
 	})
 }
@@ -105,7 +96,7 @@ fn process_task(
 	g: &Arc<RwLock<GraphGnn>>,
 	t: &Task,
 	ctx: &TickContext,
-	trainer: Option<&trainer::Trainer>,
+	trainer: Option<&crate::tick_trainer::Trainer>,
 ) {
 	let (llm, embed) = (ctx.llm.as_ref(), ctx.embed.as_ref());
 	match t.kind {
@@ -124,11 +115,11 @@ fn process_task(
 			}
 			None => do_gnn_propagate(q, g, &t.kern_id, &ctx.gnn_cfg),
 		},
-		TaskKind::StigmergyGc => stigmergy::run_gc(g, &t.kern_id, &ctx.heat_cfg),
+		TaskKind::StigmergyGc => crate::tick_stigmergy::run_gc(g, &t.kern_id, &ctx.heat_cfg),
 		TaskKind::Reembed => do_reembed(g, &t.kern_id, embed),
 		TaskKind::DiskConsolidate => do_disk_consolidate(g),
 		TaskKind::IdleSweep => {
-			idle::run_idle_sweep(g, Duration::from_secs(ctx.tick_cfg.kern_idle_timeout_secs));
+			crate::tick_idle::run_idle_sweep(g, Duration::from_secs(ctx.tick_cfg.kern_idle_timeout_secs));
 		}
 		TaskKind::CommitAccess => do_commit_access(g, &t.extra, &ctx.heat_cfg),
 	}
@@ -906,7 +897,7 @@ mod tests {
 
 		let q = Arc::new(Queue::new(8));
 		assert!(q.enqueue(task(TaskKind::Reembed, "k")));
-		assert!(q.enqueue(queue::task_commit_access(&["e1".to_string()])));
+		assert!(q.enqueue(crate::tick_queue::task_commit_access(&["e1".to_string()])));
 
 		let ctx = TickContext {
 			llm: None,
@@ -1010,7 +1001,7 @@ mod tests {
 		let q = Queue::new(8);
 		let g = Arc::new(RwLock::new(GraphGnn::new()));
 		let (sink, reached) = std::sync::mpsc::sync_channel::<()>(1);
-		let trainer = trainer::Trainer::spawn(Arc::new(Queue::new(8)), move |_| {
+		let trainer = crate::tick_trainer::Trainer::spawn(Arc::new(Queue::new(8)), move |_| {
 			let _ = sink.send(());
 			std::thread::sleep(Duration::from_secs(3600));
 		});

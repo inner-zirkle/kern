@@ -8,7 +8,7 @@ use crate::base::types::{Embedding, EntityStatus, Kern};
 use crate::gnn::graph::Graph;
 use crate::gnn::propagate::{self, GnnConfig, GnnSnapshot};
 
-use super::queue::{task, Queue, TaskKind};
+use crate::tick_queue::{task, Queue, TaskKind};
 
 pub fn do_gnn_propagate(q: &Queue, g: &Arc<RwLock<GraphGnn>>, kern_id: &str, cfg: &GnnConfig) {
 	let snap = {

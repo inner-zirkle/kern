@@ -9,8 +9,8 @@ use crate::base::graph::GraphGnn;
 use crate::config::Config;
 use crate::ingest::Worker;
 use crate::llm::Client as LlmClient;
-use crate::tick::queue::Queue;
-use crate::tick::tasks::{BroadcastQuestionFunc, EmbedFunc, LlmFunc as TickLlmFunc};
+use crate::tick_queue::Queue;
+use crate::tick_tasks::{BroadcastQuestionFunc, EmbedFunc, LlmFunc as TickLlmFunc};
 
 pub type StoreKey = PathBuf;
 
@@ -94,8 +94,8 @@ impl Registry {
 
 		let defer_q = tick_q.clone();
 		let defer: crate::ingest::worker::DeferQuestionsFn = Arc::new(move |entity_id: &str| {
-			let _ = defer_q.enqueue(crate::tick::queue::task_extra(
-				crate::tick::queue::TaskKind::SeedQuestions,
+			let _ = defer_q.enqueue(crate::tick_queue::task_extra(
+				crate::tick_queue::TaskKind::SeedQuestions,
 				"",
 				entity_id,
 			));
@@ -104,8 +104,8 @@ impl Registry {
 		let contra_q = tick_q.clone();
 		let defer_contradiction: crate::ingest::worker::DeferContradictionFn =
 			Arc::new(move |kern_id: &str, reason_id: &str| {
-				let _ = contra_q.enqueue(crate::tick::queue::task_extra(
-					crate::tick::queue::TaskKind::ClassifyContradiction,
+				let _ = contra_q.enqueue(crate::tick_queue::task_extra(
+					crate::tick_queue::TaskKind::ClassifyContradiction,
 					kern_id,
 					reason_id,
 				));

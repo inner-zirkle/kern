@@ -54,7 +54,7 @@ pub struct GnnSnapshot {
 	pub weights: Vec<u8>,
 	/// Every draw this propagation makes — weight init and negative-edge
 	/// sampling — comes from here, so one snapshot always trains to the same
-	/// embeddings. Derived from the corpus by `tick::gnn_propagate::gnn_seed`;
+	/// embeddings. Derived from the corpus by `tick_gnn_propagate::gnn_seed`;
 	/// see there for why that input and not another (ROADMAP item 102).
 	pub seed: u64,
 }
@@ -295,7 +295,7 @@ mod tests {
 	// trained models whose embeddings merely landed near each other. Restore
 	// `rand::rng()` here and `n0` re-embeds 0.2173 against -0.1046. The snapshot
 	// is built by hand, so the ORDER sources are controlled separately, by
-	// `tick::gnn_propagate::two_identical_kerns_snapshot_in_the_same_order`.
+	// `tick_gnn_propagate::two_identical_kerns_snapshot_in_the_same_order`.
 	#[test]
 	fn two_propagations_of_one_snapshot_are_bit_identical() {
 		let dim = 8;

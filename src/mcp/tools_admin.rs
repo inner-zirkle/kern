@@ -243,7 +243,7 @@ impl Server {
 
 		let g = self.graph.read();
 		let root_id = g.root.id.clone();
-		crate::tick::pulse::pulse(q, &g, &root_id, strength);
+		crate::tick_pulse::pulse(q, &g, &root_id, strength);
 		drop(g);
 
 		if let Some(broadcast) = &self.broadcast_pulse {
@@ -315,7 +315,7 @@ mod claim_kind_tests {
 
 	#[tokio::test]
 	async fn health_stats_reports_queue_depth_and_task_latency() {
-		use crate::tick::queue::{task, Queue, TaskKind};
+		use crate::tick_queue::{task, Queue, TaskKind};
 		use std::time::Duration;
 
 		let (mut srv, _c) = make_server();

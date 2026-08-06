@@ -11,7 +11,6 @@ use crate::base::graph::GraphGnn;
 use crate::base::search::search_all_unlocked;
 use crate::base::types::{Kern, ReasonKind};
 use crate::crdt::{lww_wins, GCounter};
-use crate::tick;
 
 use super::contract::{
 	contract_kern_id, contract_loc, entity_sig_digest, tombstone_digest, Applied, ContractId,
@@ -32,7 +31,7 @@ pub struct ContractHost {
 pub struct Deps {
 	pub graph: Arc<RwLock<GraphGnn>>,
 	pub node: Arc<Node>,
-	pub queue: Option<Arc<tick::queue::Queue>>,
+	pub queue: Option<Arc<crate::tick_queue::Queue>>,
 	// Every federation mutation must call this or federated knowledge is lost on restart.
 	pub save: Option<std::sync::Arc<dyn Fn() + Send + Sync>>,
 	pub contracts: Arc<RwLock<std::collections::HashMap<ContractId, Arc<ContractHost>>>>,
@@ -310,7 +309,7 @@ fn handle_sphere(d: &Deps, msg: GossipMessage) {
 	if let Some(q) = &d.queue {
 		let g = d.graph.read();
 		let root_id = g.root.id.clone();
-		tick::pulse::pulse(q, &g, &root_id, PULSE_THRESHOLD * 2.0);
+		crate::tick_pulse::pulse(q, &g, &root_id, PULSE_THRESHOLD * 2.0);
 	}
 }
 
@@ -326,7 +325,7 @@ fn handle_answer(d: &Arc<Deps>, msg: GossipMessage) {
 	if let Some(q) = &d.queue {
 		let g = d.graph.read();
 		let root_id = g.root.id.clone();
-		tick::pulse::pulse(q, &g, &root_id, PULSE_THRESHOLD * 2.0);
+		crate::tick_pulse::pulse(q, &g, &root_id, PULSE_THRESHOLD * 2.0);
 	}
 }
 
@@ -410,7 +409,7 @@ fn handle_pulse(d: &Deps, msg: GossipMessage) {
 		return;
 	}
 	let strength = pulse.strength.clamp(0.0, MAX_REMOTE_PULSE);
-	tick::pulse::pulse(q, &g, &pulse.kern_id, strength);
+	crate::tick_pulse::pulse(q, &g, &pulse.kern_id, strength);
 }
 
 fn handle_peer_exchange(d: &Deps, msg: GossipMessage) {
@@ -1034,7 +1033,7 @@ fn resolve_question_from_peer(
 	}
 
 	if let Some(q) = &d.queue {
-		q.enqueue(tick::queue::task(tick::queue::TaskKind::Persist, &kern_id));
+		q.enqueue(crate::tick_queue::task(crate::tick_queue::TaskKind::Persist, &kern_id));
 	}
 }
 
@@ -1357,7 +1356,7 @@ mod tests {
 	#[test]
 	fn handle_pulse_falls_back_to_root_for_an_unknown_kern() {
 		let g = Arc::new(RwLock::new(GraphGnn::new()));
-		let q = Arc::new(tick::queue::Queue::new(64));
+		let q = Arc::new(crate::tick_queue::Queue::new(64));
 		let d = Deps {
 			graph: g.clone(),
 			node: Node::new("127.0.0.1:0", "testnet", vec![]),

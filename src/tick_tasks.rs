@@ -19,10 +19,10 @@ use crate::base::util;
 use crate::config::TickConfig;
 use crate::ingest::place::build_chunk_entity;
 
-use super::cluster::{
+use crate::tick_cluster::{
 	centroid_thought, graviton_prompt, largest_cohesive_cluster_for_naming, vector_cluster,
 };
-use super::queue::{task, task_extra, Queue, TaskKind};
+use crate::tick_queue::{task, task_extra, Queue, TaskKind};
 
 pub use crate::types::{EmbedFunc, LlmFunc};
 pub type BroadcastQuestionFunc = Arc<dyn Fn(&str, &[f32], &str) + Send + Sync>;

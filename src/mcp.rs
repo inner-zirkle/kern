@@ -22,7 +22,6 @@ use crate::base::graph::GraphGnn;
 use crate::config::Config;
 use crate::ingest;
 use crate::llm;
-use crate::tick;
 
 #[derive(Serialize)]
 pub(crate) struct Response {
@@ -51,7 +50,7 @@ pub struct Server {
 	pub worker: Arc<ingest::Worker>,
 	pub llm: Option<llm::Client>,
 	pub save_fn: Arc<dyn Fn() + Send + Sync>,
-	pub task_q: Option<Arc<tick::queue::Queue>>,
+	pub task_q: Option<Arc<crate::tick_queue::Queue>>,
 	pub cfg: Arc<Config>,
 	pub broadcast_pulse: Option<PulseBroadcast>,
 	// Epoch ms of the last real tool call (health polls excluded, or the hub's
@@ -88,7 +87,7 @@ struct TickHealth {
 }
 
 impl TickHealth {
-	fn of(q: &Arc<tick::queue::Queue>) -> Self {
+	fn of(q: &Arc<crate::tick_queue::Queue>) -> Self {
 		let (done, avg_ms) = q.metrics();
 		let (task_panics, last_panic) = q.panics();
 		let (task_failures, last_failure) = q.failures();
@@ -213,7 +212,7 @@ impl Server {
 			// This server's own worker, read directly: a gauge on the live channel,
 			// not a process static like the counters `h` carries.
 			"ingest_queue_depth": self.worker.queue_depth(),
-			"gnn_train_refused": crate::tick::trainer::gnn_train_refused(),
+			"gnn_train_refused": crate::tick_trainer::gnn_train_refused(),
 			// Read straight from the client, like `gnn_train_refused` above: it is a
 			// property of this process's LLM leg, not of the graph `h` describes.
 			"llm_complete_failed": crate::llm::complete_failed(),
@@ -479,7 +478,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn health_reports_degraded_maintenance_after_a_task_panic() {
-		use crate::tick::queue::{task, Queue, TaskKind};
+		use crate::tick_queue::{task, Queue, TaskKind};
 		use std::sync::Arc;
 
 		let mut srv = crate::test_support::mcp_server();
@@ -499,7 +498,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn health_reports_contained_task_failures_beside_panics() {
-		use crate::tick::queue::{task, Queue, TaskKind};
+		use crate::tick_queue::{task, Queue, TaskKind};
 		use std::sync::Arc;
 
 		let mut srv = crate::test_support::mcp_server();

@@ -685,7 +685,7 @@ pub async fn dispatch(cmd: Commands, cfg: &crate::config::Config) {
 
 pub(crate) struct EngineHandle {
 	pub server: std::sync::Arc<crate::mcp::Server>,
-	pub task_q: std::sync::Arc<crate::tick::queue::Queue>,
+	pub task_q: std::sync::Arc<crate::tick_queue::Queue>,
 	// Guarded persist closure: the shutdown flush never overwrites a grown disk.
 	pub save_fn: std::sync::Arc<dyn Fn() + Send + Sync>,
 	// Held for the daemon's lifetime so a direct-writer admin command refuses
@@ -763,18 +763,18 @@ pub(crate) async fn bootstrap(cli: &Cli, cfg: &crate::config::Config) -> EngineH
 
 	// Gate like `llm_fn`: an ungated Some with no reason endpoint means infinite
 	// no-op Name re-enqueue churn (do_cluster gates on `llm.is_some()`).
-	let tick_llm: Option<crate::tick::tasks::LlmFunc> = if reason_url.is_empty() {
+	let tick_llm: Option<crate::tick_tasks::LlmFunc> = if reason_url.is_empty() {
 		None
 	} else {
 		Some(Arc::new(llm_client.complete_func()))
 	};
-	let tick_embed: crate::tick::tasks::EmbedFunc = embed_fn(&llm_client);
+	let tick_embed: crate::tick_tasks::EmbedFunc = embed_fn(&llm_client);
 
 	let registry = Arc::new(crate::store::Registry::new());
-	let shared_bq: Arc<parking_lot::RwLock<Option<crate::tick::tasks::BroadcastQuestionFunc>>> =
+	let shared_bq: Arc<parking_lot::RwLock<Option<crate::tick_tasks::BroadcastQuestionFunc>>> =
 		Arc::new(parking_lot::RwLock::new(None));
 	let bq_slot = shared_bq.clone();
-	let broadcast_q_wrapper: crate::tick::tasks::BroadcastQuestionFunc =
+	let broadcast_q_wrapper: crate::tick_tasks::BroadcastQuestionFunc =
 		Arc::new(move |rid, vec, text| {
 			if let Some(f) = bq_slot.read().as_ref() {
 				f(rid, vec, text);
@@ -1211,11 +1211,11 @@ type BroadcastPulseFn = Arc<dyn Fn(&str, f64) + Send + Sync>;
 async fn start_gossip(
 	cfg: &crate::config::Config,
 	g: &SharedGraph,
-	q: &Arc<crate::tick::queue::Queue>,
+	q: &Arc<crate::tick_queue::Queue>,
 	save_fn: &Arc<dyn Fn() + Send + Sync>,
 ) -> (
 	Option<BroadcastPulseFn>,
-	Option<crate::tick::tasks::BroadcastQuestionFunc>,
+	Option<crate::tick_tasks::BroadcastQuestionFunc>,
 ) {
 	if !cfg.gossip.enabled {
 		return (None, None);
@@ -1359,7 +1359,7 @@ async fn start_gossip(
 				pulse_node.broadcast(msg);
 			});
 			let q_node = node.clone();
-			let broadcast_q: crate::tick::tasks::BroadcastQuestionFunc =
+			let broadcast_q: crate::tick_tasks::BroadcastQuestionFunc =
 				Arc::new(move |rid: &str, rvec: &[f32], rtext: &str| {
 					let stamp = crate::base::util::now_nanos();
 					let msg = crate::gossip::types::GossipMessage {
@@ -1388,7 +1388,7 @@ async fn start_gossip(
 fn spawn_maintenance_tick(
 	cfg: &crate::config::Config,
 	g: &SharedGraph,
-	q: &Arc<crate::tick::queue::Queue>,
+	q: &Arc<crate::tick_queue::Queue>,
 	broadcast_pulse: Option<crate::mcp::PulseBroadcast>,
 ) {
 	if cfg.tick.interval_secs == 0 {
@@ -1411,7 +1411,7 @@ fn spawn_maintenance_tick(
 			};
 			{
 				let g = g_tick.read();
-				crate::tick::pulse::pulse(&q_tick, &g, &root_id, 1.0);
+				crate::tick_pulse::pulse(&q_tick, &g, &root_id, 1.0);
 			}
 			if let Some(broadcast) = &broadcast_pulse {
 				broadcast(&root_id, 1.0);
@@ -1723,7 +1723,7 @@ mod entry_point_tests {
 		crate::test_support::commit_extra_kern_via_store(&g, k);
 
 		g.write().kerns.insert("k".into(), Kern::new("k", &root_id));
-		crate::tick::tasks::do_persist(&g, "k");
+		crate::tick_tasks::do_persist(&g, "k");
 
 		// Read disk back through the same store handle.
 		let on_disk = g
