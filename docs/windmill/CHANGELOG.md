@@ -2,6 +2,7 @@
 
 <!-- docs-check: historical -->
 
+- 2026-08-06 — flattened `mcp` subdir: 10 `src/mcp/*.rs` → `src/mcp_*.rs` at src/ root (prefix-rename). `mcp.rs` → shim re-exporting prompt/resources/sse/tools + tools_query (2 external consumers); dropped 6 unused private re-exports (tool methods impl'''d on Server). lib.rs gained 11 `pub/pub(crate) mod mcp_*`. Response/RpcError fields → pub(crate) (siblings need access). include_str path fixed. Rewrites: top-level super::{parent items}→crate::mcp::{...}, sibling super::→crate::mcp_X, test-internal super:: kept. Build green, 1096 tests pass, guards 0. Decided by: single-crate-fold (user-directed full src/ flattening).
 - 2026-08-06 — flattened `ingest` subdir: 12 `src/ingest/*.rs` → `src/ingest_*.rs` at src/ root (prefix-rename, dodges config collision). `ingest/mod.rs` → `ingest.rs` shim re-exporting the 12 submodules (`pub use crate::ingest_config as config;` etc.) + items so `crate::ingest::X` still resolves (~18 consumers unchanged). lib.rs gained 12 `pub mod ingest_*`. Rewrites: `super::X`(sibling)→`crate::ingest_X`, `crate::ingest::X`(own submod)→`crate::ingest_X`, ITEM refs kept. Build green, 1096 tests pass, guards 0. Decided by: single-crate-fold (user-directed full src/ flattening).
 - 2026-08-06 — flattened `gnn` subdir: 13 `src/gnn/*.rs` → `src/gnn_*.rs` at src/ root (prefix-rename, dodges graph/persist collisions). `gnn/mod.rs` → `gnn.rs` shim re-exporting the 13 submodules (`pub use crate::gnn_gcn as gcn;` etc.) so `crate::gnn::X` still resolves (60 refs unchanged). lib.rs gained 13 `pub mod gnn_*`. Rewrites: `super::X`(sibling)→`crate::gnn_X`, `crate::gnn::X`(own submod)→`crate::gnn_X`, `crate::gnn::GnnError` kept. Build green, 1096 tests pass, guards 0. Decided by: single-crate-fold (user-directed full src/ flattening).
 - 2026-08-06 — build-fix: retarget missed consumers `src/mcp/tools_mutate.rs` (5 refs) + `src/mcp/tools_admin.rs` (1 ref) from `crate::commands::graph_ops::`/`crate::commands::admin::` → `crate::commands_graph_ops::`/`crate::commands_admin::`. The commands flatten (2104fde) left these dangling; build was red (8 errors) for 2 commits. Build green, 1096 tests pass. Decided by: feb.
@@ -572,16 +573,4 @@
   `a_rename_with_no_old_entity_is_a_noop` green unedited. `cargo test -p kern
   --lib` 937 passed, 0 failed, 4 ignored.
   Decided by: fix-the-root, name-the-tradeoff, verify-before-claiming.
-
-- 2026-07-22 — item 60 re-classification wiring closed: when an entity
-  carrying a deferred Rephrase candidate is superseded by a different update,
-  stamp_superseded now re-points the candidate's from to the new active entity
-  and pushes (kern_id, reason_id) onto a new GraphGnn::pending_reclass set; the
-  tick loop drains it and re-enqueues ClassifyContradiction, so the candidate
-  re-classifies against the new claim instead of orphaning on
-  do_classify_contradiction's old.is_superseded() early return. The queue is an
-  acceleration (the re-pointed Rephrase persists, so a restart classifies
-  anyway). New test pins re-point + queue. 1030 pass. Item 60 fully closed
-  (belief half + reclass wiring). Decided by: fix-the-root, name-the-tradeoff,
-  verify-before-claiming. Supersedes: nothing.
 

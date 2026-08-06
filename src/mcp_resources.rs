@@ -3,7 +3,7 @@ use serde_json::value::RawValue;
 use crate::search::{find_entity, find_reason};
 use crate::util::truncate;
 
-use super::{err_resp, ok, Response, Server, ERR_INVALID_REQ, ERR_NOT_FOUND};
+use crate::mcp::{err_resp, ok, Response, Server, ERR_INVALID_REQ, ERR_NOT_FOUND};
 
 pub fn resource_definitions() -> Vec<serde_json::Value> {
 	vec![

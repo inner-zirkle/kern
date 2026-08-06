@@ -197,7 +197,7 @@ profiled via `src/profile.rs`):
 | 9 | **Dedup by section** | `retrieval/diversify.rs:6` | Collapse near-duplicate sections. |
 | 10 | **MMR** | `retrieval/diversify.rs:46` | Maximal-marginal-relevance diversification so the `k` results actually differ. |
 | 11 | **Deliver** | `retrieval/query.rs` | Passages + enriched edges + `format_chains` chain text (`QUERY_MAX_CHAINS=5`), remote entities tagged UNTRUSTED for the synthesizing caller. Chains answer an active filter too (`retrieve`, same file): a chain renders the TEXT of every entity on it, so filtering only the results left it as a second delivery channel — one touching a withheld entity is dropped whole, since a chain with a hole still says the withheld thought exists and what it connects. The whole read path is LLM-free by design (2026-07-21): the calling agent synthesizes; an in-kern small-model answerer set the quality ceiling and made retrieval untunable. |
-| 13 | **Cold backfill** | `src/mcp/tools_query.rs:212` | If hot returns `< k`, cold-tier hits (brute-force `Store::cold_search`, `src/base_store.rs:629`) fill remaining slots, flagged `cold:true` — each first put through `matches_filter`, because `cold_search` is a raw cosine scan that answers no predicate of its own and an unfiltered fill made spilling an entity the way around every filter the hot path enforces. Skipped on the exact-text fast path, which never embedded a query vector. <!-- docs-check: anchor-ok --> |
+| 13 | **Cold backfill** | `src/mcp_tools_query.rs:212` | If hot returns `< k`, cold-tier hits (brute-force `Store::cold_search`, `src/base_store.rs:629`) fill remaining slots, flagged `cold:true` — each first put through `matches_filter`, because `cold_search` is a raw cosine scan that answers no predicate of its own and an unfiltered fill made spilling an entity the way around every filter the hot path enforces. Skipped on the exact-text fast path, which never embedded a query vector. <!-- docs-check: anchor-ok --> |
 | 14 | **Access stamping** | `retrieval/score.rs` | Heat deposits off the hot path: `score::commit_access` stamps delivered hits; the tick's `CommitAccess` task calls `score::commit_access_ids`. |
 
 **Where.** `src/retrieval/*` (5182 LoC, 9 files). Entry: `retrieval::query`
@@ -614,11 +614,11 @@ so a quiescent kern retries nothing; the climbing `task_failures` count
 **What.** Model Context Protocol server (stdio + HTTP/SSE) exposing the graph
 to external clients (Claude, Cursor, etc.). Protocol version `2024-11-05`.
 
-**Tools** (16, in `src/mcp/tools*.rs`, dispatched in `mcp.rs` `call_tool`):
+**Tools** (16, in `src/mcp_tools*.rs`, dispatched in `mcp.rs` `call_tool`):
 
 | Tool | File | Purpose |
 | ------ | ------ | --------- |
-| `query` | `tools_query.rs` | Hybrid search, LLM-free; the caller synthesizes. Filters: `mode`/`kind`/`source`/`scheme`/time range/`min_conf`/`valid_at`/`as_of`; `include_history` for supersede chain; `exclude_pending` drops rows a `[ingest] review_policy` is still holding (opt-in, with a CLI flag of its own, `kern query --exclude-pending` — which is what makes the review lifecycle e2e-measurable). Returns edges **and path chains**, and `id` resolves a prefix and the cold tier (`entity_detail_by_id`) — both widenings exist so a CLI `query`/`get` routed through the daemon answers with what the local path answers. An `id` read runs the **same** filters: `src/mcp/tools_query.rs:137-157` builds `QueryOptions` first and puts the resolved row through `retrieval::score::matches_filter`, so `query {id, kind: "claim"}` on a `Fact` answers `thought not found`. A bare `query {id}` filters nothing — `QueryOptions::default()` leaves `valid_at`/`as_of` unset — which is what keeps an expired row served-and-flagged (`expired`/`valid_until`, `entity_detail` `src/mcp/tools_query.rs:372`, stamped `:410-412`) rather than hidden. |
+| `query` | `tools_query.rs` | Hybrid search, LLM-free; the caller synthesizes. Filters: `mode`/`kind`/`source`/`scheme`/time range/`min_conf`/`valid_at`/`as_of`; `include_history` for supersede chain; `exclude_pending` drops rows a `[ingest] review_policy` is still holding (opt-in, with a CLI flag of its own, `kern query --exclude-pending` — which is what makes the review lifecycle e2e-measurable). Returns edges **and path chains**, and `id` resolves a prefix and the cold tier (`entity_detail_by_id`) — both widenings exist so a CLI `query`/`get` routed through the daemon answers with what the local path answers. An `id` read runs the **same** filters: `src/mcp_tools_query.rs:137-157` builds `QueryOptions` first and puts the resolved row through `retrieval::score::matches_filter`, so `query {id, kind: "claim"}` on a `Fact` answers `thought not found`. A bare `query {id}` filters nothing — `QueryOptions::default()` leaves `valid_at`/`as_of` unset — which is what keeps an expired row served-and-flagged (`expired`/`valid_until`, `entity_detail` `src/mcp_tools_query.rs:372`, stamped `:410-412`) rather than hidden. |
 | `events` | `tools_events.rs` | Read-only change feed for pollers: `created` for each entity ingested after an opaque cursor and `superseded` for each revision invalidated after it, ordered ascending — derived from the bitemporal stamps the graph already keeps, mutating nothing. `since` = the `cursor` a prior call returned (0/absent = from the beginning) resumes without gap or overlap; `limit` bounds the batch. The Event source a ctrl Watcher polls. `degraded`/`forgotten` are declared on the wire contract but never emitted — a forgotten entity leaves no resident row and `degrade` touches edges, not entity timestamps, so neither is derivable read-only. |
 | `ingest` | `tools_mutate.rs` | Add text. `object_id` update semantics, free-text `hint` chunking context (`hint` is the only spelling — the `descriptor` alias retired in `7de23c0`), optional `retention_secs` TTL (integer seconds; `0`/absent = never) resolved to an absolute `valid_until` once, before the sync / durable-direct / RAM-queue branch, so all three carry the same deadline. |
 | `link` | `tools_mutate.rs` | Create a reason edge (LLM writes the reason if blank). Edge score is the asserted confidence (agent 0.95; CLI user 1.0), NOT `cosine(from,to)` — a deliberate link connects what similarity cannot, so similarity must not be its strength. |
@@ -635,13 +635,13 @@ to external clients (Claude, Cursor, etc.). Protocol version `2024-11-05`.
 | `intake_drain` | `tools_intake.rs` | One immediate pass of the daemon's own intake drain (`ingest::intake::drain_now`), returning `archived`. Exists so `kern intake drain` has somewhere to route: the CLI's in-process pass reads the same queue directory and archives the same entries as the daemon's poll loop, so both distill the file and both race the archive move. |
 | `setup` | `tools_setup.rs` | Agent-facing installer: returns idempotent wiring instructions (seed gravitons, install the capture rule/hook in the host, verify) plus this project's current [done]/[todo] state. kern never writes host config; the calling agent does the wiring. |
 
-Plus MCP **prompts** (`src/mcp/prompt.rs`) and **resources** (`src/mcp/resources.rs`) — four static URIs (`kern://local/health`, `kern://local/thoughts`, `kern://local/kerns`, `kern://local/claim-kinds`, `resource_definitions`) plus two dynamic prefixes resolved in `handle_resource_read`, `thought://{id}` (full text and every incident edge's text) and `reason://{id}` (an edge's text). Anything else is `unknown resource`. **MCP-only: `tests/e2e/` drives the binary over subprocess with no JSON-RPC client, so `resources/read` is unreachable from there**; the coverage is the unit tests in `src/mcp/resources.rs`.
+Plus MCP **prompts** (`src/mcp_prompt.rs`) and **resources** (`src/mcp_resources.rs`) — four static URIs (`kern://local/health`, `kern://local/thoughts`, `kern://local/kerns`, `kern://local/claim-kinds`, `resource_definitions`) plus two dynamic prefixes resolved in `handle_resource_read`, `thought://{id}` (full text and every incident edge's text) and `reason://{id}` (an edge's text). Anything else is `unknown resource`. **MCP-only: `tests/e2e/` drives the binary over subprocess with no JSON-RPC client, so `resources/read` is unreachable from there**; the coverage is the unit tests in `src/mcp_resources.rs`.
 
 **Server** (`src/mcp.rs`) — `Server` holds the shared `graph`/`worker`/`llm`/
 `task_q`/`cfg`; implements `trnsprt::McpServer`. `run`/`run_stdio` use the
-trnsprt framing; `run_sse` (`src/mcp/sse.rs`) is bearer-gated Streamable HTTP.
+trnsprt framing; `run_sse` (`src/mcp_sse.rs`) is bearer-gated Streamable HTTP.
 
-**Where.** `src/mcp/*` (2346 LoC, 9 files).
+**Where.** `src/mcp_*` (2346 LoC, 9 files).
 
 **Gaps.** Tool schemas are hand-
 rolled JSON, not derived. No batch query. **Prompts and resources are served
@@ -941,7 +941,7 @@ Six layers landed on top of the gossip baseline, each behind its test gate:
   default 300) reconciles with tree parents. Gate: three real-socket nodes
   chained; leaf publish reaches all three; a healed partition converges in
   one sync pass.
-- **Delegates** (`src/mcp/tools_delegate.rs`) — the daemon is the delegate:
+- **Delegates** (`src/mcp_tools_delegate.rs`) — the daemon is the delegate:
   mcp-token-gated `sign { payload_hash }` returns signature/pubkey/peer-id
   (the key never crosses the socket); `contract_grant { contract, pubkey }`
   mints the owner-signed amended params, the NEW ContractId (key = policy
@@ -963,7 +963,7 @@ default. Full trust model on the docs-site `Security` page
 (`docs/site/content/docs/concepts/security.mdx`).
 
 **Where.** `src/gossip_*` (13 files), `src/crdt.rs`, `src/merge.rs`,
-`src/mcp/tools_delegate.rs`, config in `src/config_gossip.rs`
+`src/mcp_tools_delegate.rs`, config in `src/config_gossip.rs`
 (`ring`, `identity_path`, `sync_interval_secs`, `subscriptions`,
 `[[gossip.contracts]]`).
 

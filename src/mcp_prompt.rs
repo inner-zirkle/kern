@@ -1,6 +1,6 @@
 use serde_json::value::RawValue;
 
-use super::{err_resp, ok, Response, ERR_INVALID_REQ, ERR_NOT_FOUND};
+use crate::mcp::{err_resp, ok, Response, ERR_INVALID_REQ, ERR_NOT_FOUND};
 
 // Guarded by `research_prompt_names_are_real_tools` against renames in `tools.rs`.
 const QUERY_TOOL: &str = "query";

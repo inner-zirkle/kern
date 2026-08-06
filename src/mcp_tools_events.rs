@@ -2,7 +2,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::Deserialize;
 
-use super::{tool_error, tool_result_json, Server};
+use crate::mcp::{tool_error, tool_result_json, Server};
 
 // A default cap so a first poll of a large graph does not return every event
 // ever recorded in one payload; the returned `cursor` resumes the rest. A

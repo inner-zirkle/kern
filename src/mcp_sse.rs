@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use super::Server;
+use crate::mcp::Server;
 
 // Despite the module name `sse`, this is MCP Streamable HTTP, not a WebSocket.
 // The token is resolved from the server's own config (minted on first use), so

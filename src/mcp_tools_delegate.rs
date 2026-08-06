@@ -1,4 +1,4 @@
-use super::{tool_error, tool_result_json, Server};
+use crate::mcp::{tool_error, tool_result_json, Server};
 use crate::gossip_contract::{
 	contract_id, params_from_config, tombstone_digest, WritePolicy, SIGNED_CRDT_V0_TAG,
 };

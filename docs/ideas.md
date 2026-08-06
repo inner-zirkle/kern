@@ -8,6 +8,16 @@ item carrying the grep that produced it. Driven by the `/improve` skill.
 
 ### Flatten `ingest` subdir into src/ root — DONE 2026-08-06 (this fire)
 
+### Flatten `mcp` subdir into src/ root — DONE 2026-08-06 (this fire)
+
+Moved all 10 `src/mcp/*.rs` up to `src/mcp_*.rs`; `mcp.rs` → SHIM re-exporting
+prompt/resources/sse/tools + tools_query (2 external consumers); dropped 6 unused
+private re-exports (tool methods impl'd on Server, dispatched via `self.tool_X()`).
+lib.rs gained 11 `pub/pub(crate) mod mcp_*`. Response/RpcError fields → `pub(crate)`
+(siblings need access, were child-visible only). `include_str!("../mcp.rs")`→`("mcp.rs")`.
+
+### Flatten `ingest` subdir into src/ root — DONE 2026-08-06
+
 Moved all 12 `src/ingest/*.rs` up to `src/ingest_*.rs` (prefix-rename to dodge
 `config` collision + keep grouping); `mod.rs` → `ingest.rs` SHIM re-exporting
 the 12 submodules (`pub use crate::ingest_config as config;` etc.) + item

@@ -1,11 +1,11 @@
 pub fn tool_definitions() -> Vec<serde_json::Value> {
-	let mut defs = super::tools_query::tool_schemas();
-	defs.extend(super::tools_events::tool_schemas());
-	defs.extend(super::tools_mutate::tool_schemas());
-	defs.extend(super::tools_admin::tool_schemas());
-	defs.extend(super::tools_intake::tool_schemas());
-	defs.extend(super::tools_setup::tool_schemas());
-	defs.extend(super::tools_delegate::tool_schemas());
+	let mut defs = crate::mcp_tools_query::tool_schemas();
+	defs.extend(crate::mcp_tools_events::tool_schemas());
+	defs.extend(crate::mcp_tools_mutate::tool_schemas());
+	defs.extend(crate::mcp_tools_admin::tool_schemas());
+	defs.extend(crate::mcp_tools_intake::tool_schemas());
+	defs.extend(crate::mcp_tools_setup::tool_schemas());
+	defs.extend(crate::mcp_tools_delegate::tool_schemas());
 	defs
 }
 
@@ -85,7 +85,7 @@ mod tests {
 			1,
 			"intake_drain must appear in tool_schemas() exactly once"
 		);
-		let dispatch = include_str!("../mcp.rs");
+		let dispatch = include_str!("mcp.rs");
 		assert_eq!(
 			dispatch.matches("\"intake_drain\" =>").count(),
 			1,
@@ -105,7 +105,7 @@ mod tests {
 			1,
 			"promote must appear in tool_schemas() exactly once"
 		);
-		let dispatch = include_str!("../mcp.rs");
+		let dispatch = include_str!("mcp.rs");
 		assert_eq!(
 			dispatch.matches("\"promote\" =>").count(),
 			1,

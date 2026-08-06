@@ -1,14 +1,8 @@
-pub mod prompt;
-pub mod resources;
-pub mod sse;
-pub mod tools;
-mod tools_admin;
-mod tools_delegate;
-mod tools_events;
-mod tools_intake;
-mod tools_mutate;
-pub(crate) mod tools_query;
-mod tools_setup;
+pub use crate::mcp_prompt as prompt;
+pub use crate::mcp_resources as resources;
+pub use crate::mcp_sse as sse;
+pub use crate::mcp_tools as tools;
+pub(crate) use crate::mcp_tools_query as tools_query;
 
 use std::io::{BufReader, Read, Write};
 use std::sync::Arc;
@@ -25,19 +19,19 @@ use crate::llm;
 
 #[derive(Serialize)]
 pub(crate) struct Response {
-	jsonrpc: &'static str,
+	pub(crate) jsonrpc: &'static str,
 	#[serde(skip_serializing_if = "Option::is_none")]
-	id: Option<Box<RawValue>>,
+	pub(crate) id: Option<Box<RawValue>>,
 	#[serde(skip_serializing_if = "Option::is_none")]
-	result: Option<serde_json::Value>,
+	pub(crate) result: Option<serde_json::Value>,
 	#[serde(skip_serializing_if = "Option::is_none")]
-	error: Option<RpcError>,
+	pub(crate) error: Option<RpcError>,
 }
 
 #[derive(Serialize)]
-struct RpcError {
-	code: i32,
-	message: String,
+pub(crate) struct RpcError {
+	pub(crate) code: i32,
+	pub(crate) message: String,
 }
 
 pub(crate) const ERR_INVALID_REQ: i32 = -32600;

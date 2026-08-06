@@ -1,4 +1,4 @@
-use super::tool_result_json;
+use crate::mcp::tool_result_json;
 
 // The agent-facing installer. kern never writes into a host's config itself —
 // the host layout is the agent's domain — so `setup` returns instructions and

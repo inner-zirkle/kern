@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
-use super::{tool_error, tool_result_json, Server};
+use crate::mcp::{tool_error, tool_result_json, Server};
 
 #[derive(Deserialize, Default)]
 struct GravitonArgs {

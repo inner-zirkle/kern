@@ -1,6 +1,6 @@
 use std::time::{Duration, SystemTime};
 
-use super::{tool_error, tool_result_json, Server};
+use crate::mcp::{tool_error, tool_result_json, Server};
 
 pub(crate) fn tool_schemas() -> Vec<serde_json::Value> {
 	vec![serde_json::json!({
