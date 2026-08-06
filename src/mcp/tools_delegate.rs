@@ -136,9 +136,7 @@ mod tests {
 	use super::*;
 	use crate::gossip::identity::verify_sig_by;
 
-	fn is_error(v: &serde_json::Value) -> bool {
-		v.get("isError").and_then(|b| b.as_bool()).unwrap_or(false)
-	}
+	use crate::mcp::tools::is_error;
 
 	fn body(v: &serde_json::Value) -> serde_json::Value {
 		let text = v["content"][0]["text"].as_str().expect("text content");

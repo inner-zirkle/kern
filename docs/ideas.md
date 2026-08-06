@@ -12,15 +12,7 @@ item carrying the grep that produced it. Driven by the `/improve` skill.
 
 _(ranked across all four sections)_
 
-1. **B2 (inherited, red)** — finish the `is_error` centralization WIP
-   stashed this fire (`git stash list`): `is_error` in `src/mcp/tools.rs`
-   is `pub(crate)` but used only in `#[cfg(test)]` modules, so the non-test
-   lib build flags it `dead_code` under `-D warnings`. Mark it `#[cfg(test)]`
-   (or move under a test-support module) and remove the now-redundant local
-   `is_error` copies already deleted by the WIP in tools_query/admin/events/
-   mutate/delegate. Payoff: unblocks `just check`; size small. Evidence:
-   `rg -n "pub\(crate\) fn is_error" src/mcp/tools.rs` + the stashed diff.
-2. **D1 (noise, not this fire)** — pre-existing clippy red on `main`:
+1. **D1 (noise, not this fire)** — pre-existing clippy red on `main`:
    `just check` (clippy `-D warnings`) already fails on HEAD in files untouched
    by B1: `len_zero`, `div_ceil`, `unnecessary-get-then-check`, `too_many_arguments`,
    `is_multiple_of`, `assert_eq!` literal bool. ~12 errors across
@@ -29,6 +21,24 @@ _(ranked across all four sections)_
    then `cargo clippy --all-targets` → red. Out of scope for B1; pick per item.
 
 ## Closed
+
+### 2026-08-06 — B2: duplicated `is_error` MCP-test helpers folded into one `#[cfg(test)]` canonical
+
+Six private `fn is_error(&serde_json::Value) -> bool` copies (one each in
+mcp/tools_admin.rs, tools_events.rs, tools_mutate.rs, tools_delegate.rs, and
+two in tools_query.rs across its `id_filter_tests` and `cold_tier_filter_tests`
+modules) all re-implemented `out.get("isError").and_then(|x| x.as_bool()).unwrap_or(false)`.
+An inherited WIP had started centralizing them into a `pub(crate) fn is_error`
+in `src/mcp/tools.rs` but (a) left it un-`#[cfg(test)]`-gated, so the non-test
+lib build flagged it `dead_code` under `-D warnings` (blocking `just check`),
+and (b) missed two of the six copies (tools_query.rs:845 and tools_delegate.rs).
+Finished the fold: gated the canonical `#[cfg(test)]`, deleted all six private
+copies, routed every test module through `use crate::mcp::tools::is_error;`.
+The old shape was wrong because a one-line predicate was copy-pasted six
+times and a half-finished centralization left the tree red. Net `+14/-32`
+(-18); 6 duplicate implementations collapse to 1; `just check` unblocked for
+the lib build (pre-existing clippy noise in untouched files remains, tracked
+as D1). Reviewer APPROVED, no behaviour bug.
 
 ### 2026-08-06 — B1: duplicated hex-decode loops folded into one `hex::decode`
 

@@ -16,6 +16,14 @@ pub(crate) fn typed_tool_schemas() -> Vec<transport::ToolSchema> {
 		.collect()
 }
 
+/// True when an MCP tool response carries `isError: true`.
+#[cfg(test)]
+pub(crate) fn is_error(out: &serde_json::Value) -> bool {
+	out.get("isError")
+		.and_then(|x| x.as_bool())
+		.unwrap_or(false)
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;

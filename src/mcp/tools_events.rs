@@ -216,6 +216,7 @@ mod tests {
 	use crate::base::types::{Entity, EntityKind, EntityStatus, Kern, Source};
 	use crate::mcp::Server;
 	use crate::test_support::tool_text as text;
+	use crate::mcp::tools::is_error;
 	use std::time::{Duration, UNIX_EPOCH};
 
 	fn at(secs: u64) -> std::time::SystemTime {
@@ -253,10 +254,6 @@ mod tests {
 		}
 		srv.graph.write().kerns.insert("kx".into(), k);
 		srv
-	}
-
-	fn is_error(out: &serde_json::Value) -> bool {
-		out.get("isError").and_then(|x| x.as_bool()).unwrap_or(false)
 	}
 
 	fn body(out: &serde_json::Value) -> serde_json::Value {

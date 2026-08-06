@@ -612,6 +612,7 @@ mod id_filter_tests {
 	use crate::base::types::{Entity, EntityKind, Kern, Source};
 	use crate::mcp::Server;
 	use crate::test_support::tool_text as text;
+	use crate::mcp::tools::is_error;
 
 	fn server_with(thought: Entity) -> Server {
 		let srv = crate::test_support::mcp_server();
@@ -632,13 +633,6 @@ mod id_filter_tests {
 			statements: vec!["a settled thing".into()],
 			..Default::default()
 		}
-	}
-
-	fn is_error(out: &serde_json::Value) -> bool {
-		out
-			.get("isError")
-			.and_then(|x| x.as_bool())
-			.unwrap_or(false)
 	}
 
 	fn body(out: &serde_json::Value) -> serde_json::Value {
@@ -847,13 +841,7 @@ mod id_filter_tests {
 #[cfg(test)]
 mod cold_tier_filter_tests {
 	use crate::base::types::{Entity, EntityKind, Source};
-
-	fn is_error(out: &serde_json::Value) -> bool {
-		out
-			.get("isError")
-			.and_then(|x| x.as_bool())
-			.unwrap_or(false)
-	}
+	use crate::mcp::tools::is_error;
 
 	fn spilled(id: &str, kind: EntityKind) -> Entity {
 		let mut e = Entity {

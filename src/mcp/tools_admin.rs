@@ -274,10 +274,7 @@ mod claim_kind_tests {
 	}
 
 	use crate::test_support::tool_text as text;
-
-	fn is_error(v: &serde_json::Value) -> bool {
-		v.get("isError").and_then(|x| x.as_bool()).unwrap_or(false)
-	}
+	use crate::mcp::tools::is_error;
 
 	#[tokio::test]
 	async fn health_stats_aggregates_entities_and_claim_kinds() {

@@ -543,6 +543,7 @@ mod tests {
 	use crate::base::reason::add_reason;
 	use crate::base::types::{Entity, EntityKind, Kern, Reason};
 	use crate::mcp::Server;
+	use crate::mcp::tools::is_error;
 
 	fn make_server() -> Server {
 		crate::test_support::mcp_server()
@@ -552,13 +553,6 @@ mod tests {
 	fn body(out: &serde_json::Value) -> serde_json::Value {
 		serde_json::from_str(&text(out)).expect("success body is json")
 	}
-	fn is_error(out: &serde_json::Value) -> bool {
-		out
-			.get("isError")
-			.and_then(|x| x.as_bool())
-			.unwrap_or(false)
-	}
-
 	fn insert_kern(srv: &Server, kern: Kern) {
 		srv.graph.write().kerns.insert(kern.id.clone(), kern);
 	}
