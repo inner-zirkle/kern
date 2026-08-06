@@ -98,7 +98,7 @@ minimal:
    Measured: adding
    a reason edge between two thoughts changes no delivered ranking — linked and
    unlinked pairs score identically to four decimals. The edge is created and is
-   walkable; it does not reach the score. Open — see `docs/oracle/ROADMAP.md`.
+   walkable; it does not reach the score. Open — see `docs/windmill/ROADMAP.md`.
 3. **Fuse** — reciprocal-rank fusion of the vector and lexical lists, with
    PageRank centrality weighting the fused seeds.
 4. **Diversify** — drop near-duplicates so the `k` results actually differ.
@@ -404,7 +404,7 @@ Question and Pulse senders and the fetch RPC are all live; what is missing is
 leg ships only the hottest 32 entities per heartbeat, so a cold entity may never
 propagate and a partitioned node that rejoins never catches up. Federation
 tuning at scale (batch size, push vs. pull) is open alongside it; see
-`docs/oracle/ROADMAP.md` — "Anti-entropy". Version `1.1.0`.
+`docs/windmill/ROADMAP.md` — "Anti-entropy". Version `1.1.0`.
 
 **Measurement.** `tests/e2e/test_recall.py` scores recall@1 / recall@5 / MRR over a
 corpus the test itself authors, with no LLM anywhere in the scoring loop — it
@@ -417,6 +417,6 @@ that kern is good, and it is comparable to nothing anyone else publishes.
 And the embedder in the loop is `tests/e2e/fake_llm.py`'s feature-hashed bag of words,
 deterministic and semantically empty by design, so the number measures kern's
 retrieval machinery over a fixed lexical signal, not a real embedding model's
-semantics. `tests/e2e/test_invariants.py` asserts one property per `docs/oracle/VISION.md`
+semantics. `tests/e2e/test_invariants.py` asserts one property per `docs/windmill/VISION.md`
 criterion, and the properties kern does not yet satisfy are recorded there as
 skips and xfails rather than dropped.

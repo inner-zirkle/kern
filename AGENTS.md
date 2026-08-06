@@ -1,6 +1,6 @@
 # kern — agent notes
 
-Read `docs/oracle/ORACLE.md` before acting.
+Read `docs/windmill/ORACLE.md` before acting.
 
 ## Alpha — no compatibility
 
