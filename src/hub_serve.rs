@@ -8,7 +8,7 @@ use crate::transport::hub_rpc::{
 };
 use crate::transport::typed::{Channel, Endpoint, JsonEnvelopeCodec};
 
-use super::node::{self, NodeHandle};
+use crate::hub_node::{self as node, NodeHandle};
 
 const REAP_INTERVAL_SECS: u64 = 30;
 

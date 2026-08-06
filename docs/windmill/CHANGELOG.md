@@ -5,6 +5,7 @@
 - 2026-08-06 — inlined the `transport` sub-crate into the root `kern` lib crate as `crate::transport`, completing the single-crate goal. `src/transport/` was a path-only workspace member (27 files, 4250 LoC, no external consumer); moved `src/transport/src/{lib,http,mcp}.rs` + `hub_rpc/`+`kern_rpc/`+`typed/`+`wire/` up to `src/transport/{mod,http,mcp,...}` (`lib.rs`→`mod.rs`), dropped its `Cargo.toml` + the `transport` path-dep + workspace member. Internal `crate::`→`crate::transport::` across moved files (avoids the collision between transport's `mod mcp` envelope and kern's root `pub mod mcp` server); `service!` invokers `crate::service!`→`crate::transport::service!`; removed `extern crate self as transport;`. The `transport-macros` proc-macro stayed its own crate (Rust forbids proc-macros in a lib); its `service!` codegen retargeted `::transport::`→`crate::transport::` (the `::kern::` self-ref did NOT resolve from proc-macro expansion — verified by failed build). 15 consumer files rewritten `transport::`→`crate::transport::`. Folded deps into root: `tokio-util`+codec, `bytes`, `futures`, unix `libc`, windows `windows-sys`. Build clean, 1096 lib tests pass, 59 transport tests pass, all test targets compile, guards exit 0, code-reviewer approved. `transport-macros` is the only remaining workspace member — a forced Rust exception, not actionable. Decided by: single-crate-fold (user-directed structural merge).
 
 - 2026-08-06 — inlined the `watcher` sub-crate into the root `kern` lib crate as `crate::watcher`. `src/watcher/` was a path-only workspace member (no external consumer); folded its 6 files up to `src/watcher/{mod,event,ignore_rules,pipeline,file}.rs` (inner `watcher.rs`→`file.rs` to avoid clippy `module_inception`), dropped its `Cargo.toml` + the `watcher` path-dep + workspace member, folded its unique deps (`notify`,`ignore`) into root (the rest were already root deps), rewrote the two consumers (`src/ingest/file_watcher.rs`, `src/commands.rs`) `use watcher::`→`use crate::watcher::`, fixed the two internal `use crate::event::`→`use super::event::`, and moved the integration test to `tests/watcher_tests.rs` (`use watcher::`→`use kern::watcher::`). One step in a 2-fire move to a single source crate; `transport` is the next fire. `transport-macros` stays its own crate — proc-macros cannot live in a lib crate. Build clean, 7/7 watcher tests pass, code-reviewer approved. Decided by: single-crate-fold (user-directed structural merge).
+- 2026-08-06 — flatten `rpc` and `hub` subdirs into `src/` root (phase 1 of full src/ flattening): `src/rpc/`→`src/rpc.rs` + `src/rpc_kern_rpc_server.rs`; `src/hub/`→`src/hub.rs` + `src/hub_node.rs` + `src/hub_serve.rs`. Submodule paths `crate::rpc::kern_rpc_server`→`crate::rpc_kern_rpc_server`, `crate::hub::node`→`crate::hub_node`; re-exports kept public API stable. Build clean, 36 tests pass, guards exit 0. Decided by: single-crate-fold (user-directed full src/ flattening).
 
 - 2026-08-06 — deleted `pub fn is_semantic` from `ReasonKind` (`src/base/types.rs`). The predicate (`matches! Similarity | Provenance | Ratification`) had zero callers — `rg 'is_semantic' src/` returns nothing; the enum variants stay live (Similarity used in tick/accept/commands/query). A dead `pub` predicate is surface area with no consumer; if the classification is ever needed it's a one-line `matches!` at the call site. Also reconciled `docs/ideas.md`: the stale open copies of B6/B3/B4/B1 (all already closed) were pruned and B6 got its `## Closed` entry. Net -99 lines of dead doc.
 
@@ -696,16 +697,4 @@
   the parse surface only when a rescoring pass ships and the floor is measured
   (a separate, larger item). No code change. Decided by: verify-before-claiming.
   Supersedes: nothing.
-
-- 2026-07-22 — item 82 closed by decision: standalone `kern mcp` is
-  intentionally non-federated. It is the lightweight single-project local MCP
-  server (fallback when no daemon serves); federation is the daemon's job —
-  `kern --daemon` runs `start_gossip`, the tick wires `broadcast_pulse`,
-  `do_resolve` raises `broadcast_q`. Spawning gossip from standalone too would
-  make a second federating surface beside the daemon with no supervision, racing
-  the hub a `kern mcp` auto-spawns. Contract: one federator per host (the
-  daemon); standalone serves a graph, decays, clusters, GCs, and stops there. A
-  user wanting federation runs `kern --daemon`. No code change — the split
-  already shipped; this records the decision. Decided by: name-the-tradeoff,
-  one-dispatch-core. Supersedes: nothing.
 

@@ -1562,7 +1562,7 @@ async fn cmd_hub_merge(src: &str, dst: &str) {
 		}
 	}
 	for root in [&src_root, &dst_root] {
-		if crate::hub::node::probe(root).await {
+		if crate::hub_node::probe(root).await {
 			eprintln!(
 				"merge: a daemon still serves {} — stop it first",
 				root.display()
