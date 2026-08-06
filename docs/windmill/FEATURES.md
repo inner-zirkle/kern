@@ -96,7 +96,7 @@ supersedes an existing one. The core write path every ingestion funnels through.
 
 1. **Dedup** — graph-wide top-1 vector search; if `score >` the preset's dedup
    threshold (0.98 on the default `relaxed`; 0.95 medium, 0.90 tight,
-   `src/config/preset.rs`; `DEDUP_EF=64`), the thought is a duplicate and merges
+   `src/config_preset.rs`; `DEDUP_EF=64`), the thought is a duplicate and merges
    into the existing entity (no new node).
 2. **Route** (`route_entity`, `src/base/accept.rs:218`) — descend from the
    target kern toward a leaf:
@@ -193,7 +193,7 @@ profiled via `src/profile.rs`):
 | 6 | **Merge** | `retrieval/merge.rs` | Combine seeds + expanded neighbors into `ScoredEntity` list. |
 | 7 | **Boosts** | `retrieval/score.rs` | `apply_boosts`: (confidence × score + **QBST** access/recency boost (`qbst`, capped at 0.1, 24h half-life) + `fact_score_boost` (0.3) for Facts) × `source_trust`. `source_trust` is a `RetrievalConfig` map keyed on `Source::scheme()` — `file`, `ticket`, `session`, `agent`, `inline` — empty by default, absent key exactly `1.0`, so an unconfigured kern scores bit-identically. It weights the CHANNEL, never the author: `kern ingest` and an MCP agent's default ingest both write `inline` (`ROADMAP.md` item 20). An unknown key is a `validate` error, not a silent no-op. |
 | 7b | **Gravity** | `retrieval/gravity.rs` | Query-time graviton pull: `score += gravity_weight (0.15) * max_over_gravitons(mass * max(0, cos(entity, graviton_vec)))`. Max, not sum — overlapping gravitons never double-count. `gravity_weight=0` disables (early return, zero cost); no gravitons → no-op. Latency only, from the bench deleted in `8d8b19e` and not reproducible: ~+7% p50 with 5 gravitons. No quality claim accompanies it — the retrieval-quality half of that bench is withdrawn under the claim standard (`ROADMAP.md` — "no quality claim of any kind"). |
-| 8 | **Filter** | `retrieval/score.rs` | `filter_delivery`: drop superseded; floor at `retrieval.min_deliver_score` (default `0.0` — off); cap at `delivery_cap` = `retrieval.max_deliver_results` (default `25`), or `mmr_pool_size=50` when MMR is on. Both are config fields (`src/config/retrieval.rs:56-57`), not constants. `delivery_cap` is a named function because the CLI reads it too — `cmd_query` sends it as `k` when it routes to a daemon, so the routed and local reads deliver the same number of hits. Query options (source/kind/scheme/time/min_conf) go through `matches_filter` (`retrieval/score.rs`), the single predicate shared with pre-filtered ANN search. |
+| 8 | **Filter** | `retrieval/score.rs` | `filter_delivery`: drop superseded; floor at `retrieval.min_deliver_score` (default `0.0` — off); cap at `delivery_cap` = `retrieval.max_deliver_results` (default `25`), or `mmr_pool_size=50` when MMR is on. Both are config fields (`src/config_retrieval.rs:56-57`), not constants. `delivery_cap` is a named function because the CLI reads it too — `cmd_query` sends it as `k` when it routes to a daemon, so the routed and local reads deliver the same number of hits. Query options (source/kind/scheme/time/min_conf) go through `matches_filter` (`retrieval/score.rs`), the single predicate shared with pre-filtered ANN search. |
 | 9 | **Dedup by section** | `retrieval/diversify.rs:6` | Collapse near-duplicate sections. |
 | 10 | **MMR** | `retrieval/diversify.rs:46` | Maximal-marginal-relevance diversification so the `k` results actually differ. |
 | 11 | **Deliver** | `retrieval/query.rs` | Passages + enriched edges + `format_chains` chain text (`QUERY_MAX_CHAINS=5`), remote entities tagged UNTRUSTED for the synthesizing caller. Chains answer an active filter too (`retrieve`, same file): a chain renders the TEXT of every entity on it, so filtering only the results left it as a second delivery channel — one touching a withheld entity is dropped whole, since a chain with a hole still says the withheld thought exists and what it connects. The whole read path is LLM-free by design (2026-07-21): the calling agent synthesizes; an in-kern small-model answerer set the quality ceiling and made retrieval untunable. |
@@ -856,7 +856,7 @@ thought ingested on node A becomes searchable on node B under the same id.
   (`GraphGnn::bump_lamport`/`observe_lamport`, `src/base/graph.rs:467`/`:474`).
 - **Discovery** (`src/gossip/discovery.rs`) — multicast announce/parse on
   `GOSSIP_DISCOVERY_MULTICAST=239.77.75.68` at `gossip.discovery_port`
-  (default `7475`, `src/config/gossip.rs:66`) every
+  (default `7475`, `src/config_gossip.rs:66`) every
   `GOSSIP_DISCOVERY_INTERVAL=10s`. Only pairs nodes sharing the same
   `network_id`.
 - **Handler** (`src/gossip/handler.rs`) — `start_announce` (`:110`),
@@ -963,7 +963,7 @@ default. Full trust model on the docs-site `Security` page
 (`docs/site/content/docs/concepts/security.mdx`).
 
 **Where.** `src/gossip/*` (13 files), `src/crdt.rs`, `src/base/merge.rs`,
-`src/mcp/tools_delegate.rs`, config in `src/config/gossip.rs`
+`src/mcp/tools_delegate.rs`, config in `src/config_gossip.rs`
 (`ring`, `identity_path`, `sync_interval_secs`, `subscriptions`,
 `[[gossip.contracts]]`).
 
@@ -999,7 +999,7 @@ per non-local URL, and `boot_config` emits each via `tracing::warn!` (non-fatal)
 **How.** `Client` (`src/llm.rs:117`) — `embed` (`:220`) / `embed_batch` (`:264`)
 against the embedding endpoint, `complete` (`:320`, reason / distillation),
 `complete_func` (`:388`, sync closure for the tick/ingest blocking bridges).
-`is_transient` (`:21`) classifies retryable errors — on both legs now: the completion leg counts and names what it throws away (`record_complete_failure`, `:74`, bounded to one line by `:65`), so `complete_func`'s `""` no longer hides which failure produced it. It reads back as `llm_complete_failed` / `last_llm_complete_failure` (`src/mcp.rs:150`, `src/commands/admin.rs:201`). **Every request is bounded** — `complete` posts under `[reason] timeout_secs` (`src/config/reason.rs:12`, default 600 at `:20`), applied by `with_timeout_secs` (`src/llm.rs:202`) and held as `reason_timeout` (`:137`, posted at `:344` / `:371`); `EMBED_TIMEOUT` = 120s on the embed calls (`:494`), applied per request by `post_checked` (`:243`) over a client-wide 120s default and a 3s `connect_timeout` (`:159`, `:162`) so a dead endpoint fails fast instead of hanging. `Endpoint` (`:100`) holds
+`is_transient` (`:21`) classifies retryable errors — on both legs now: the completion leg counts and names what it throws away (`record_complete_failure`, `:74`, bounded to one line by `:65`), so `complete_func`'s `""` no longer hides which failure produced it. It reads back as `llm_complete_failed` / `last_llm_complete_failure` (`src/mcp.rs:150`, `src/commands/admin.rs:201`). **Every request is bounded** — `complete` posts under `[reason] timeout_secs` (`src/config_reason.rs:12`, default 600 at `:20`), applied by `with_timeout_secs` (`src/llm.rs:202`) and held as `reason_timeout` (`:137`, posted at `:344` / `:371`); `EMBED_TIMEOUT` = 120s on the embed calls (`:494`), applied per request by `post_checked` (`:243`) over a client-wide 120s default and a 3s `connect_timeout` (`:159`, `:162`) so a dead endpoint fails fast instead of hanging. `Endpoint` (`:100`) holds
 url/model/key; `new_embed_only` (`:213`) builds a client for `reembed`.
 `for_eval(seed)` (`:184`) makes it deterministic.
 
@@ -1156,14 +1156,14 @@ client→node — the hub is connect-time only, never a proxy hop.
   (`spawn_hub`/`spawn_daemon`, `src/commands/mcp_cmd.rs`) and the hub's per-root
   node (`src/hub/node.rs:104`) — route the child's stdout *and* stderr into an
   append-only, owner-only file under `Config::log_dir()` = `<data_dir>/logs`
-  (`src/config/mod.rs`), one file per spawn arg: `hub.log`, `daemon.log`
-  (`detached_log::log_path`, `src/config/detached_log.rs:10`). Append, never
+  (`src/config.rs`), one file per spawn arg: `hub.log`, `daemon.log`
+  (`detached_log::log_path`, `src/config_detached_log.rs:10`). Append, never
   truncate — a restart must not erase the log explaining why it restarted. A log
   that cannot be opened falls back to `/dev/null` and says so on the parent's
   still-attached stderr, so an unwritable log never costs the spawn.
 
 **Where.** `src/hub/`, `src/transport/hub_rpc/`, `src/commands/admin.rs`
-(`cmd_hub`), `src/config/hub.rs`, `src/config/detached_log.rs`,
+(`cmd_hub`), `src/config_hub.rs`, `src/config_detached_log.rs`,
 `tests/e2e/test_hub.py`.
 
 **Gaps.** Gossip still lives in each node; the transport moves hub-side
@@ -1179,7 +1179,7 @@ hub↔node unmanaged beyond same-binary spawning.
 **Opt-in** (recorded 2026-07-21 — this section was marked plain `active` and
 never said so): `WatcherConfig::enabled` is a `bool` behind `#[derive(Default)]`,
 so it is `false` unless a `kern.toml` sets it, and `effective_roots` returns an
-empty list while it is (`src/config/watcher.rs:8`, returned `:24-26`). Everything below runs
+empty list while it is (`src/config_watcher.rs:8`, returned `:24-26`). Everything below runs
 only in a deployment that turned it on — which is what ranks its gaps, the same
 way `Federation` says "off by default" rather than leaving it to be inferred.
 
@@ -1211,7 +1211,7 @@ lands as a new `Document` and the old one is neither moved nor removed.
 Ollama). The whole memory-tuning surface is one key: `preset = "relaxed" |
 "medium" | "tight"`.
 
-**How.** `Config` (`src/config/mod.rs`) aggregates sub-configs — `Embed`,
+**How.** `Config` (`src/config.rs`) aggregates sub-configs — `Embed`,
 `Reason`, `Serve`, `Retrieval`, `Ingest`, `Gossip`, `Tick`, `Heat`,
 `Gnn`, `Watcher`, `Intake`, `Graph`, `Hub` — plus `data_dir`, `preset`, and a
 derived `log_dir()` = `<data_dir>/logs`. Resolved project-scope
@@ -1220,7 +1220,7 @@ derived `log_dir()` = `<data_dir>/logs`. Resolved project-scope
 a loopback Ollama URL must be pinned to the Windows host gateway in `kern.toml`
 — kern does not rewrite URLs.
 
-**Presets own the tuning knobs.** `Preset::apply` (`src/config/preset.rs`) is
+**Presets own the tuning knobs.** `Preset::apply` (`src/config_preset.rs`) is
 the only writer of heat half-life, ingest dedup threshold, and retrieval
 breadth (`seed_k`, `max_expansions`, `max_deliver_results`). Default is
 `relaxed`: 30d half-life, 0.98 dedup, seed_k 25 / 800 expansions / 40 results.
@@ -1231,7 +1231,7 @@ and `[answer]` is refused with a removal notice (2026-07-21: kern does no
 synthesis; the calling agent does) — no silently ignored keys. Project-scope preset beats user-scope preset like any other key.
 
 **Scopes deep-merge, per key.** `merged_value` → `merge_deep`
-(`src/config/io.rs`) recurses wherever both scopes hold a table, so a
+(`src/config_io.rs`) recurses wherever both scopes hold a table, so a
 project setting one field of a section keeps every other field the user set in
 it. Arrays and scalars are **leaves**: `over` replaces, never appends —
 `watcher.roots` and `gossip.peers` are complete lists, not accumulators. Both
@@ -1239,7 +1239,7 @@ files are parsed as documents (`toml::Table`), because a bare-`Value` parse
 misreads a leading `[section]` header as an array.
 
 **One exception, deliberate: a redirected endpoint does not inherit its key.**
-`secrets::seal_redirected` (`src/config/secrets.rs:15`) strips `key` from any
+`secrets::seal_redirected` (`src/config_secrets.rs:15`) strips `key` from any
 section where the project scope set `url` and did *not* set `key`. Without it a
 cloned repo committing `[embed] url = "http://attacker.example/v1"` would harvest
 the user's live key on the first embed call — and `reason_key` falls
@@ -1263,12 +1263,12 @@ constants in `src/llm.rs`; they are now config so a model with a larger context
 or a different residency can be tuned without a recompile. They are sent only on
 the Ollama-native path (`wants_native`, `src/llm.rs`) — a `/v1` (OpenAI-compat)
 endpoint has no client-side `num_ctx` or `keep_alive`, so `Config::native_knob_warnings`
-(`src/config/mod.rs`) emits one non-fatal `tracing::warn!` per knob a config sets
+(`src/config.rs`) emits one non-fatal `tracing::warn!` per knob a config sets
 on a `/v1` endpoint, at boot, alongside the `egress_warnings` from item 78. Default
 knobs on a `/v1` endpoint are silent — a default is not "trying to tune", so there
 is nothing to warn about.
 
-**Where.** `src/config/*` (17 files), `src/main.rs` (boot gate).
+**Where.** `src/config_*` (17 files), `src/main.rs` (boot gate).
 
 **Gaps.** No env-var override layer. Secrets (API keys) stored in plaintext TOML.
 `validate` covers embed url/model and delegates to the sub-validators; sections

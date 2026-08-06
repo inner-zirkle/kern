@@ -13,7 +13,7 @@ pub enum Error {
 pub fn merged_value(user: &Path, project: &Path) -> Result<toml::Value, Error> {
 	let user_v = read_value(user)?;
 	let project_v = read_value(project)?;
-	Ok(crate::config::secrets::seal_redirected(
+	Ok(crate::config_secrets::seal_redirected(
 		merge_deep(user_v, project_v.clone()),
 		&project_v,
 	))

@@ -76,6 +76,10 @@ _(ranked across all four sections)_
 
 ## Closed
 
+### 2026-08-07 — flatten src/config/ into src/ root (config_* prefix)
+
+Moved `src/config/mod.rs` → `src/config.rs` and all 17 subfiles → `src/config_*.rs` (config_embed.rs, config_gnn.rs, etc.). Subfiles became crate-root modules declared in lib.rs (private `mod` preserved original visibility; `pub mod` for detached_log + io). config.rs re-exports retargeted to `crate::config_*::`. External `crate::config::detached_log::` → `crate::config_detached_log::` (hub_node.rs, commands/mcp_cmd.rs); `kern::config::io::Error` → `kern::config_io::Error` (main.rs). 1096 lib tests pass.
+
 ### 2026-08-06 — B6: dead `pub fn is_semantic` deleted (unused ReasonKind predicate)
 
 **Claim:** `pub fn is_semantic(self) -> bool` on `ReasonKind` classified

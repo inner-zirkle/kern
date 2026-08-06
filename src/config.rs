@@ -1,35 +1,18 @@
-pub mod detached_log;
-mod embed;
-mod gnn;
-mod gossip;
-mod graph;
-mod hub;
-mod ingest;
-mod intake;
-pub mod io;
-mod preset;
-mod reason;
-mod reload;
-mod retrieval;
-mod secrets;
-mod serve;
-mod tick;
-mod watcher;
-
-pub use embed::{EmbedConfig, DEFAULT_EMBED_MODEL, DEFAULT_EMBED_URL};
-pub use gnn::GnnConfig;
-pub use gossip::{ContractConfig, GossipConfig};
-pub use graph::GraphConfig;
-pub use hub::HubConfig;
-pub use ingest::IngestConfig;
-pub use intake::IntakeConfig;
-pub use preset::Preset;
-pub use reason::{ReasonConfig, DEFAULT_REASON_TIMEOUT_SECS};
-pub use reload::ReloadConfig;
-pub use retrieval::RetrievalConfig;
-pub use serve::{mcp_token_path, open_private_append, ServeConfig};
-pub use tick::TickConfig;
-pub use watcher::WatcherConfig;
+pub use crate::config_detached_log;
+pub use crate::config_embed::{EmbedConfig, DEFAULT_EMBED_MODEL, DEFAULT_EMBED_URL};
+pub use crate::config_gnn::GnnConfig;
+pub use crate::config_gossip::{ContractConfig, GossipConfig};
+pub use crate::config_graph::GraphConfig;
+pub use crate::config_hub::HubConfig;
+pub use crate::config_ingest::IngestConfig;
+pub use crate::config_intake::IntakeConfig;
+pub use crate::config_preset::Preset;
+pub use crate::config_reason::{ReasonConfig, DEFAULT_REASON_TIMEOUT_SECS};
+pub use crate::config_reload::ReloadConfig;
+pub use crate::config_retrieval::RetrievalConfig;
+pub use crate::config_serve::{mcp_token_path, open_private_append, ServeConfig};
+pub use crate::config_tick::TickConfig;
+pub use crate::config_watcher::WatcherConfig;
 
 use std::path::{Path, PathBuf};
 
@@ -105,7 +88,7 @@ impl Config {
 		cfg
 	}
 
-	pub fn load(cwd: &Path) -> Result<Self, io::Error> {
+	pub fn load(cwd: &Path) -> Result<Self, crate::config_io::Error> {
 		let user = dirs::config_dir()
 			.map(|d| d.join("kern").join("kern.toml"))
 			.unwrap_or_else(|| cwd.join(".kern").join("kern.toml"));
@@ -115,9 +98,9 @@ impl Config {
 	/// `load` with the user scope named explicitly. A test that lets `load`
 	/// resolve it reads the developer's real `~/.config/kern/kern.toml` and
 	/// passes or fails on whatever happens to be on that machine.
-	pub fn load_with_user(user: &Path, cwd: &Path) -> Result<Self, io::Error> {
+	pub fn load_with_user(user: &Path, cwd: &Path) -> Result<Self, crate::config_io::Error> {
 		let project = cwd.join(".kern").join("kern.toml");
-		let merged = io::merged_value(user, &project)?;
+		let merged = crate::config_io::merged_value(user, &project)?;
 		for section in ["heat", "ingest", "retrieval"] {
 			let Some(table) = merged.get(section) else {
 				continue;
@@ -139,14 +122,14 @@ impl Config {
 				} else {
 					""
 				};
-				return Err(io::Error::Parse(format!(
+				return Err(crate::config_io::Error::Parse(format!(
 					"[{section}] is preset-managed — set preset = \"relaxed\" | \"medium\" | \"tight\" at the top level instead{escape}"
 				)));
 			}
 		}
 		let mut cfg: Self = merged
 			.try_into()
-			.map_err(|e: toml::de::Error| io::Error::Parse(e.to_string()))?;
+			.map_err(|e: toml::de::Error| crate::config_io::Error::Parse(e.to_string()))?;
 		let preset = cfg.preset;
 		preset.apply(&mut cfg);
 		// serde's struct-level default pins data_dir to the *process* cwd. A
@@ -658,7 +641,7 @@ mod tests {
 
 	#[test]
 	fn embed_config_default_carries_the_native_knob_constants() {
-		let c = crate::config::embed::EmbedConfig::default();
+		let c = crate::config_embed::EmbedConfig::default();
 		assert_eq!(c.num_ctx, crate::llm::EMBED_NUM_CTX);
 		assert_eq!(c.keep_alive, crate::llm::EMBED_KEEP_ALIVE);
 	}

@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use super::Config;
+use crate::config::Config;
 
 // The whole tuning surface: heat, dedup, and retrieval breadth belong to the
 // preset, not to individual keys. `Config::load` refuses the [heat]/[ingest]/

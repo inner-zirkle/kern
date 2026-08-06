@@ -261,7 +261,7 @@ fn spawn_daemon(log_dir: &std::path::Path) -> std::io::Result<()> {
 fn spawn_detached(arg: &str, log_dir: &std::path::Path) -> std::io::Result<()> {
 	use std::process::{Command, Stdio};
 	let exe = std::env::current_exe()?;
-	let (out, err) = crate::config::detached_log::stdio(log_dir, arg);
+	let (out, err) = crate::config_detached_log::stdio(log_dir, arg);
 	let mut cmd = Command::new(exe);
 	cmd.arg(arg).stdin(Stdio::null()).stdout(out).stderr(err);
 	#[cfg(windows)]
