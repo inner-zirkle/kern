@@ -1,4 +1,4 @@
-use super::dto::{HubStatusRes, ResolveReq, ResolveRes, StopRes, UnloadReq, UnloadRes};
+use crate::transport_hub_rpc_dto::{HubStatusRes, ResolveReq, ResolveRes, StopRes, UnloadReq, UnloadRes};
 
 crate::transport::service! {
 		pub trait HubRpc {

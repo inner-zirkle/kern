@@ -2,6 +2,8 @@
 
 <!-- docs-check: historical -->
 
+- 2026-08-07 — flattened `transport/hub_rpc` nested subdir: 3 `src/transport/hub_rpc/{client,dto,svc}.rs` → `src/transport_hub_rpc_{client,dto,svc}.rs` at src/ root. `hub_rpc/mod.rs` → `src/transport_hub_rpc.rs` shim re-exporting client/dto/svc + items (HubStatusRes..HubRpcClient) so `crate::transport::hub_rpc::X` resolves unchanged. lib.rs gained 4 `pub mod transport_hub_rpc*`. transport/mod.rs: `pub mod hub_rpc;`→`pub use crate::transport_hub_rpc as hub_rpc;`. Rewrites: super::svc/dto → crate::transport_hub_rpc_*. Build green, 1096 tests pass, guards 0. Decided by: single-crate-fold (user-directed full src/ flattening).
+
 - 2026-08-07 — flattened `retrieval` subdir: 9 `src/retrieval/*.rs` → `src/retrieval_*.rs` at src/ root (prefix-rename, dodges merge collision). `retrieval.rs` kept as shim re-exporting all 9 submodules + EmbedFunc/LlmFunc so ~11 external `crate::retrieval::score::X`/`crate::retrieval::query::X`/`crate::retrieval::seed::X`/`crate::retrieval::LlmFunc` refs resolve unchanged. lib.rs gained 9 `pub mod retrieval_*`. No rewrites in moved files needed. Build green, 1096 tests pass, guards 0. Decided by: single-crate-fold (user-directed full src/ flattening).
 - 2026-08-06 — flattened `mcp` subdir: 10 `src/mcp/*.rs` → `src/mcp_*.rs` at src/ root (prefix-rename). `mcp.rs` → shim re-exporting prompt/resources/sse/tools + tools_query (2 external consumers); dropped 6 unused private re-exports (tool methods impl'''d on Server). lib.rs gained 11 `pub/pub(crate) mod mcp_*`. Response/RpcError fields → pub(crate) (siblings need access). include_str path fixed. Rewrites: top-level super::{parent items}→crate::mcp::{...}, sibling super::→crate::mcp_X, test-internal super:: kept. Build green, 1096 tests pass, guards 0. Decided by: single-crate-fold (user-directed full src/ flattening).
 - 2026-08-06 — flattened `ingest` subdir: 12 `src/ingest/*.rs` → `src/ingest_*.rs` at src/ root (prefix-rename, dodges config collision). `ingest/mod.rs` → `ingest.rs` shim re-exporting the 12 submodules (`pub use crate::ingest_config as config;` etc.) + items so `crate::ingest::X` still resolves (~18 consumers unchanged). lib.rs gained 12 `pub mod ingest_*`. Rewrites: `super::X`(sibling)→`crate::ingest_X`, `crate::ingest::X`(own submod)→`crate::ingest_X`, ITEM refs kept. Build green, 1096 tests pass, guards 0. Decided by: single-crate-fold (user-directed full src/ flattening).
@@ -540,21 +542,4 @@
   decisions now recorded; the federation build unblocks on the item 33 transport
   move. No code change. Decided by: name-the-tradeoff, the-oracle, fix-the-root.
   Supersedes: nothing.
-
-- 2026-07-22 — item 47: 5 of 7 federation decisions recorded (the build
-  stays blocked on the security pair (c)/(d)). (a) Reason.score LWW — already
-  settled by item 13. (b) anti-entropy watermark = content-hash bloom (ids are
-  content hashes; a vector clock adds a per-replica counter with no other use; a
-  bloom over the live content-hash set is the shape anti-entropy needs anyway).
-  (e) graviton mass = per-node, does not federate (mass is local routing tuning;
-  federating it lets a peer shift another's acceptance routing silently; the
-  graviton's existence federates as content, its mass stays the operator's knob).
-  (f) superseded_by conflict = lamport-then-id, not lex-greater-id (lex-greater
-  agrees on the wrong successor; lamport-then-id is still deterministic via the
-  existing lww_wins tiebreak and picks the later claim). (g) cross-model
-  federation = refuse on embed-model mismatch (vectors from two models are
-  noise; the store already refuses a mismatched embedder at open, the wire
-  extends the same guard — only vector-free CRDT deltas federate across models).
-  (c) TLS CA (operator PKI vs TOFU) and (d) network_id source owed — security
-  model, user's call; (d) depends on (c). No code change. Decided by: name-the-tradeoff, verify-before-claiming, fix-the-root. Supersedes: nothing.
 

@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use crate::transport::typed::{connect_kern, AdapterError, Channel, Endpoint, JsonEnvelopeCodec};
 
-use super::svc::HubRpcClient;
+use crate::transport_hub_rpc_svc::HubRpcClient;
 
 pub const RETRIES: u32 = 2;
 pub const RETRY_DELAY_MS: u64 = 100;

@@ -22,7 +22,7 @@ pub const PROTOCOL_VERSION: &str = "2024-11-05";
 pub mod typed;
 pub use transport_macros::service;
 
-pub mod hub_rpc;
+pub use crate::transport_hub_rpc as hub_rpc;
 pub mod kern_rpc;
 
 // Re-exports solely for service!-generated code (::transport::__private::*).

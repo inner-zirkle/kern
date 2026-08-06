@@ -6,6 +6,10 @@ item carrying the grep that produced it. Driven by the `/improve` skill.
 ## A. Combine
 ## B. Simplify
 
+### Flatten `transport` nested subdirs (kern_rpc, typed, wire) into src/ root — IN PROGRESS
+
+hub_rpc done this fire. Remaining: `src/transport/kern_rpc/` (4 files), `src/transport/typed/` (5 files), `src/transport/wire/` (7 files). Same shim pattern: leaf → `src/transport_<subdir>_<name>.rs`, `mod.rs`→`src/transport_<subdir>.rs` shim, `transport/mod.rs` re-exports. `transport/{http,mcp}.rs` also move to `src/transport_{http,mcp}.rs`. wire/mod.rs holds real definitions (Sink/Dispatch/Transport/serve/select/error/line_frame) — those stay in the `transport_wire.rs` shim; its private `mod X;` leaves widen to `pub(crate)` at crate root.
+
 ### Flatten `ingest` subdir into src/ root — DONE 2026-08-06 (this fire)
 
 ### Flatten `mcp` subdir into src/ root — DONE 2026-08-06 (this fire)
@@ -132,6 +136,10 @@ _(ranked across all four sections)_
    then `cargo clippy --all-targets` → red. Out of scope for B1; pick per item.
 
 ## Closed
+
+### 2026-08-07 — flatten src/transport/hub_rpc/ into src/ root (transport_hub_rpc_* prefix)
+
+Moved 3 `src/transport/hub_rpc/{client,dto,svc}.rs` → `src/transport_hub_rpc_{client,dto,svc}.rs`; `hub_rpc/mod.rs` → `src/transport_hub_rpc.rs` SHIM re-exporting client/dto/svc submodules + item re-exports (HubStatusRes...HubRpcClient) so `crate::transport::hub_rpc::X` resolves unchanged. lib.rs gained 4 `pub mod transport_hub_rpc*`. `transport/mod.rs`: `pub mod hub_rpc;`→`pub use crate::transport_hub_rpc as hub_rpc;`. Rewrites: `super::svc::HubRpcClient`→`crate::transport_hub_rpc_svc::HubRpcClient`, `super::dto::{...}`→`crate::transport_hub_rpc_dto::{...}`. Build clean, 1096 tests pass, guards 0.
 
 ### 2026-08-07 — flatten src/retrieval/ into src/ root (retrieval_* prefix)
 

@@ -1129,7 +1129,7 @@ client→node — the hub is connect-time only, never a proxy hop.
 
 **How.**
 
-- **hub_rpc** (`src/transport/hub_rpc/`) — a four-method service
+- **hub_rpc** (`src/transport_hub_rpc.rs` + `src/transport_hub_rpc_{client,dto,svc}.rs`) — a four-method service
   (`svc.rs`): `resolve(ResolveReq)`, `status()`, `unload(UnloadReq)`, `stop()`,
   plus a `connect_hub` client (`client.rs:11`). `Endpoint::hub()`
   (machine-scoped), `Endpoint::kern_for(root)` (hub computes a node's socket
@@ -1162,7 +1162,7 @@ client→node — the hub is connect-time only, never a proxy hop.
   that cannot be opened falls back to `/dev/null` and says so on the parent's
   still-attached stderr, so an unwritable log never costs the spawn.
 
-**Where.** `src/hub/`, `src/transport/hub_rpc/`, `src/commands_admin.rs`
+**Where.** `src/hub.rs`, `src/transport_hub_rpc.rs`, `src/commands_admin.rs`
 (`cmd_hub`), `src/config_hub.rs`, `src/config_detached_log.rs`,
 `tests/e2e/test_hub.py`.
 
