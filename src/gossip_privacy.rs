@@ -3,7 +3,7 @@ use chacha20poly1305::{Key, XChaCha20Poly1305, XNonce};
 
 use crate::base_types::{ChunkPart, ChunkPartKind, Entity};
 
-use super::identity::create_private;
+use crate::gossip_identity::create_private;
 
 /// PrivacyV0 scheme 0: xchacha20poly1305 (FEDERATION_PLAN §6). Entity text is
 /// encrypted client-side BEFORE it enters the shared kern; the contract
@@ -101,7 +101,7 @@ pub fn decrypt_entity(key: &[u8; 32], entity: &Entity) -> Option<Entity> {
 /// v0 key distribution is "copy this file", so the file has to exist.
 pub fn load_or_mint_key(path: &std::path::Path) -> std::io::Result<[u8; 32]> {
 	match std::fs::read_to_string(path) {
-		Ok(text) => crate::gossip::contract::parse_key_hex(text.trim()).ok_or_else(|| {
+		Ok(text) => crate::gossip_contract::parse_key_hex(text.trim()).ok_or_else(|| {
 			std::io::Error::new(
 				std::io::ErrorKind::InvalidData,
 				format!("contract key file {} is not 64 hex chars", path.display()),
@@ -130,8 +130,8 @@ pub fn load_or_mint_key(path: &std::path::Path) -> std::io::Result<[u8; 32]> {
 mod tests {
 	use super::*;
 	use crate::base_types::EntityKind;
-	use crate::gossip::contract::*;
-	use crate::gossip::identity::PeerIdentity;
+	use crate::gossip_contract::*;
+	use crate::gossip_identity::PeerIdentity;
 
 	fn plain_entity(text: &str) -> Entity {
 		Entity {
@@ -175,7 +175,7 @@ mod tests {
 		let writer = PeerIdentity::from_bytes([3u8; 32]);
 		let sealed = encrypt_entity(&key, &plain_entity("private sentinel"));
 		assert!(
-			crate::gossip::handler::id_matches_body(&sealed),
+			crate::gossip_handler::id_matches_body(&sealed),
 			"the id is the ciphertext's content hash — relays keep verifying"
 		);
 		let digest = entity_sig_digest(&sealed.id, 1);

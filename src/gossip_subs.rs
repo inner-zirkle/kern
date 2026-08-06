@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use parking_lot::RwLock;
 
-use super::contract::ContractId;
+use crate::gossip_contract::ContractId;
 
 /// Subscription table entries are cheap; the bound exists so a hostile peer
 /// cannot grow the table without limit (LRU on last touch).

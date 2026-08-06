@@ -9,13 +9,13 @@ use tokio::sync::watch;
 
 use crate::base_constants::*;
 
-use super::identity::{loc_of, PeerId, PeerIdentity};
-use super::ledger::Ledger;
-use super::rate::{RateLimiter, GOSSIP_QUESTION_PER_MIN, GOSSIP_RATE_MAX_ORIGINS};
-use super::ring::{PeerEntry, RingView, RING_ENTRY_TTL_SECS, RING_JOIN_MAX_HOPS};
-use super::seen::SeenSet;
-use super::transport::{decode_msg, encode_msg, send_and_receive, send_msg};
-use super::types::*;
+use crate::gossip_identity::{loc_of, PeerId, PeerIdentity};
+use crate::gossip_ledger::Ledger;
+use crate::gossip_rate::{RateLimiter, GOSSIP_QUESTION_PER_MIN, GOSSIP_RATE_MAX_ORIGINS};
+use crate::gossip_ring::{PeerEntry, RingView, RING_ENTRY_TTL_SECS, RING_JOIN_MAX_HOPS};
+use crate::gossip_seen::SeenSet;
+use crate::gossip_transport::{decode_msg, encode_msg, send_and_receive, send_msg};
+use crate::gossip_types::*;
 
 // The PeerId is the envelope-verified sender — rate limits and any
 // per-sender policy key on it, never on the spoofable `msg.origin` string.
@@ -154,12 +154,12 @@ impl Node {
 			{
 				let mut ring = self.ring.write();
 				let Some(r) = ring.as_mut() else { return };
-				let own = super::ring::ring_distance(r.loc(), target);
+				let own = crate::gossip_ring::ring_distance(r.loc(), target);
 				for p in peers {
 					if p.id == self.identity.peer_id() {
 						continue;
 					}
-					let d = super::ring::ring_distance(p.loc, target);
+					let d = crate::gossip_ring::ring_distance(p.loc, target);
 					if d < own && best.as_ref().map(|(b, _)| d < *b).unwrap_or(true) {
 						best = Some((d, p.addr.clone()));
 					}
@@ -548,7 +548,7 @@ mod tests {
 			bincode::config::standard(),
 		)
 		.unwrap();
-		let before = crate::gossip::identity::invalid_sig_dropped();
+		let before = crate::gossip_identity::invalid_sig_dropped();
 		ship_raw(&addr, &frame).await;
 		tokio::time::sleep(std::time::Duration::from_millis(80)).await;
 
@@ -562,7 +562,7 @@ mod tests {
 			"the forged origin never enters the peer list — verification precedes all per-peer state"
 		);
 		assert!(
-			crate::gossip::identity::invalid_sig_dropped() > before,
+			crate::gossip_identity::invalid_sig_dropped() > before,
 			"the drop is counted"
 		);
 		node.close();
@@ -605,7 +605,7 @@ mod tests {
 	async fn an_honest_frame_reaches_the_handler_with_its_verified_peer_id() {
 		let node = Node::new("127.0.0.1:0", "net", vec![]);
 		let addr = node.listen().await.unwrap();
-		let seen: Arc<RwLock<Option<crate::gossip::identity::PeerId>>> = Arc::new(RwLock::new(None));
+		let seen: Arc<RwLock<Option<crate::gossip_identity::PeerId>>> = Arc::new(RwLock::new(None));
 		let s = seen.clone();
 		node.set_handler(Arc::new(move |peer, _msg| {
 			*s.write() = Some(peer);

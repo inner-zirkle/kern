@@ -3,8 +3,8 @@ use tokio::net::TcpStream;
 
 use crate::base_constants::{GOSSIP_DIAL_TIMEOUT, GOSSIP_FETCH_TIMEOUT, GOSSIP_MAX_FRAME_BYTES};
 
-use super::identity::{verify_frame, PeerId, PeerIdentity};
-use super::types::*;
+use crate::gossip_identity::{verify_frame, PeerId, PeerIdentity};
+use crate::gossip_types::*;
 
 // Wire frame: big-endian u32 length prefix, then bincode of a SignedFrame
 // whose body is the bincode of the GossipMessage.
@@ -78,7 +78,7 @@ pub(super) async fn send_and_receive(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::gossip::identity::invalid_sig_dropped;
+	use crate::gossip_identity::invalid_sig_dropped;
 	use tokio::net::TcpListener;
 
 	fn sample_msg() -> GossipMessage {

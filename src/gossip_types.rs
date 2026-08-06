@@ -74,25 +74,25 @@ pub struct SubscribePayload {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SubAckPayload {
 	pub contract: [u8; 32],
-	pub summary: crate::gossip::contract::Summary,
+	pub summary: crate::gossip_contract::Summary,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContractDeltaPayload {
 	pub contract: [u8; 32],
-	pub delta: crate::gossip::contract::Delta,
+	pub delta: crate::gossip_contract::Delta,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SyncSummaryPayload {
 	pub contract: [u8; 32],
-	pub summary: crate::gossip::contract::Summary,
+	pub summary: crate::gossip_contract::Summary,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SyncDiffPayload {
 	pub contract: [u8; 32],
-	pub delta: crate::gossip::contract::Delta,
+	pub delta: crate::gossip_contract::Delta,
 }
 
 // A signed forward pointer published in the OLD contract when its params
@@ -114,7 +114,7 @@ pub struct FindNearestPayload {
 // to keep hopping greedily or to adopt a neighborhood at the terminal.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NearestPayload {
-	pub peers: Vec<crate::gossip::ring::PeerEntry>,
+	pub peers: Vec<crate::gossip_ring::PeerEntry>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

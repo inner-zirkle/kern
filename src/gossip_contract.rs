@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use crate::graph::GraphGnn;
 use crate::base_types::{Entity, EntityKind};
 
-use super::identity::{loc_of, verify_sig_by};
+use crate::gossip_identity::{loc_of, verify_sig_by};
 
 /// The key IS the policy: a shared kern is addressed by the hash of its
 /// validation policy + parameters, so any peer holding the key knows exactly
@@ -286,7 +286,7 @@ impl SyncContract for SignedCrdt {
 	) -> Result<(), Refusal> {
 		let mut new_ids = 0usize;
 		for se in &delta.entities {
-			if !super::handler::id_matches_body(&se.entity) {
+			if !crate::gossip_handler::id_matches_body(&se.entity) {
 				return Self::refuse(Refusal::ForgedId);
 			}
 			let digest = entity_sig_digest(&se.entity.id, se.lamport);
@@ -411,7 +411,7 @@ impl SyncContract for SignedCrdt {
 mod tests {
 	use super::*;
 	use crate::base_types::{ChunkPart, ChunkPartKind, Kern};
-	use crate::gossip::identity::PeerIdentity;
+	use crate::gossip_identity::PeerIdentity;
 
 	fn entity_of(text: &str, kind: EntityKind) -> Entity {
 		Entity {

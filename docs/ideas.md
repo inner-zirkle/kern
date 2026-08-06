@@ -6,6 +6,16 @@ item carrying the grep that produced it. Driven by the `/improve` skill.
 ## A. Combine
 ## B. Simplify
 
+### Flatten `gossip` subdir into src/ root — DONE 2026-08-06 (this fire)
+
+Moved all 13 `src/gossip/*.rs` up to `src/gossip_*.rs` (prefix-rename to dodge
+`identity`/`types` collisions + keep grouping); dropped `gossip/mod.rs`; lib.rs
+declares the 13 `pub mod gossip_*` (all pub, visibility preserved). Rewrites in
+moved files: `crate::gossip::X`→`crate::gossip_X`, `super::X` (sibling)→`crate::gossip_X`,
+`use crate::gossip::{X,Y}`→`use crate::gossip_X; use crate::gossip_Y;`, test
+`use super::*` kept. External `src/mcp/tools_delegate.rs` + `src/commands.rs`:
+`crate::gossip::X`→`crate::gossip_X`. Build clean, 11 test suites pass, guards 0.
+
 ### Flatten `commands` subdir into src/ root — DONE 2026-08-06 (this fire)
 
 Moved all 11 `src/commands/*.rs` up to `src/commands_*.rs` (prefix-rename to

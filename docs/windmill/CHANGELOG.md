@@ -2,6 +2,7 @@
 
 <!-- docs-check: historical -->
 
+- 2026-08-06 — flattened `gossip` subdir: 13 `src/gossip/*.rs` → `src/gossip_*.rs` at src/ root (prefix-rename, dodges identity/types collisions). mod.rs deleted; lib.rs gained 13 `pub mod gossip_*`. Rewrites: `crate::gossip::X`→`crate::gossip_X`, `super::X` (sibling)→`crate::gossip_X`, grouped `use crate::gossip::{X,Y}`→split, test `use super::*` kept. External tools_delegate.rs+commands.rs retargeted. Build green, 11 test suites pass, guards 0. Decided by: single-crate-fold (user-directed full src/ flattening).
 - 2026-08-06 — flattened `commands` subdir: 11 `src/commands/*.rs` → `src/commands_*.rs` at src/ root (prefix-rename). Parent `src/commands.rs` mod-block dropped; lib.rs gained the 11 module declarations. Sibling refs `super::route`→`crate::commands_route`, parent-item refs `super::{load_graph,...}`→`crate::commands::{...}`, `pub(super)`→`pub(crate)`. External `crate::commands::graph_ops::`→`crate::commands_graph_ops::`. Build green, tests pass, guards 0. Decided by: feb.
 - 2026-08-07 — flatten `src/base/` into `src/` root (phase of full src/ flattening): 22 files. `src/base/{store,types,constants}.rs`→`src/base_{store,types,constants}.rs` (collided with existing root `store.rs`/`types.rs`); the other 19 kept bare names (`accept.rs`→`src/accept.rs` etc). `src/base.rs` deleted; `src/lib.rs` declares the 22 modules at crate root (`pub mod`). Rewrites across 70 consumer files: `crate::base::store/types/constants`→`crate::base_store/base_types/base_constants`, `crate::base::X`→`crate::X`; subfile `super::store/types/constants`→`crate::base_store/base_types/base_constants`; `use crate::base_constants as constants;` alias where bare `constants::` used. Build clean, 1096 lib tests pass, guards exit 0. Decided by: single-crate-fold (user-directed full src/ flattening).
 - 2026-08-07 — flatten `src/config/` into `src/` root (phase of full src/ flattening): `src/config/mod.rs`→`src/config.rs`, 17 subfiles→`src/config_*.rs` (config_embed.rs, config_gnn.rs, config_gossip.rs, config_graph.rs, config_hub.rs, config_ingest.rs, config_intake.rs, config_io.rs, config_preset.rs, config_reason.rs, config_reload.rs, config_retrieval.rs, config_secrets.rs, config_serve.rs, config_tick.rs, config_watcher.rs, config_detached_log.rs). Subfiles became crate-root modules declared in lib.rs (`mod` kept private, `pub mod` for detached_log + io — visibility preserved). config.rs re-exports retargeted to `crate::config_*::`; body `io::Error`→`crate::config_io::Error`. External: `crate::config::detached_log::stdio`→`crate::config_detached_log::stdio` (hub_node.rs, commands/mcp_cmd.rs); `kern::config::io::Error`→`kern::config_io::Error` (main.rs). Build clean, 1096 lib tests pass, guards exit 0. Decided by: single-crate-fold (user-directed full src/ flattening).
@@ -314,19 +315,6 @@
   absence → empty (standing guard). `cargo test -p kern --lib` 964 passed, 0
   failed, 4 ignored; `cargo test -p trnsprt --lib` 61 passed.
   Decided by: fix-the-root, name-the-tradeoff, verify-before-claiming.
-
-- 2026-07-23 — item 87 measurement half-closed: the active preset name
-  (`relaxed`/`medium`/`tight`) is now surfaced. `Server::health_stats`
-  (`src/mcp.rs`) JSON carries `preset` from `self.cfg.preset`; `trnsprt::HealthRes`
-  gains `preset: String` `#[serde(default)]` (old daemon → `""`); `kern health`
-  prints `preset: {name}` daemon-sourced only (item 100 rule), first line framing
-  the heat/recency/retrieval lines; `kern://local/health` by construction.
-  Proved by `kern_health_prints_preset` (tight/relaxed/empty/no-daemon) + dto
-  round-trip `preset: "tight"`. Standing guard: old-payload absence → `""`
-  (the `tight` print reds if omitted). `cargo test -p kern --lib` 963 passed, 0
-  failed, 4 ignored; `cargo test -p trnsprt --lib` 61 passed.
-  Decided by: fix-the-root, name-the-tradeoff, verify-before-claiming.
-  Still open: the tuning sweep — run the suite per preset, re-pin the baseline.
 
 - 2026-07-23 — item 66 measurement half-closed: the active RRF config
   (`rrf_k`, `rrf_global_weight`, the three `ModeWeights`

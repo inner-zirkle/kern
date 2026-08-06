@@ -848,18 +848,18 @@ thought ingested on node A becomes searchable on node B under the same id.
 
 **How.**
 
-- **Node** (`src/gossip/node.rs`) — TCP listener, peer list
+- **Node** (`src/gossip_node.rs`) — TCP listener, peer list
   (`GOSSIP_MAX_PEERS=50`), `broadcast` with `GOSSIP_FANOUT=3`, `fetch_thought`
   RPC (`GOSSIP_FETCH_TIMEOUT=5s`), `start_heartbeat`
   (`GOSSIP_HEARTBEAT_INTERVAL=30s`), `GOSSIP_MAX_FRAME_BYTES=4MB` bounds. The
   Lamport counter it stamps messages with lives on the graph, not the node
   (`GraphGnn::bump_lamport`/`observe_lamport`, `src/graph.rs:467`/`:474`).
-- **Discovery** (`src/gossip/discovery.rs`) — multicast announce/parse on
+- **Discovery** (`src/gossip_discovery.rs`) — multicast announce/parse on
   `GOSSIP_DISCOVERY_MULTICAST=239.77.75.68` at `gossip.discovery_port`
   (default `7475`, `src/config_gossip.rs:66`) every
   `GOSSIP_DISCOVERY_INTERVAL=10s`. Only pairs nodes sharing the same
   `network_id`.
-- **Handler** (`src/gossip/handler.rs`) — `start_announce` (`:110`),
+- **Handler** (`src/gossip_handler.rs`) — `start_announce` (`:110`),
   `start_entity_sync` (`:185`, broadcasts top-32 hottest entities every
   heartbeat), `start_delta_flush` (`:222`, drains `GraphGnn`'s pending CRDT
   deltas), and inbound
@@ -868,7 +868,7 @@ thought ingested on node A becomes searchable on node B under the same id.
   the last-writer-wins call sites now route through (`join_lww_time`
   `src/merge.rs`, `merge_reason`, and both `gossip/handler.rs` sites). There
   is no `PnCounter`/`LwwRegister`/`OrSet` type anywhere in the tree. Applied to
-  four live `CrdtTarget`s (`src/gossip/types.rs`): `ThoughtAccessCount`
+  four live `CrdtTarget`s (`src/gossip_types.rs`): `ThoughtAccessCount`
   (GCounter), `ReasonTraversalCount` (GCounter), `ReasonScore` (LWW),
   `ValidUntil` (LWW). This replaces the old wall-clock max-join. `Statements` is
   inert by design — it has no sender, and statements are deliberately never
@@ -877,23 +877,23 @@ thought ingested on node A becomes searchable on node B under the same id.
 - **Merge** (`src/merge.rs`) — `merge_entity`/`merge_reason`/
   `merge_remote_entity`/`absorb_graph` apply remote bodies into local kerns
   under `remote-` prefixed ids, capped at `GOSSIP_REMOTE_KERN_ENTITY_CAP=50_000`.
-- **Seen / Ledger** (`src/gossip/seen.rs`, `ledger.rs`) — `SeenSet` dedup
+- **Seen / Ledger** (`src/gossip_seen.rs`, `ledger.rs`) — `SeenSet` dedup
   (`GOSSIP_SEEN_SET_CAP=10_000`, TTL 60s); `Ledger` routes thought-id and
   kern-id → peer addr (`LEDGER_THOUGHT_TTL=72h`, `LEDGER_ROUTING_TTL=5min`).
 
 **Status.** Entity-body sharing is verified on a single host with manually
 seeded `peers` (the reliable path). Multicast discovery only pairs same-
 `network_id` nodes. The **Delta, Pulse and Question senders are all live**
-(`src/gossip/handler.rs`, wired from `src/commands.rs`, driven from
+(`src/gossip_handler.rs`, wired from `src/commands.rs`, driven from
 `src/tick/tasks.rs`). The **fetch RPC is live**: `wire_fetch`
-(`src/gossip/handler.rs:53`) installs the handler at startup
-(`src/commands.rs`) and `spawn_fetch_entity` (`src/gossip/handler.rs:74`)
+(`src/gossip_handler.rs:53`) installs the handler at startup
+(`src/commands.rs`) and `spawn_fetch_entity` (`src/gossip_handler.rs:74`)
 issues fetches from the question path. OR-Set deltas for `statements` are
 **dead on both ends by design, not by omission**: `id == content_hash(text)`,
 so a same-id peer has identical content by construction and a differing one is
 asserting content its id does not hash to. The sender emits empty
-(`src/gossip/handler.rs:247`) and the receiver rejects the target
-(`src/gossip/handler.rs:502`), kept as a refused variant so an older peer
+(`src/gossip_handler.rs:247`) and the receiver rejects the target
+(`src/gossip_handler.rs:502`), kept as a refused variant so an older peer
 cannot inject text under a content-addressed id. Statements converge through
 full EntitySync bodies. Federation tuning at scale (batch size, push vs pull,
 anti-entropy) is open.
@@ -901,7 +901,7 @@ anti-entropy) is open.
 **Federation plan v0 (2026-07-27, FEDERATION_PLAN.md §1–§6) — `building`.**
 Six layers landed on top of the gossip baseline, each behind its test gate:
 
-- **Identity + signed envelopes** (`src/gossip/identity.rs`) — ed25519 peer
+- **Identity + signed envelopes** (`src/gossip_identity.rs`) — ed25519 peer
   key minted owner-only at `<data_dir>/peer.key` (`load_or_mint`, same pattern
   as `mint_token`); `PeerId = blake3(pubkey)`; ring location
   `loc = first 8 id bytes / 2^64` (53-bit mantissa, strictly `< 1.0`). Every
@@ -911,14 +911,14 @@ Six layers landed on top of the gossip baseline, each behind its test gate:
   or any rate budget — invalid frames are dropped and counted
   (`invalid_sig_dropped`). The Question rate budget now keys on the verified
   PeerId, not the spoofable `origin` string.
-- **Small-world ring** (`src/gossip/ring.rs`) — `RingView`: 4 nearest
+- **Small-world ring** (`src/gossip_ring.rs`) — `RingView`: 4 nearest
   neighbors per side + 8 long links harmonically sampled (~1/d, Kleinberg
   exponent 1); greedy `route()` returns only a strictly-closer peer.
   `FindNearest`/`Nearest` frames; iterative client-driven `join_ring`.
   Sim gates: 1k peers, 99% of random targets reach the nearest peer in
   ≤ log²n hops; 20% churn repaired from far links, routing still terminates.
   Off by default (`gossip.ring = false`).
-- **Contracts** (`src/gossip/contract.rs`) — the key IS the policy:
+- **Contracts** (`src/gossip_contract.rs`) — the key IS the policy:
   `ContractId = blake3(kind_tag || bincode(ParamsV0))`; `ParamsV0` = owners,
   `WritePolicy` (Open/Allowlist/OwnersOnly), kind filter, `max_entities`,
   forced `retention_secs`, optional `PrivacyV0`. Builtin
@@ -930,7 +930,7 @@ Six layers landed on top of the gossip baseline, each behind its test gate:
   nibble buckets — divergent states converge byte-identical after one
   exchange each way. Contract kerns are `remote-contract-<hex>`, so every
   existing `remote-` trust boundary applies.
-- **Subscription trees + delta sync** (`src/gossip/subs.rs`, `handler.rs`) —
+- **Subscription trees + delta sync** (`src/gossip_subs.rs`, `handler.rs`) —
   bounded LRU `SubTable` (cap 256): `Subscribe` routes toward
   `loc(ContractId)`, each hosting hop records the asker downstream, answers
   `SubAck{summary}`, extends the tree once toward the key. First parent wins
@@ -947,7 +947,7 @@ Six layers landed on top of the gossip baseline, each behind its test gate:
   mints the owner-signed amended params, the NEW ContractId (key = policy
   hash, so grants move the key) and the tombstone signature subscribers
   verify (`tombstone_digest`).
-- **Privacy** (`src/gossip/privacy.rs`) — `PrivacyV0` scheme 0 =
+- **Privacy** (`src/gossip_privacy.rs`) — `PrivacyV0` scheme 0 =
   xchacha20poly1305. `encrypt_entity` seals text client-side; the id becomes
   the ciphertext's content hash so `id_matches_body` and writer signatures
   keep holding on relays; vectors are dropped (an embedding of hidden text
@@ -962,7 +962,7 @@ end-to-end: per-entity writer signatures + per-frame envelopes. Off by
 default. Full trust model on the docs-site `Security` page
 (`docs/site/content/docs/concepts/security.mdx`).
 
-**Where.** `src/gossip/*` (13 files), `src/crdt.rs`, `src/merge.rs`,
+**Where.** `src/gossip_*` (13 files), `src/crdt.rs`, `src/merge.rs`,
 `src/mcp/tools_delegate.rs`, config in `src/config_gossip.rs`
 (`ring`, `identity_path`, `sync_interval_secs`, `subscriptions`,
 `[[gossip.contracts]]`).

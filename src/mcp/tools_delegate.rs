@@ -1,8 +1,8 @@
 use super::{tool_error, tool_result_json, Server};
-use crate::gossip::contract::{
+use crate::gossip_contract::{
 	contract_id, params_from_config, tombstone_digest, WritePolicy, SIGNED_CRDT_V0_TAG,
 };
-use crate::gossip::identity::PeerIdentity;
+use crate::gossip_identity::PeerIdentity;
 
 pub(crate) fn tool_schemas() -> Vec<serde_json::Value> {
 	vec![
@@ -49,7 +49,7 @@ impl Server {
 		let Some(hash_hex) = args.get("payload_hash").and_then(|v| v.as_str()) else {
 			return tool_error("payload_hash is required (64 hex chars)");
 		};
-		let Some(digest) = crate::gossip::contract::parse_key_hex(hash_hex) else {
+		let Some(digest) = crate::gossip_contract::parse_key_hex(hash_hex) else {
 			return tool_error("payload_hash must be exactly 64 hex chars (a 32-byte digest)");
 		};
 		let identity = match self.delegate_identity() {
@@ -81,7 +81,7 @@ impl Server {
 		let Some(grantee_hex) = args.get("pubkey").and_then(|v| v.as_str()) else {
 			return tool_error("pubkey is required (hex ed25519 public key)");
 		};
-		let Some(grantee) = crate::gossip::contract::parse_key_hex(grantee_hex) else {
+		let Some(grantee) = crate::gossip_contract::parse_key_hex(grantee_hex) else {
 			return tool_error("pubkey must be 64 hex chars");
 		};
 		let identity = match self.delegate_identity() {
@@ -134,7 +134,7 @@ impl Server {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::gossip::identity::verify_sig_by;
+	use crate::gossip_identity::verify_sig_by;
 
 	use crate::mcp::tools::is_error;
 
@@ -159,8 +159,8 @@ mod tests {
 		assert!(!is_error(&out), "sign should succeed: {out}");
 		let b = body(&out);
 
-		let digest = crate::gossip::contract::parse_key_hex(&digest_hex).unwrap();
-		let pubkey = crate::gossip::contract::parse_key_hex(b["pubkey"].as_str().unwrap()).unwrap();
+		let digest = crate::gossip_contract::parse_key_hex(&digest_hex).unwrap();
+		let pubkey = crate::gossip_contract::parse_key_hex(b["pubkey"].as_str().unwrap()).unwrap();
 		let sig_hex = b["tombstone_sig"]
 			.as_str()
 			.or(b["signature"].as_str())
@@ -227,9 +227,9 @@ mod tests {
 			.any(|k| k.as_str() == Some(grantee_hex.as_str())));
 
 		// The tombstone signature verifies as an owner signature over (old, new).
-		let old_id = crate::gossip::contract::parse_key_hex(b["old_id"].as_str().unwrap()).unwrap();
-		let new_id = crate::gossip::contract::parse_key_hex(b["new_id"].as_str().unwrap()).unwrap();
-		let owner_pk = crate::gossip::contract::parse_key_hex(
+		let old_id = crate::gossip_contract::parse_key_hex(b["old_id"].as_str().unwrap()).unwrap();
+		let new_id = crate::gossip_contract::parse_key_hex(b["new_id"].as_str().unwrap()).unwrap();
+		let owner_pk = crate::gossip_contract::parse_key_hex(
 			b["amended_contract"]["owners"][0].as_str().unwrap(),
 		)
 		.unwrap();

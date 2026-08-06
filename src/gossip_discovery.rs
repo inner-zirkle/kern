@@ -5,7 +5,7 @@ use tokio::net::UdpSocket;
 
 use crate::base_constants::{GOSSIP_DISCOVERY_INTERVAL, GOSSIP_DISCOVERY_MULTICAST};
 
-use super::node::Node;
+use crate::gossip_node::Node;
 
 const ANNOUNCE_PREFIX: &str = "kern:";
 

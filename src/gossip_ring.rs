@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use super::identity::PeerId;
+use crate::gossip_identity::PeerId;
 
 /// Nearest ring neighbors kept per side. Greedy routing is correct as long
 /// as `near` is correct, so these are maintained before any far link.

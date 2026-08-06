@@ -12,13 +12,13 @@ use crate::search::search_all_unlocked;
 use crate::base_types::{Kern, ReasonKind};
 use crate::crdt::{lww_wins, GCounter};
 
-use super::contract::{
+use crate::gossip_contract::{
 	contract_kern_id, contract_loc, entity_sig_digest, tombstone_digest, Applied, ContractId,
 	ContractState, Delta as ContractDelta, ParamsV0, SignedCrdt, SignedEntity, SyncContract,
 };
-use super::node::{FetchHandler, Handler, Node};
-use super::subs::SubTable;
-use super::types::*;
+use crate::gossip_node::{FetchHandler, Handler, Node};
+use crate::gossip_subs::SubTable;
+use crate::gossip_types::*;
 
 /// One hosted contract: the policy plus the signed bodies this node can
 /// prove. Only hosts participate in a contract's subscription tree — every
@@ -52,7 +52,7 @@ impl Deps {
 
 pub fn new_handler(d: Arc<Deps>) -> Handler {
 	Arc::new(
-		move |peer: crate::gossip::identity::PeerId, msg: GossipMessage| match msg.kind {
+		move |peer: crate::gossip_identity::PeerId, msg: GossipMessage| match msg.kind {
 			GossipKind::Sphere => {
 				if msg.id.starts_with("answer-") {
 					handle_answer(&d, msg);
@@ -329,7 +329,7 @@ fn handle_answer(d: &Arc<Deps>, msg: GossipMessage) {
 	}
 }
 
-fn handle_question(d: &Deps, peer: crate::gossip::identity::PeerId, msg: GossipMessage) {
+fn handle_question(d: &Deps, peer: crate::gossip_identity::PeerId, msg: GossipMessage) {
 	let question = match &msg.payload {
 		GossipPayload::Question(q) => q,
 		_ => return,
@@ -830,7 +830,7 @@ fn handle_contract_delta(d: &Arc<Deps>, msg: GossipMessage) {
 					origin = %msg.origin,
 					contract = %crate::util::short_id(&crate::util::hex::encode(cid)),
 					refusal = ?refusal,
-					total_refused = super::contract::contract_refused(),
+					total_refused = crate::gossip_contract::contract_refused(),
 					"contract delta refused (further refusals counted, not logged)"
 				);
 			}
@@ -875,7 +875,7 @@ fn handle_tombstone(d: &Arc<Deps>, msg: GossipMessage) {
 		.params
 		.owners
 		.iter()
-		.any(|o| crate::gossip::identity::verify_sig_by(o, &digest, &p.sig));
+		.any(|o| crate::gossip_identity::verify_sig_by(o, &digest, &p.sig));
 	if !signed_by_owner {
 		return;
 	}
@@ -1510,7 +1510,7 @@ mod tests {
 	#[test]
 	fn a_flood_of_questions_from_one_peer_is_refused() {
 		use crate::base_types::Entity;
-		use crate::gossip::rate::GOSSIP_QUESTION_PER_MIN;
+		use crate::gossip_rate::GOSSIP_QUESTION_PER_MIN;
 		let mut graph = GraphGnn::new();
 		let root = graph.root.id.clone();
 		{
@@ -1557,10 +1557,10 @@ mod tests {
 	// partition converges within one anti-entropy pass. ----
 
 	fn open_contract() -> (
-		crate::gossip::contract::ContractId,
-		crate::gossip::contract::ParamsV0,
+		crate::gossip_contract::ContractId,
+		crate::gossip_contract::ParamsV0,
 	) {
-		use crate::gossip::contract::*;
+		use crate::gossip_contract::*;
 		let params = ParamsV0 {
 			owners: Vec::new(),
 			writers: WritePolicy::Open,
@@ -1573,8 +1573,8 @@ mod tests {
 	}
 
 	async fn fed_node(
-		cid: crate::gossip::contract::ContractId,
-		params: crate::gossip::contract::ParamsV0,
+		cid: crate::gossip_contract::ContractId,
+		params: crate::gossip_contract::ParamsV0,
 	) -> (Arc<Deps>, String) {
 		let node = Node::new("127.0.0.1:0", "fed-e2e", vec![]);
 		node.enable_ring();
@@ -1592,7 +1592,7 @@ mod tests {
 			queue: None,
 			save: None,
 			contracts: Arc::new(RwLock::new(contracts)),
-			subs: Arc::new(crate::gossip::subs::SubTable::new()),
+			subs: Arc::new(crate::gossip_subs::SubTable::new()),
 		});
 		node.set_handler(new_handler(d.clone()));
 		let addr = node.listen().await.expect("fed node binds");
@@ -1612,8 +1612,8 @@ mod tests {
 		}
 	}
 
-	fn holds(d: &Arc<Deps>, cid: &crate::gossip::contract::ContractId, id: &str) -> bool {
-		let kid = crate::gossip::contract::contract_kern_id(cid);
+	fn holds(d: &Arc<Deps>, cid: &crate::gossip_contract::ContractId, id: &str) -> bool {
+		let kid = crate::gossip_contract::contract_kern_id(cid);
 		let g = d.graph.read();
 		g.kerns
 			.get(&kid)

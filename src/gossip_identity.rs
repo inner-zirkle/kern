@@ -3,7 +3,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 
-use super::types::SignedFrame;
+use crate::gossip_types::SignedFrame;
 
 /// blake3 of the ed25519 public key — the peer's stable federation identity.
 pub type PeerId = [u8; 32];
@@ -48,7 +48,7 @@ impl PeerIdentity {
 	pub fn load_or_mint(path: &Path) -> std::io::Result<Self> {
 		match std::fs::read_to_string(path) {
 			Ok(text) => {
-				let seed = crate::gossip::contract::parse_key_hex(text.trim()).ok_or_else(|| {
+				let seed = crate::gossip_contract::parse_key_hex(text.trim()).ok_or_else(|| {
 					std::io::Error::new(
 						std::io::ErrorKind::InvalidData,
 						format!("peer key file {} is not 64 hex chars", path.display()),
