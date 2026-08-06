@@ -5,7 +5,7 @@ use crate::search::search_all_unlocked;
 use crate::profile::{render_timeline, Profile};
 use crate::retrieval::seed::Mode;
 
-use super::{load_graph, Client, Endpoint};
+use crate::commands::{load_graph, Client, Endpoint};
 
 const TIMELINE_WIDTH: usize = 40;
 
@@ -31,7 +31,7 @@ fn renamed(mut p: Profile, name: &str) -> Profile {
 }
 
 // Read-only: nothing is persisted, so it is safe to run next to a daemon.
-pub(super) async fn cmd_profile(cfg: &crate::config::Config, text: &str, no_llm: bool) {
+pub(crate) async fn cmd_profile(cfg: &crate::config::Config, text: &str, no_llm: bool) {
 	let mut profiles: Vec<Profile> = Vec::new();
 
 	let t = Instant::now();

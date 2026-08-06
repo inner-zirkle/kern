@@ -2,6 +2,7 @@
 
 <!-- docs-check: historical -->
 
+- 2026-08-06 — flattened `commands` subdir: 11 `src/commands/*.rs` → `src/commands_*.rs` at src/ root (prefix-rename). Parent `src/commands.rs` mod-block dropped; lib.rs gained the 11 module declarations. Sibling refs `super::route`→`crate::commands_route`, parent-item refs `super::{load_graph,...}`→`crate::commands::{...}`, `pub(super)`→`pub(crate)`. External `crate::commands::graph_ops::`→`crate::commands_graph_ops::`. Build green, tests pass, guards 0. Decided by: feb.
 - 2026-08-07 — flatten `src/base/` into `src/` root (phase of full src/ flattening): 22 files. `src/base/{store,types,constants}.rs`→`src/base_{store,types,constants}.rs` (collided with existing root `store.rs`/`types.rs`); the other 19 kept bare names (`accept.rs`→`src/accept.rs` etc). `src/base.rs` deleted; `src/lib.rs` declares the 22 modules at crate root (`pub mod`). Rewrites across 70 consumer files: `crate::base::store/types/constants`→`crate::base_store/base_types/base_constants`, `crate::base::X`→`crate::X`; subfile `super::store/types/constants`→`crate::base_store/base_types/base_constants`; `use crate::base_constants as constants;` alias where bare `constants::` used. Build clean, 1096 lib tests pass, guards exit 0. Decided by: single-crate-fold (user-directed full src/ flattening).
 - 2026-08-07 — flatten `src/config/` into `src/` root (phase of full src/ flattening): `src/config/mod.rs`→`src/config.rs`, 17 subfiles→`src/config_*.rs` (config_embed.rs, config_gnn.rs, config_gossip.rs, config_graph.rs, config_hub.rs, config_ingest.rs, config_intake.rs, config_io.rs, config_preset.rs, config_reason.rs, config_reload.rs, config_retrieval.rs, config_secrets.rs, config_serve.rs, config_tick.rs, config_watcher.rs, config_detached_log.rs). Subfiles became crate-root modules declared in lib.rs (`mod` kept private, `pub mod` for detached_log + io — visibility preserved). config.rs re-exports retargeted to `crate::config_*::`; body `io::Error`→`crate::config_io::Error`. External: `crate::config::detached_log::stdio`→`crate::config_detached_log::stdio` (hub_node.rs, commands/mcp_cmd.rs); `kern::config::io::Error`→`kern::config_io::Error` (main.rs). Build clean, 1096 lib tests pass, guards exit 0. Decided by: single-crate-fold (user-directed full src/ flattening).
 
@@ -450,21 +451,6 @@
   revert. Decided by: fix-the-root, name-the-tradeoff, verify-before-claiming.
   Still open: rate-limit / `ReasonKind::Edit` decision + triggers #2/#3.
 
-- 2026-07-22 — item 83 signal-on-approach half closed: the armed
-  `max_loaded_kerns` (128) is now surfaced. `GraphGnn::max_loaded_kerns()`
-  accessor + `HealthStats.max_kerns` + `kern health` prints `kerns: N (cap M)`
-  (or `cap off` for `KERN_CAP_DISABLED`) and warns `kerns near cap: N/M` at
-  `KERN_CAP_APPROACH_FRAC=0.9` — **daemon-sourced only** (item 100 rule). MCP
-  `health` JSON carries `max_kerns`; `trnsprt::HealthRes` gains
-  `#[serde(default)] max_kerns` (old daemon → `0` → `cap off`). Proved by
-  `graph_health_stats_reports_max_kerns`,
-  `kern_health_warns_when_resident_kerns_approach_cap` (116/128 → warn, 10/128
-  → none, `u64::MAX`/`0`/no-daemon → none), dto round-trip `max_kerns: 128`.
-  `cargo test -p kern --lib` 950 passed, 0 failed, 4 ignored; `cargo test -p
-  trnsprt --lib` 61 passed. Negative control (approach check `false` → no warn)
-  reds, green on revert. Decided by: fix-the-root, name-the-tradeoff,
-  verify-before-claiming.
-
 - 2026-07-22 — item 24 residue #2 closed: `connect_kern` peer-uid check now has
   a test seam mirroring the bind arm's `bind_unix(path, expected_peer)` — a
   `#[cfg(test)]` path injects the expected uid, and
@@ -653,6 +639,7 @@
   concurrent reader would fail the swap; DiskANN is off-by-default, Linux-first.
   1025 pass. Decided by: fix-the-root, verify-before-claiming, name-the-tradeoff.
   Supersedes: nothing.
+
 
 - 2026-07-22 — item 83 resident-cap half closed: `GraphConfig::default().
   max_kerns` is now 128 (was `KERN_CAP_DISABLED`/`usize::MAX`). The old

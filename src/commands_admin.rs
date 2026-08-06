@@ -3,13 +3,13 @@ use crate::transport::typed::Endpoint;
 
 use crate::util::short_id;
 
-use super::route::{route_to, Routed};
-use super::{
+use crate::commands_route::{route_to, Routed};
+use crate::commands::{
 	load_graph, save_graph_unguarded, with_graph, ClaimKindAction, Client, GravitonAction,
 	UnnamedAction,
 };
 
-pub(super) fn cmd_compress(src: &str, mode_str: &str, out: Option<&str>) {
+pub(crate) fn cmd_compress(src: &str, mode_str: &str, out: Option<&str>) {
 	let Some(mode) = crate::quant::QuantizationMode::parse(mode_str) else {
 		eprintln!("compress: unknown mode '{mode_str}' (expected: none | int8)");
 		return;
@@ -35,7 +35,7 @@ pub(super) fn cmd_compress(src: &str, mode_str: &str, out: Option<&str>) {
 	}
 }
 
-pub(super) async fn cmd_health(cfg: &crate::config::Config) {
+pub(crate) async fn cmd_health(cfg: &crate::config::Config) {
 	let g = load_graph(cfg);
 	let h = crate::health::graph_health_stats(&g);
 	// Asked once, before anything prints: the degradation lines below need it too,
@@ -777,7 +777,7 @@ mod degradation_lines_tests {
 }
 
 // Daemon must be stopped: a live daemon would race and re-persist the bloated graph.
-pub(super) fn cmd_gc(cfg: &crate::config::Config) {
+pub(crate) fn cmd_gc(cfg: &crate::config::Config) {
 	let _lock = match crate::lock::acquire(&cfg.data_dir, "gc") {
 		Ok(l) => l,
 		Err(e) => {
@@ -810,7 +810,7 @@ pub(super) fn cmd_gc(cfg: &crate::config::Config) {
 }
 
 // Daemon must be stopped: compaction swaps data.mdb underneath any open env.
-pub(super) fn cmd_compact(cfg: &crate::config::Config) {
+pub(crate) fn cmd_compact(cfg: &crate::config::Config) {
 	let _lock = match crate::lock::acquire(&cfg.data_dir, "compact") {
 		Ok(l) => l,
 		Err(e) => {
@@ -857,7 +857,7 @@ fn print_graviton_removed(name: &str) {
 	println!("graviton removed: {name}");
 }
 
-pub(super) async fn cmd_graviton(cfg: &crate::config::Config, action: GravitonAction) {
+pub(crate) async fn cmd_graviton(cfg: &crate::config::Config, action: GravitonAction) {
 	graviton_at(cfg, &Endpoint::kern(), &crate::rpc::caller_of(cfg), action).await
 }
 
@@ -976,7 +976,7 @@ fn print_claim_kind_removed(name: &str) {
 	println!("claim kind removed: {name}");
 }
 
-pub(super) async fn cmd_claim_kind(cfg: &crate::config::Config, action: ClaimKindAction) {
+pub(crate) async fn cmd_claim_kind(cfg: &crate::config::Config, action: ClaimKindAction) {
 	claim_kind_at(cfg, &Endpoint::kern(), &crate::rpc::caller_of(cfg), action).await
 }
 
@@ -1041,7 +1041,7 @@ async fn claim_kind_at(
 	}
 }
 
-pub(super) fn cmd_peers(cfg: &crate::config::Config) {
+pub(crate) fn cmd_peers(cfg: &crate::config::Config) {
 	print!("{}", peers_summary(cfg));
 }
 
@@ -1356,7 +1356,7 @@ mod cmd_tests {
 	}
 }
 
-pub(super) fn cmd_register(cfg: &crate::config::Config, path: &str) {
+pub(crate) fn cmd_register(cfg: &crate::config::Config, path: &str) {
 	// The loaded graph is bound to the SOURCE store, so write into a freshly
 	// opened destination store — save_graph_unguarded would write back to the source.
 	match crate::persist::load_dir(path) {
@@ -1371,7 +1371,7 @@ pub(super) fn cmd_register(cfg: &crate::config::Config, path: &str) {
 	}
 }
 
-pub(super) async fn cmd_unnamed(cfg: &crate::config::Config, action: UnnamedAction) {
+pub(crate) async fn cmd_unnamed(cfg: &crate::config::Config, action: UnnamedAction) {
 	match action {
 		UnnamedAction::List => {
 			let g = load_graph(cfg);
@@ -1443,13 +1443,13 @@ fn default_root() -> String {
 		.to_string()
 }
 
-pub(super) async fn cmd_hub(action: Option<super::HubAction>, idle_unload_secs: u64) {
+pub(crate) async fn cmd_hub(action: Option<crate::commands::HubAction>, idle_unload_secs: u64) {
 	use crate::transport::hub_rpc::{HubRpcClient, ResolveReq, UnloadReq};
 	use crate::transport::typed::JsonEnvelopeCodec;
 
 	match action {
 		None => crate::hub::run_hub(idle_unload_secs).await,
-		Some(super::HubAction::Resolve { root }) => {
+		Some(crate::commands::HubAction::Resolve { root }) => {
 			let root = root.unwrap_or_else(default_root);
 			let client = match HubRpcClient::<JsonEnvelopeCodec>::connect_hub().await {
 				Ok(c) => c,
@@ -1468,7 +1468,7 @@ pub(super) async fn cmd_hub(action: Option<super::HubAction>, idle_unload_secs: 
 				Err(e) => eprintln!("hub resolve: {e}"),
 			}
 		}
-		Some(super::HubAction::Status) => {
+		Some(crate::commands::HubAction::Status) => {
 			let client = match HubRpcClient::<JsonEnvelopeCodec>::connect_hub().await {
 				Ok(c) => c,
 				Err(e) => {
@@ -1494,7 +1494,7 @@ pub(super) async fn cmd_hub(action: Option<super::HubAction>, idle_unload_secs: 
 				Err(e) => eprintln!("hub status: {e}"),
 			}
 		}
-		Some(super::HubAction::Unload { root }) => {
+		Some(crate::commands::HubAction::Unload { root }) => {
 			let root = root.unwrap_or_else(default_root);
 			let client = match HubRpcClient::<JsonEnvelopeCodec>::connect_hub().await {
 				Ok(c) => c,
@@ -1510,8 +1510,8 @@ pub(super) async fn cmd_hub(action: Option<super::HubAction>, idle_unload_secs: 
 				Err(e) => eprintln!("hub unload: {e}"),
 			}
 		}
-		Some(super::HubAction::Merge { src, dst }) => cmd_hub_merge(&src, &dst).await,
-		Some(super::HubAction::Stop) => match HubRpcClient::<JsonEnvelopeCodec>::connect_hub().await {
+		Some(crate::commands::HubAction::Merge { src, dst }) => cmd_hub_merge(&src, &dst).await,
+		Some(crate::commands::HubAction::Stop) => match HubRpcClient::<JsonEnvelopeCodec>::connect_hub().await {
 			Ok(client) => match client.stop().await {
 				Ok(_) => println!("hub stopped (nodes stay up)"),
 				Err(e) => eprintln!("hub stop: {e}"),
@@ -1638,7 +1638,7 @@ mod hub_merge_tests {
 
 	fn dst_entities(root: &std::path::Path) -> usize {
 		let cfg = crate::config::Config::default_in(root);
-		let g = super::load_graph(&cfg);
+		let g = crate::commands::load_graph(&cfg);
 		crate::health::graph_health_stats(&g).entities
 	}
 

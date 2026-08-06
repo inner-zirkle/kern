@@ -9,8 +9,8 @@ use crate::base_types::{EntityKind, Kern, Reason, ReasonKind, ReviewState, Sourc
 use crate::util::{explain_relationship_prompt, short_id, truncate};
 use crate::mcp::tools_query::entity_detail_by_id;
 
-use super::route::{array_field, f64_field, route, str_field, u64_field, Routed};
-use super::{load_graph, with_graph, Client, Endpoint};
+use crate::commands_route::{array_field, f64_field, route, str_field, u64_field, Routed};
+use crate::commands::{load_graph, with_graph, Client, Endpoint};
 
 fn print_kern(kern: &Kern, g: &GraphGnn, depth: usize) {
 	let indent = "  ".repeat(depth);
@@ -107,7 +107,7 @@ fn print_detail(v: &serde_json::Value) {
 // Routed first for the same reason as forget: a serving daemon's graph is newer
 // than anything this process can load, so a local read would print a stale
 // thought — and stale evidence is the defect one step down from a lost write.
-pub(super) async fn cmd_get(cfg: &crate::config::Config, id: &str) {
+pub(crate) async fn cmd_get(cfg: &crate::config::Config, id: &str) {
 	match route("query", serde_json::json!({"id": id})).await {
 		Routed::Done(v) => return print_detail(&v),
 		Routed::Refused(e) => return eprintln!("{e}"),
@@ -120,7 +120,7 @@ pub(super) async fn cmd_get(cfg: &crate::config::Config, id: &str) {
 	}
 }
 
-pub(super) fn cmd_list(cfg: &crate::config::Config) {
+pub(crate) fn cmd_list(cfg: &crate::config::Config) {
 	let g: GraphGnn = load_graph(cfg);
 	print_kern(&g.root, &g, 0);
 }
@@ -132,7 +132,7 @@ fn print_forget(id: &str, removed: u64) {
 // Routed first: while a daemon serves, its in-memory graph is newer than
 // anything this process can load, so a local forget would delete from a stale
 // copy and report a stale edge count.
-pub(super) async fn cmd_forget(cfg: &crate::config::Config, id: &str) {
+pub(crate) async fn cmd_forget(cfg: &crate::config::Config, id: &str) {
 	match route("forget", serde_json::json!({"id": id})).await {
 		Routed::Done(v) => return print_forget(id, u64_field(&v, "removed_edges")),
 		Routed::Refused(e) => return eprintln!("{e}"),
@@ -178,7 +178,7 @@ fn print_promote(id: &str, promoted: bool) {
 // Releasing a held claim is a curation decision. The socket it routes over is
 // owner-only and token-authenticated; any caller holding the mcp-token may
 // release one — the process boundary is the access model.
-pub(super) async fn cmd_promote(cfg: &crate::config::Config, id: &str) {
+pub(crate) async fn cmd_promote(cfg: &crate::config::Config, id: &str) {
 	match route("promote", serde_json::json!({"id": id})).await {
 		Routed::Done(v) => {
 			let promoted = v
@@ -293,7 +293,7 @@ fn print_forget_source(scheme: &str, object_id: &str, out: &SourceForget) {
 // Routed first for the same reason as `cmd_forget`: a serving daemon's graph is
 // the live one, and a local delete would drop rows from a stale copy while the
 // daemon kept serving the originals.
-pub(super) async fn cmd_forget_source(cfg: &crate::config::Config, source: &str, force: bool) {
+pub(crate) async fn cmd_forget_source(cfg: &crate::config::Config, source: &str, force: bool) {
 	let (scheme, object_id) = match parse_source_selector(source) {
 		Ok(pair) => pair,
 		Err(e) => return eprintln!("{e}"),
@@ -321,7 +321,7 @@ pub(super) async fn cmd_forget_source(cfg: &crate::config::Config, source: &str,
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(super) async fn cmd_link(
+pub(crate) async fn cmd_link(
 	cfg: &crate::config::Config,
 	from: &str,
 	to: &str,
@@ -399,7 +399,7 @@ fn link_and_persist(
 	// a daemon can commit between our load and our flush. The unguarded path
 	// writes the whole kern map with no epoch check and drops that commit.
 	let g = std::sync::Arc::new(parking_lot::RwLock::new(g));
-	super::save_graph_guarded(&g, cfg);
+	crate::commands::save_graph_guarded(&g, cfg);
 	Ok(linked)
 }
 
@@ -455,7 +455,7 @@ fn print_degrade(id: &str, decayed: u64, removed: u64) {
 	);
 }
 
-pub(super) async fn cmd_degrade(cfg: &crate::config::Config, id: &str) {
+pub(crate) async fn cmd_degrade(cfg: &crate::config::Config, id: &str) {
 	match route("degrade", serde_json::json!({"query_id": id})).await {
 		Routed::Done(v) => {
 			return print_degrade(

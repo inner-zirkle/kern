@@ -2,15 +2,15 @@ use crate::search::{find_entity, search_all_unlocked};
 use crate::util::{short_id, truncate};
 use crate::mcp::tools_query::base_entity_json;
 
-use super::route::{array_field, f64_field, route, str_field, Routed};
-use super::{load_graph, Client};
+use crate::commands_route::{array_field, f64_field, route, str_field, Routed};
+use crate::commands::{load_graph, Client};
 
-pub(super) struct QueryParams<'a> {
-	pub(super) text: &'a str,
-	pub(super) mode: &'a str,
-	pub(super) exclude_pending: bool,
-	pub(super) embed_url: &'a str,
-	pub(super) embed_model: &'a str,
+pub(crate) struct QueryParams<'a> {
+	pub(crate) text: &'a str,
+	pub(crate) mode: &'a str,
+	pub(crate) exclude_pending: bool,
+	pub(crate) embed_url: &'a str,
+	pub(crate) embed_model: &'a str,
 }
 
 fn print_results(v: &serde_json::Value) {
@@ -39,7 +39,7 @@ fn print_results(v: &serde_json::Value) {
 // Routed before the embed call: a serving daemon owns the index this query has to
 // hit, and it embeds with its own configured model — the local path is what runs
 // when nothing is serving.
-pub(super) async fn cmd_query(cfg: &crate::config::Config, params: QueryParams<'_>) {
+pub(crate) async fn cmd_query(cfg: &crate::config::Config, params: QueryParams<'_>) {
 	let QueryParams {
 		text,
 		mode,
@@ -98,7 +98,7 @@ pub(super) async fn cmd_query(cfg: &crate::config::Config, params: QueryParams<'
 	print_results(&serde_json::json!({"entities": entities, "chains": chains}));
 }
 
-pub(super) async fn cmd_search(
+pub(crate) async fn cmd_search(
 	cfg: &crate::config::Config,
 	text: &str,
 	k: usize,

@@ -8,7 +8,7 @@
 use crate::transport::kern_rpc::KernRpcClient;
 use crate::transport::typed::{Endpoint, JsonEnvelopeCodec};
 
-pub(super) async fn cmd_status(cfg: &crate::config::Config) {
+pub(crate) async fn cmd_status(cfg: &crate::config::Config) {
 	let kern_ep = Endpoint::kern();
 	let hub_ep = Endpoint::hub();
 

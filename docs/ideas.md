@@ -6,6 +6,21 @@ item carrying the grep that produced it. Driven by the `/improve` skill.
 ## A. Combine
 ## B. Simplify
 
+### Flatten `commands` subdir into src/ root — DONE 2026-08-06 (this fire)
+
+Moved all 11 `src/commands/*.rs` up to `src/commands_*.rs` (prefix-rename to
+dodge collisions + keep grouping clear); dropped the `commands/` dir; parent
+`src/commands.rs` lost its `pub(crate) mod` block, re-export retargeted to
+`crate::commands_mcp_cmd::ensure_mcp_registered`; lib.rs gained the 11 module
+declarations (admin+graph_ops `pub(crate)`, rest private). Rewrites in moved
+files: `use super::route::`→`use crate::commands_route::` (sibling submods),
+`use super::{load_graph, Client, ...}`→`use crate::commands::{...}` (parent
+items), `pub(super)`→`pub(crate)`, test `use super::*` kept (same-file items).
+External consumers `src/mcp/tools_{mutate,admin}.rs`:
+`crate::commands::graph_ops::`→`crate::commands_graph_ops::`,
+`crate::commands::admin::`→`crate::commands_admin::`. Build clean, tests pass,
+guards exit 0.
+
 ### Inline `watcher` sub-crate into the root `kern` crate — DONE 2026-08-06 (this fire)
 
 Folded the `watcher` workspace member into `kern` as `crate::watcher`. Moved

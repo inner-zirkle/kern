@@ -7,12 +7,12 @@ use crate::base_store::FlushOutcome;
 use crate::base_types::Source;
 use crate::util::truncate;
 
-use super::{load_graph, Client, Endpoint};
+use crate::commands::{load_graph, Client, Endpoint};
 
 const WRITE_RETRIES: u32 = 5;
 
 #[allow(clippy::too_many_arguments)]
-pub(super) async fn cmd_ingest(
+pub(crate) async fn cmd_ingest(
 	cfg: &crate::config::Config,
 	text_parts: Vec<String>,
 	file: Option<String>,
@@ -90,7 +90,7 @@ pub(super) async fn cmd_ingest(
 				// Adopt the committed graph reusing the open store handle — never reopen the env.
 				{
 					let mut w = g.write();
-					let fresh = super::reload_graph(cfg, &w);
+					let fresh = crate::commands::reload_graph(cfg, &w);
 					*w = fresh;
 				}
 				outcome = run_once(&worker, &g, &text, &src, kind, conf, cfg, valid_until).await;

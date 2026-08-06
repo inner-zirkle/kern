@@ -1,16 +1,4 @@
-pub(crate) mod admin;
-pub(crate) mod graph_ops;
-mod ingest_cmd;
-mod intake_cmd;
-mod mcp_cmd;
-mod mcp_restart;
-mod profile_cmd;
-mod query;
-mod reembed;
-mod route;
-mod status;
-
-pub(crate) use mcp_cmd::ensure_mcp_registered;
+pub(crate) use crate::commands_mcp_cmd::ensure_mcp_registered;
 
 use std::sync::Arc;
 
@@ -557,7 +545,7 @@ pub async fn dispatch(cmd: Commands, cfg: &crate::config::Config) {
 			llm,
 		} => {
 			let (embed_url, embed_model, reason_url, reason_model) = llm.resolve(cfg);
-			ingest_cmd::cmd_ingest(
+			crate::commands_ingest_cmd::cmd_ingest(
 				cfg,
 				text,
 				file,
@@ -577,9 +565,9 @@ pub async fn dispatch(cmd: Commands, cfg: &crate::config::Config) {
 			llm,
 		} => {
 			let (embed_url, embed_model, _reason_url, _reason_model) = llm.resolve(cfg);
-			query::cmd_query(
+			crate::commands_query::cmd_query(
 				cfg,
-				query::QueryParams {
+				crate::commands_query::QueryParams {
 					text: &text,
 					mode: &mode,
 					exclude_pending,
@@ -592,25 +580,25 @@ pub async fn dispatch(cmd: Commands, cfg: &crate::config::Config) {
 
 		Commands::Search { text, k, embed } => {
 			let (embed_url, embed_model) = embed.resolve(cfg);
-			query::cmd_search(cfg, &text, k, embed_url, embed_model).await
+			crate::commands_query::cmd_search(cfg, &text, k, embed_url, embed_model).await
 		}
 
 		Commands::Reembed { embed } => {
 			let (embed_url, embed_model) = embed.resolve(cfg);
-			reembed::cmd_reembed(cfg, embed_url, embed_model).await
+			crate::commands_reembed::cmd_reembed(cfg, embed_url, embed_model).await
 		}
 
-		Commands::Get { id } => graph_ops::cmd_get(cfg, &id).await,
-		Commands::List => graph_ops::cmd_list(cfg),
+		Commands::Get { id } => crate::commands_graph_ops::cmd_get(cfg, &id).await,
+		Commands::List => crate::commands_graph_ops::cmd_list(cfg),
 		Commands::Forget { id, source, force } => match (id, source) {
-			(_, Some(source)) => graph_ops::cmd_forget_source(cfg, &source, force).await,
+			(_, Some(source)) => crate::commands_graph_ops::cmd_forget_source(cfg, &source, force).await,
 			// A --force the per-id path would silently ignore is worse than no
 			// --force: the caller asked to punch through the Fact guard and got a
 			// refusal that reads like the thought simply was not there.
 			(Some(_), None) if force => eprintln!(
 				"kern forget: --force applies to --source <scheme>://<object_id>, not a single thought ID"
 			),
-			(Some(id), None) => graph_ops::cmd_forget(cfg, &id).await,
+			(Some(id), None) => crate::commands_graph_ops::cmd_forget(cfg, &id).await,
 			(None, None) => {
 				eprintln!("kern forget: pass a thought ID or --source <scheme>://<object_id>")
 			}
@@ -623,7 +611,7 @@ pub async fn dispatch(cmd: Commands, cfg: &crate::config::Config) {
 			llm,
 		} => {
 			let (embed_url, embed_model, reason_url, reason_model) = llm.resolve(cfg);
-			graph_ops::cmd_link(
+			crate::commands_graph_ops::cmd_link(
 				cfg,
 				&from,
 				&to,
@@ -638,7 +626,7 @@ pub async fn dispatch(cmd: Commands, cfg: &crate::config::Config) {
 
 		Commands::Intake { action, llm } => {
 			let (embed_url, embed_model, reason_url, reason_model) = llm.resolve(cfg);
-			intake_cmd::cmd_intake(
+			crate::commands_intake_cmd::cmd_intake(
 				cfg,
 				action,
 				embed_url,
@@ -649,29 +637,29 @@ pub async fn dispatch(cmd: Commands, cfg: &crate::config::Config) {
 			.await
 		}
 
-		Commands::Status => status::cmd_status(cfg).await,
-		Commands::Health => admin::cmd_health(cfg).await,
-		Commands::Profile { text, no_llm } => profile_cmd::cmd_profile(cfg, &text, no_llm).await,
-		Commands::Gc => admin::cmd_gc(cfg),
-		Commands::Compact => admin::cmd_compact(cfg),
+		Commands::Status => crate::commands_status::cmd_status(cfg).await,
+		Commands::Health => crate::commands_admin::cmd_health(cfg).await,
+		Commands::Profile { text, no_llm } => crate::commands_profile_cmd::cmd_profile(cfg, &text, no_llm).await,
+		Commands::Gc => crate::commands_admin::cmd_gc(cfg),
+		Commands::Compact => crate::commands_admin::cmd_compact(cfg),
 
-		Commands::Graviton { action } => admin::cmd_graviton(cfg, action).await,
+		Commands::Graviton { action } => crate::commands_admin::cmd_graviton(cfg, action).await,
 
-		Commands::Degrade { id } => graph_ops::cmd_degrade(cfg, &id).await,
-		Commands::Promote { id } => graph_ops::cmd_promote(cfg, &id).await,
-		Commands::ClaimKind { action } => admin::cmd_claim_kind(cfg, action).await,
-		Commands::Peers => admin::cmd_peers(cfg),
-		Commands::Register { path } => admin::cmd_register(cfg, &path),
-		Commands::Unnamed { action } => admin::cmd_unnamed(cfg, action).await,
+		Commands::Degrade { id } => crate::commands_graph_ops::cmd_degrade(cfg, &id).await,
+		Commands::Promote { id } => crate::commands_graph_ops::cmd_promote(cfg, &id).await,
+		Commands::ClaimKind { action } => crate::commands_admin::cmd_claim_kind(cfg, action).await,
+		Commands::Peers => crate::commands_admin::cmd_peers(cfg),
+		Commands::Register { path } => crate::commands_admin::cmd_register(cfg, &path),
+		Commands::Unnamed { action } => crate::commands_admin::cmd_unnamed(cfg, action).await,
 		Commands::Mcp { embed } => {
 			// Override the process config's embed endpoint before serving so the
 			// standalone in-process embedder honors --embed-url/--embed-model. With
 			// no flags this clone equals `cfg`, so behavior is exactly as before.
 			let mut cfg = cfg.clone();
 			embed.apply_to(&mut cfg);
-			mcp_cmd::cmd_mcp(&cfg).await
+			crate::commands_mcp_cmd::cmd_mcp(&cfg).await
 		}
-		Commands::Compress { src, mode, out } => admin::cmd_compress(&src, &mode, out.as_deref()),
+		Commands::Compress { src, mode, out } => crate::commands_admin::cmd_compress(&src, &mode, out.as_deref()),
 		Commands::Daemon => {
 			// main.rs intercepts Daemon first; this arm is kept as a fallthrough.
 			run_server(&Cli::daemon(), cfg).await;
@@ -679,7 +667,7 @@ pub async fn dispatch(cmd: Commands, cfg: &crate::config::Config) {
 		Commands::Hub {
 			action,
 			idle_unload_secs,
-		} => admin::cmd_hub(action, idle_unload_secs).await,
+		} => crate::commands_admin::cmd_hub(action, idle_unload_secs).await,
 	}
 }
 

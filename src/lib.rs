@@ -34,6 +34,17 @@ pub fn launch_dir_join(path: impl AsRef<Path>) -> PathBuf {
 pub mod accept;
 pub mod base_constants;
 pub mod commands;
+pub(crate) mod commands_admin;
+pub(crate) mod commands_graph_ops;
+mod commands_ingest_cmd;
+mod commands_intake_cmd;
+mod commands_mcp_cmd;
+mod commands_mcp_restart;
+mod commands_profile_cmd;
+mod commands_query;
+mod commands_reembed;
+mod commands_route;
+mod commands_status;
 pub mod diskann;
 pub mod graph;
 pub mod health;

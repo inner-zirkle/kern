@@ -7,11 +7,11 @@ use std::collections::HashMap;
 
 use crate::math::average_vec;
 
-use super::{load_graph, save_graph_unguarded, Client};
+use crate::commands::{load_graph, save_graph_unguarded, Client};
 
 const BATCH: usize = 64;
 
-pub(super) async fn cmd_reembed(cfg: &crate::config::Config, embed_url: &str, embed_model: &str) {
+pub(crate) async fn cmd_reembed(cfg: &crate::config::Config, embed_url: &str, embed_model: &str) {
 	let _lock = match crate::lock::acquire(&cfg.data_dir, "reembed") {
 		Ok(l) => l,
 		Err(e) => {

@@ -296,7 +296,7 @@ and cold tier live together. Readers never block, writers serialize.
   stamp is treated as unknown, not as unstamped — adopting over it would erase
   the identity of the stored vectors. `kern reembed` stamps the model it
   *actually embedded with*, not the configured one
-  (`src/commands/reembed.rs:66-80`), so `health` can never report a false identity.
+  (`src/commands_reembed.rs:66-80`), so `health` can never report a false identity.
 - **Query dimension guard** (`src/search.rs:23` `dim_guard`) — `cosine`
   truncates to the shorter side, so an off-model query vector would score noise
   and rank it as recall. Every graph vector search checks the query dimension
@@ -326,7 +326,7 @@ and cold tier live together. Readers never block, writers serialize.
 
 **Gaps.** Single-writer is enforced, not assumed — `src/lock.rs` is an advisory
 lock `reembed`, `gc` and `compact` claim or refuse — but `cmd_hub_merge`
-(`src/commands/admin.rs:1002`) and `maybe_self_heal_store` (`src/commands.rs:444`)
+(`src/commands_admin.rs:1002`) and `maybe_self_heal_store` (`src/commands.rs:444`)
 still `save_graph_unguarded` holding none. No WAL but LMDB's; compaction is offline.
 
 ---
@@ -390,7 +390,7 @@ Nothing is lost on an LLM outage — the delta stays queued until it succeeds.
   `record_stuck`, cleared on the next success; `scan` reports pending (age +
   last error), quarantined and done. Without this a delta retried forever is
   indistinguishable from one not yet picked up.
-- **CLI** (`src/commands/intake_cmd.rs`) — `kern intake` (alias `intake
+- **CLI** (`src/commands_intake_cmd.rs`) — `kern intake` (alias `intake
   status`) prints that report; `kern intake drain` forces one pass. It routes to
   the daemon's `intake_drain` tool when one is serving — one drainer, never two
   distilling the same file — and falls back to `drain_locally`, an in-process
@@ -398,7 +398,7 @@ Nothing is lost on an LLM outage — the delta stays queued until it succeeds.
   Both share `drain_once` with the daemon loop, and both print the same tail.
 
 **Where.** `src/ingest/*` (3583 LoC, 13 files). Spawned by `spawn_intake`
-(`src/commands.rs`); driven manually by `src/commands/intake_cmd.rs`.
+(`src/commands.rs`); driven manually by `src/commands_intake_cmd.rs`.
 
 A **deduped** ingest carries its retention too. `accept::merge_valid_until` is
 the one place a `valid_until` decision is written, and all three placement
@@ -645,7 +645,7 @@ trnsprt framing; `run_sse` (`src/mcp/sse.rs`) is bearer-gated Streamable HTTP.
 
 **Gaps.** Tool schemas are hand-
 rolled JSON, not derived. No batch query. **Prompts and resources are served
-on both the standalone and the proxy path.** `ProxyServer` (`src/commands/mcp_cmd.rs`)
+on both the standalone and the proxy path.** `ProxyServer` (`src/commands_mcp_cmd.rs`)
 implements `handle_method` (`:368`): the four graphless methods — `resources/list`,
 `prompts/list`, `prompts/get`, `ping` — dispatch through `handle_graphless_method`
 (`src/mcp.rs:249`), the same function the standalone `Server::handle_method`
@@ -711,14 +711,14 @@ daemon serves: `forget`, `degrade`, `promote`, `intake drain`, `graviton add`,
 `unnamed {list}`, `mcp`, `compress`, `daemon`, `hub {status|resolve|unload|merge|stop}`.
 
 **How.** `dispatch` (`src/commands.rs`) routes; per-subcommand handlers in
-`src/commands/{admin,graph_ops,ingest_cmd,intake_cmd,mcp_cmd,mcp_restart,profile_cmd,query,reembed,route,status}.rs`.
+`src/commands_{admin,graph_ops,ingest_cmd,intake_cmd,mcp_cmd,mcp_restart,profile_cmd,query,reembed,route,status}.rs`.
 Notable:
 
-- **Daemon-first writes** (`src/commands/route.rs`) — `route(name, args)` probes
+- **Daemon-first writes** (`src/commands_route.rs`) — `route(name, args)` probes
   `Endpoint::kern()` once, never spawns, and answers `Done` / `Refused` /
   `NoDaemon`. `forget`, `degrade`, `promote`, `graviton add`/`remove` and
   `claim-kind add`/`rm` take it (the last four via `graviton_at`/`claim_kind_at`,
-  `src/commands/admin.rs`, which take the endpoint the way `route_to` does so
+  `src/commands_admin.rs`, which take the endpoint the way `route_to` does so
   the routed path is reachable from a test): while a daemon serves, the
   mutation lands in its live in-memory graph over `call_tool` instead of in a
   second copy this process opened, and a daemon that refuses is reported rather
@@ -773,7 +773,7 @@ Notable:
   re-embed. It is an OS file lock, so a killed holder releases it — the file's
   existence is never the lock, and there is no cleanup path.
 - **The standalone MCP server takes it too** (`claim_standalone`,
-  `src/commands/mcp_cmd.rs`) — `kern mcp`'s no-daemon fallback claims the dir as
+  `src/commands_mcp_cmd.rs`) — `kern mcp`'s no-daemon fallback claims the dir as
   `mcp-standalone` before it reads the graph, and holds it for the process. It
   is the one writer no probe can find: it binds no socket, so a second one is
   invisible to everything except the lock. A failed claim spends one more attach
@@ -798,7 +798,7 @@ Notable:
   when one answers, this process's otherwise (item 100) — and, from a daemon,
   `degraded: N panics | M failures | K refused GNN trainings`, faults named
   below, plus `ingest: queue N` — the RAM queue's live depth
-  (`ingest_health_lines`, `src/commands/admin.rs:201`), daemon-sourced only
+  (`ingest_health_lines`, `src/commands_admin.rs:201`), daemon-sourced only
   because the CLI's own worker is idle by construction (item 30). From a daemon
   it also prints `convergence: gini 0.NN` — the Gini coefficient over entity
   access counts (`gini_over_access`, `src/health.rs`, item 62 half),
@@ -817,7 +817,7 @@ Notable:
   whose config cannot name the host's Ollama; absent flags leave `cfg.embed`
   exactly as loaded.
 
-**Where.** `src/commands/*`, `src/lock.rs`, `src/main.rs`.
+**Where.** `src/commands_*`, `src/lock.rs`, `src/main.rs`.
 
 **Gaps.** `ingest` and `link` still open the store directly while a daemon
 holds newer state (`intake drain` routes since 2026-07-21). They deliberately reconcile instead of
@@ -999,7 +999,7 @@ per non-local URL, and `boot_config` emits each via `tracing::warn!` (non-fatal)
 **How.** `Client` (`src/llm.rs:117`) — `embed` (`:220`) / `embed_batch` (`:264`)
 against the embedding endpoint, `complete` (`:320`, reason / distillation),
 `complete_func` (`:388`, sync closure for the tick/ingest blocking bridges).
-`is_transient` (`:21`) classifies retryable errors — on both legs now: the completion leg counts and names what it throws away (`record_complete_failure`, `:74`, bounded to one line by `:65`), so `complete_func`'s `""` no longer hides which failure produced it. It reads back as `llm_complete_failed` / `last_llm_complete_failure` (`src/mcp.rs:150`, `src/commands/admin.rs:201`). **Every request is bounded** — `complete` posts under `[reason] timeout_secs` (`src/config_reason.rs:12`, default 600 at `:20`), applied by `with_timeout_secs` (`src/llm.rs:202`) and held as `reason_timeout` (`:137`, posted at `:344` / `:371`); `EMBED_TIMEOUT` = 120s on the embed calls (`:494`), applied per request by `post_checked` (`:243`) over a client-wide 120s default and a 3s `connect_timeout` (`:159`, `:162`) so a dead endpoint fails fast instead of hanging. `Endpoint` (`:100`) holds
+`is_transient` (`:21`) classifies retryable errors — on both legs now: the completion leg counts and names what it throws away (`record_complete_failure`, `:74`, bounded to one line by `:65`), so `complete_func`'s `""` no longer hides which failure produced it. It reads back as `llm_complete_failed` / `last_llm_complete_failure` (`src/mcp.rs:150`, `src/commands_admin.rs:201`). **Every request is bounded** — `complete` posts under `[reason] timeout_secs` (`src/config_reason.rs:12`, default 600 at `:20`), applied by `with_timeout_secs` (`src/llm.rs:202`) and held as `reason_timeout` (`:137`, posted at `:344` / `:371`); `EMBED_TIMEOUT` = 120s on the embed calls (`:494`), applied per request by `post_checked` (`:243`) over a client-wide 120s default and a 3s `connect_timeout` (`:159`, `:162`) so a dead endpoint fails fast instead of hanging. `Endpoint` (`:100`) holds
 url/model/key; `new_embed_only` (`:213`) builds a client for `reembed`.
 `for_eval(seed)` (`:184`) makes it deterministic.
 
@@ -1082,7 +1082,7 @@ or stale config indefinitely (the 36h dead-endpoint dogfooding outage,
   same version), `config_id` = sha256 of the serialized resolved config,
   `uptime_ms` stamped at bootstrap. All three ride `HealthRes` (append-only,
   empty/0 from older daemons).
-- **Client-side auto-restart** (`src/commands/mcp_restart.rs`, applied in
+- **Client-side auto-restart** (`src/commands_mcp_restart.rs`, applied in
   `mcp_cmd.rs` `replace_if_stale`) — on attach, `kern mcp` compares identities.
   Verdict is a pure tested function: `Fresh` proxies; `Stale` (differs AND
   daemon uptime ≥ 15s) triggers graceful `shutdown` → socket-release wait →
@@ -1147,13 +1147,13 @@ client→node — the hub is connect-time only, never a proxy hop.
   Adopted nodes are exempt; `idle_ms == 0` (pre-field daemon) is never trusted.
 - **Cross-kern merge** — `kern hub merge <src> <dst>`: stops both daemons,
   offline CRDT union via `base::merge::absorb_graph`, src never written.
-- **Hub-first proxy + auto-start** (`src/commands/mcp_cmd.rs`) — `kern mcp` asks
+- **Hub-first proxy + auto-start** (`src/commands_mcp_cmd.rs`) — `kern mcp` asks
   the hub first, auto-starting a detached hub when none answers
   (`[hub] auto_start = false` opts out); any failure falls through to the
   direct-connect/auto-spawn fallback. `kern hub stop` ends the hub over
   RPC; nodes stay up.
 - **Detached children are logged.** Both spawners — the hub
-  (`spawn_hub`/`spawn_daemon`, `src/commands/mcp_cmd.rs`) and the hub's per-root
+  (`spawn_hub`/`spawn_daemon`, `src/commands_mcp_cmd.rs`) and the hub's per-root
   node (`src/hub/node.rs:104`) — route the child's stdout *and* stderr into an
   append-only, owner-only file under `Config::log_dir()` = `<data_dir>/logs`
   (`src/config.rs`), one file per spawn arg: `hub.log`, `daemon.log`
@@ -1162,7 +1162,7 @@ client→node — the hub is connect-time only, never a proxy hop.
   that cannot be opened falls back to `/dev/null` and says so on the parent's
   still-attached stderr, so an unwritable log never costs the spawn.
 
-**Where.** `src/hub/`, `src/transport/hub_rpc/`, `src/commands/admin.rs`
+**Where.** `src/hub/`, `src/transport/hub_rpc/`, `src/commands_admin.rs`
 (`cmd_hub`), `src/config_hub.rs`, `src/config_detached_log.rs`,
 `tests/e2e/test_hub.py`.
 
@@ -1483,7 +1483,7 @@ Ranked by leverage:
 5. **CLI vs daemon race, serving half** — the destructive half is closed:
    `src/lock.rs` is an advisory writer lock and `reembed`/`compact`/`gc`
    refuse while a daemon holds it, with `kern status` reporting the holder. The
-   route decided for the rest exists (`src/commands/route.rs`) and `forget`,
+   route decided for the rest exists (`src/commands_route.rs`) and `forget`,
    `degrade`, `graviton add`/`remove` and `claim-kind add`/`rm` take it — the
    last four closed 2026-07-21, and they were the ones that mattered most: with
    no routing at all they reached `with_graph`, which writes the whole kern map
@@ -1491,11 +1491,11 @@ Ranked by leverage:
    standalone fallback — the last long-lived
    second writer, and one no probe can see — now claims the same lock before it
    reads the graph and refuses to boot beside a holder (`claim_standalone`,
-   `src/commands/mcp_cmd.rs`). The read side is done: `get` and `query` route
+   `src/commands_mcp_cmd.rs`). The read side is done: `get` and `query` route
    through the same `query` tool and print through one printer, with the local
    load as the `NoDaemon` fallback; `search` and `list` stay local by decision.
    `kern link` no longer clobbers a racing commit — it flushes through
-   `save_graph_guarded` (`src/commands/graph_ops.rs`) — but it still does not
+   `save_graph_guarded` (`src/commands_graph_ops.rs`) — but it still does not
    route, and neither does `ingest`: over `call_tool` they would land at agent
    trust, and kern carries no caller identity by decision (2026-07-22), so the
    route-or-stay-local choice is owed. `intake drain` got its tool

@@ -6,12 +6,12 @@ use parking_lot::RwLock;
 use crate::base_store::FlushOutcome;
 use crate::ingest::intake_status::{scan, Report};
 
-use super::route::{route, u64_field, Routed};
-use super::{load_graph, Client, Endpoint, IntakeAction};
+use crate::commands_route::{route, u64_field, Routed};
+use crate::commands::{load_graph, Client, Endpoint, IntakeAction};
 
 const WRITE_RETRIES: u32 = 5;
 
-pub(super) async fn cmd_intake(
+pub(crate) async fn cmd_intake(
 	cfg: &crate::config::Config,
 	action: Option<IntakeAction>,
 	embed_url: &str,
@@ -187,7 +187,7 @@ fn flush(g: &Arc<RwLock<crate::graph::GraphGnn>>, cfg: &crate::config::Config) {
 			Ok(FlushOutcome::Flushed { .. }) => return,
 			Ok(FlushOutcome::RefusedStale { .. }) if attempt + 1 < WRITE_RETRIES => {
 				let mut w = g.write();
-				let fresh = super::reload_graph(cfg, &w);
+				let fresh = crate::commands::reload_graph(cfg, &w);
 				*w = fresh;
 			}
 			Ok(FlushOutcome::RefusedStale {

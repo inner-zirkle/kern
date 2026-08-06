@@ -6,9 +6,9 @@ use crate::transport::kern_rpc::{AuthReq, CallToolReq, KernRpcClient};
 use crate::transport::typed::{AdapterError, Endpoint, JsonEnvelopeCodec};
 use crate::transport::{McpError, McpServer, ToolResult, ToolSchema};
 
-use super::load_graph;
+use crate::commands::load_graph;
 
-pub(super) async fn cmd_mcp(cfg: &crate::config::Config) {
+pub(crate) async fn cmd_mcp(cfg: &crate::config::Config) {
 	// Hub-first: a running hub owns node lifecycle (spawn, adopt, unload) so the
 	// proxy never self-spawns a daemon the hub can't see. No hub -> direct path.
 	let log_dir = cfg.log_dir();
@@ -85,7 +85,7 @@ async fn replace_if_stale(
 	log_dir: &std::path::Path,
 	via_hub: bool,
 ) -> KernRpcClient<JsonEnvelopeCodec> {
-	use super::mcp_restart::{verdict, Verdict};
+	use crate::commands_mcp_restart::{verdict, Verdict};
 	use crate::identity;
 
 	let caller = crate::rpc::caller_of(cfg);
@@ -438,13 +438,13 @@ async fn run_standalone(cfg: &crate::config::Config) {
 		}
 	};
 	let g = Arc::new(StdRwLock::new(load_graph(cfg)));
-	let llm_client = super::server_llm_client(cfg, cfg.reason_url(), &cfg.reason.model);
+	let llm_client = crate::commands::server_llm_client(cfg, cfg.reason_url(), &cfg.reason.model);
 	// Long-lived writer: same stale-flush guard as the daemon — never overwrite
 	// a graph another process grew on disk with a staler snapshot.
 	let save_g = g.clone();
 	let save_cfg = cfg.clone();
 	let save_fn: Arc<dyn Fn() + Send + Sync> = Arc::new(move || {
-		super::save_graph_guarded(&save_g, &save_cfg);
+		crate::commands::save_graph_guarded(&save_g, &save_cfg);
 	});
 	let q = Arc::new(crate::tick_queue::Queue::new(512));
 	let defer: crate::ingest::worker::DeferQuestionsFn = {
