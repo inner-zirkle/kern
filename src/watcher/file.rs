@@ -9,8 +9,8 @@ use thiserror::Error;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
-use crate::event::{WatchEvent, WatchKind};
-use crate::ignore_rules::IgnoreRules;
+use super::event::{WatchEvent, WatchKind};
+use super::ignore_rules::IgnoreRules;
 
 // Debounce window: wide enough to coalesce the multi-event burst Windows notify
 // fires per logical edit, short enough for interactive saves. Milliseconds.

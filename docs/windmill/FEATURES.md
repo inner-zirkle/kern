@@ -1183,7 +1183,7 @@ empty list while it is (`src/config/watcher.rs:8`, returned `:24-26`). Everythin
 only in a deployment that turned it on — which is what ranks its gaps, the same
 way `Federation` says "off by default" rather than leaving it to be inferred.
 
-**How.** `FileWatcher` (`src/watcher/src/watcher.rs`) wraps `notify`, emits
+**How.** `FileWatcher` (`src/watcher/file.rs`) wraps `notify`, emits
 `WatchEvent`s (`event.rs`: `Created`/`Modified`/`Deleted`/`Renamed {from, to}`).
 `IgnoreRules` (`ignore_rules.rs:5`, built `from_roots` over ripgrep's `ignore`
 crate — a real `Gitignore` per root for `.gitignore` and `.kernignore`, plus
@@ -1192,15 +1192,15 @@ filters noise. `IngestPipeline` (`pipeline.rs:24`) debounces, caps at
 `MAX_INGEST_BYTES=1MB` (`pipeline.rs:7`), and pushes `IngestRecord`s to an
 `IngestSink` (kern's is `KernFileWatcherSink`).
 
-**Where.** `src/watcher/` (workspace member, 1012 LoC including tests).
+**Where.** `src/watcher/` (a `kern` lib module, not a separate crate; inlined 2026-08-06).
 
 **Gaps.** *Both claims here were stale and are corrected 2026-07-21.* `.gitignore`
 parsing is **not** approximate — `IgnoreRules` builds a real `Gitignore` through
-ripgrep's `ignore` crate (`src/watcher/src/ignore_rules.rs:3`, matched `:71`), so
+ripgrep's `ignore` crate (`src/watcher/ignore_rules.rs:3`, matched `:71`), so
 it is the full spec; the deliberate deviations are the unconditional `.git` skip
-(`:60`) and the host's denied prefixes (`:63`), which no ignore file can unset. Renames **are** tracked at the event layer — `WatchKind::Renamed {from, to}` (`src/watcher/src/event.rs:9`) carries both
+(`:60`) and the host's denied prefixes (`:63`), which no ignore file can unset. Renames **are** tracked at the event layer — `WatchKind::Renamed {from, to}` (`src/watcher/event.rs:9`) carries both
 endpoints. What is actually missing is graph-level re-keying: `build_record`
-ingests `to` and discards `from` (`src/watcher/src/pipeline.rs:48`), so a rename
+ingests `to` and discards `from` (`src/watcher/pipeline.rs:48`), so a rename
 lands as a new `Document` and the old one is neither moved nor removed.
 
 ---
@@ -1452,8 +1452,9 @@ are built, never run.
   `src/ingest/distill.rs:9`.
 - **test support** (`src/test_support.rs`) — `cfg(test)` graph/entity/edge
   builders shared across the unit tests. There is no `src/log/` or
-  `src/test-utils/` crate; the workspace members are exactly `src/transport`,
-  `src/transport/macros` and `src/watcher` (`Cargo.toml:3-7`).
+  `src/test-utils/` crate; the workspace members are exactly `src/transport`
+  and `src/transport/macros` (`Cargo.toml:3`). `src/watcher` is now a `kern` lib
+  module, inlined 2026-08-06.
 
 ---
 

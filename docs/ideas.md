@@ -6,6 +6,35 @@ item carrying the grep that produced it. Driven by the `/improve` skill.
 ## A. Combine
 ## B. Simplify
 
+### Inline `watcher` sub-crate into the root `kern` crate — DONE 2026-08-06 (this fire)
+
+Folded the `watcher` workspace member into `kern` as `crate::watcher`. Moved
+`src/watcher/src/{lib,event,ignore_rules,pipeline,watcher}.rs` up to
+`src/watcher/{mod,event,ignore_rules,pipeline,file}.rs` (inner `watcher.rs`→`file.rs`
+to dodge clippy `module_inception`); dropped `src/watcher/Cargo.toml` + the
+`watcher` path-dep + workspace member; folded `notify`+`ignore` into root deps
+(its `async-trait`/`tempfile`/`tracing`/`thiserror`/`tokio` were already root);
+rewrote consumers `src/ingest/file_watcher.rs:5` + `src/commands.rs:1140`
+`use watcher::`→`use crate::watcher::`; fixed the two internal `use crate::event::`
+in `watcher.rs`/`pipeline.rs`→`use super::event::`; moved the integration test to
+`tests/watcher_tests.rs` (`use watcher::`→`use kern::watcher::`). Build clean,
+7/7 watcher tests pass, all test targets compile, code-reviewer approved.
+`transport-macros` (proc-macro) stays separate by Rust constraint.
+
+### Inline `transport` sub-crate into the root `kern` crate — NEXT fire
+
+**Claim:** `src/transport/` (27 files, 4250 LoC) is a path-only workspace member
+with no external consumer; inlining it completes the single-crate goal.
+**Do:** mirror the watcher fire — `src/transport/src/*.rs`→`src/transport/*.rs`,
+`mod.rs` from `lib.rs`, drop `transport` path-dep + member, fold its unique deps
+(`tokio-util`,`bytes`,`futures`,`async-stream`,`libc`,`windows-sys`) into root,
+rewrite `use transport::`→`use crate::transport::` across consumers, fix internal
+`use crate::`→`use super::`. **One real snag:** the `transport-macros`
+proc-macro's `service!` codegen emits `::transport::typed::Channel` absolute
+paths → retarget to `::kern::transport::typed::Channel` (one line in the macro).
+**Payoff:** erases the last non-proc-macro workspace member; single source tree.
+**Size:** larger than watcher but mechanical; one fire.
+
 ### Dead-`pub` scrape rejects (Pass 4, for the record)
 
 - `for_eval` / `with_temperature` (src/llm.rs builder methods, seed+temperature

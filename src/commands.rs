@@ -1137,7 +1137,7 @@ fn spawn_file_watcher(cfg: &crate::config::Config, worker: &Arc<crate::ingest::W
 		return;
 	}
 	use crate::ingest::file_watcher::{run as run_file_watcher, KernFileWatcherSink};
-	use watcher::IgnoreRules;
+	use crate::watcher::IgnoreRules;
 	let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
 	let roots = cfg.watcher.effective_roots(&cwd);
 	// kern's own state is never content. The default root is the cwd and the

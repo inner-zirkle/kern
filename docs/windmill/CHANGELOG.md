@@ -2,6 +2,8 @@
 
 <!-- docs-check: historical -->
 
+- 2026-08-06 — inlined the `watcher` sub-crate into the root `kern` lib crate as `crate::watcher`. `src/watcher/` was a path-only workspace member (no external consumer); folded its 6 files up to `src/watcher/{mod,event,ignore_rules,pipeline,file}.rs` (inner `watcher.rs`→`file.rs` to avoid clippy `module_inception`), dropped its `Cargo.toml` + the `watcher` path-dep + workspace member, folded its unique deps (`notify`,`ignore`) into root (the rest were already root deps), rewrote the two consumers (`src/ingest/file_watcher.rs`, `src/commands.rs`) `use watcher::`→`use crate::watcher::`, fixed the two internal `use crate::event::`→`use super::event::`, and moved the integration test to `tests/watcher_tests.rs` (`use watcher::`→`use kern::watcher::`). One step in a 2-fire move to a single source crate; `transport` is the next fire. `transport-macros` stays its own crate — proc-macros cannot live in a lib crate. Build clean, 7/7 watcher tests pass, code-reviewer approved. Decided by: single-crate-fold (user-directed structural merge).
+
 - 2026-08-06 — deleted `pub fn is_semantic` from `ReasonKind` (`src/base/types.rs`). The predicate (`matches! Similarity | Provenance | Ratification`) had zero callers — `rg 'is_semantic' src/` returns nothing; the enum variants stay live (Similarity used in tick/accept/commands/query). A dead `pub` predicate is surface area with no consumer; if the classification is ever needed it's a one-line `matches!` at the call site. Also reconciled `docs/ideas.md`: the stale open copies of B6/B3/B4/B1 (all already closed) were pruned and B6 got its `## Closed` entry. Net -99 lines of dead doc.
 
 - 2026-08-06 — replaced the dead oracle pre-commit hook with the windmill
@@ -760,24 +762,3 @@
   and rename-with-no-old-entity are noops. Watcher is off by default; the rare
   dedup-survivor edge is noted in `place_document`. 1015 pass, 2 new tests pin
   both directions. Decided by: fix-the-root, the-oracle. Supersedes: nothing.
-
-- 2026-07-22 — item 62 half-closed (Gini-over-access): the convergence metric
-  now exists and is surfaced in health, so "the corpus converges on efficient
-  paths" is measurable. `gini_over_access(counts: &[u64]) -> f64` (new pure fn,
-  `src/base/health.rs`) is the standard Gini over entity `access_count.value()`:
-  `0.0` = uniform (converged), → `1.0` asymptotically — **for finite n the max
-  is (n−1)/n**, so `[10,0,0]` → `2/3`, `[100,0]` → `1/2`. `HealthStats.gini_access`
-  (new field, computed in `graph_health_stats`; `HealthStats` dropped `Eq`, no
-  caller used it). MCP `health` JSON carries `gini_access`; `trnsprt::HealthRes`
-  gains `#[serde(default)]` so an old daemon reads `0.0`. `kern health` prints
-  `convergence: gini 0.NN` **daemon-sourced only** — a CLI's fresh-open graph
-  has no query history, so its access distribution is structurally uniform
-  (item 30/100 precedent). Proved by `gini_over_access_pins_known_distributions`,
-  `graph_health_stats_empty_graph_gini_is_zero`,
-  `graph_health_stats_skewed_access_gini_above_half` (one hot + five cold →
-  `5/6` > `0.5`), trnsprt round-trip `gini_access: 0.42`. `cargo test -p kern
-  --lib` 920 passed, 0 failed, 4 ignored; `cargo test -p trnsprt` 60 passed.
-  Negative control: `gini_over_access → 0.0` reds the skewed test, green on
-  revert. Decided by: fix-the-root, name-the-tradeoff, verify-before-claiming.
-  Still open: top-10 stability (temporal snapshots), `kern://health` resource,
-  item 54 GC gate.

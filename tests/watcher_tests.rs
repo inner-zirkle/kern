@@ -8,7 +8,7 @@ use std::time::{Duration, SystemTime};
 use tempfile::TempDir;
 use tokio::sync::Mutex;
 
-use watcher::{
+use kern::watcher::{
 	FileWatcher, IgnoreRules, IngestPipeline, IngestRecord, IngestSink, WatchEvent, WatchKind,
 };
 
