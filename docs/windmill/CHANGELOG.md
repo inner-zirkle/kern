@@ -2,6 +2,7 @@
 
 <!-- docs-check: historical -->
 
+- 2026-08-06 — flattened `ingest` subdir: 12 `src/ingest/*.rs` → `src/ingest_*.rs` at src/ root (prefix-rename, dodges config collision). `ingest/mod.rs` → `ingest.rs` shim re-exporting the 12 submodules (`pub use crate::ingest_config as config;` etc.) + items so `crate::ingest::X` still resolves (~18 consumers unchanged). lib.rs gained 12 `pub mod ingest_*`. Rewrites: `super::X`(sibling)→`crate::ingest_X`, `crate::ingest::X`(own submod)→`crate::ingest_X`, ITEM refs kept. Build green, 1096 tests pass, guards 0. Decided by: single-crate-fold (user-directed full src/ flattening).
 - 2026-08-06 — flattened `gnn` subdir: 13 `src/gnn/*.rs` → `src/gnn_*.rs` at src/ root (prefix-rename, dodges graph/persist collisions). `gnn/mod.rs` → `gnn.rs` shim re-exporting the 13 submodules (`pub use crate::gnn_gcn as gcn;` etc.) so `crate::gnn::X` still resolves (60 refs unchanged). lib.rs gained 13 `pub mod gnn_*`. Rewrites: `super::X`(sibling)→`crate::gnn_X`, `crate::gnn::X`(own submod)→`crate::gnn_X`, `crate::gnn::GnnError` kept. Build green, 1096 tests pass, guards 0. Decided by: single-crate-fold (user-directed full src/ flattening).
 - 2026-08-06 — build-fix: retarget missed consumers `src/mcp/tools_mutate.rs` (5 refs) + `src/mcp/tools_admin.rs` (1 ref) from `crate::commands::graph_ops::`/`crate::commands::admin::` → `crate::commands_graph_ops::`/`crate::commands_admin::`. The commands flatten (2104fde) left these dangling; build was red (8 errors) for 2 commits. Build green, 1096 tests pass. Decided by: feb.
 - 2026-08-06 — flattened `gossip` subdir: 13 `src/gossip/*.rs` → `src/gossip_*.rs` at src/ root (prefix-rename, dodges identity/types collisions). mod.rs deleted; lib.rs gained 13 `pub mod gossip_*`. Rewrites: `crate::gossip::X`→`crate::gossip_X`, `super::X` (sibling)→`crate::gossip_X`, grouped `use crate::gossip::{X,Y}`→split, test `use super::*` kept. External tools_delegate.rs+commands.rs retargeted. Build green, 11 test suites pass, guards 0. Decided by: single-crate-fold (user-directed full src/ flattening).
@@ -582,15 +583,5 @@
   acceleration (the re-pointed Rephrase persists, so a restart classifies
   anyway). New test pins re-point + queue. 1030 pass. Item 60 fully closed
   (belief half + reclass wiring). Decided by: fix-the-root, name-the-tradeoff,
-  verify-before-claiming. Supersedes: nothing.
-
-- 2026-07-22 — item 60 belief half closed by decision: Reason edges carry
-  belief directionally (not symmetrically — Provenance/Question/Supersedes are
-  directional by construction; symmetry would conflate a vouch with its
-  reverse), and superseding resets belief (a supersede is a new claim that mints
-  its own beta prior; inheriting the old's evidence would read a single
-  observation as well-evidenced). Both match shipped behaviour — no code change.
-  The re-classification wiring (re-point a deferred Rephrase to the replacer
-  when one side of a pair is superseded) stays open. Decided by: name-the-tradeoff,
   verify-before-claiming. Supersedes: nothing.
 

@@ -27,7 +27,7 @@ pub fn update_existing_entity(
 	new_score: f64,
 	incoming_kind: EntityKind,
 	incoming_valid_until: Option<std::time::SystemTime>,
-	on_supersede_candidate: Option<&crate::ingest::worker::DeferContradictionFn>,
+	on_supersede_candidate: Option<&crate::ingest_worker::DeferContradictionFn>,
 ) {
 	let outcome = merge_duplicate(
 		&mut graph.write(),

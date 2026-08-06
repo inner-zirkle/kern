@@ -3,11 +3,10 @@ use crate::log_throttle::LogThrottle;
 use crate::math::clamp_confidence;
 use crate::base_types::*;
 use crate::util;
-use crate::ingest::config::Config;
-use crate::ingest::embed::embed_chunks;
-use crate::ingest::outcome::{FailureReport, Outcome, OutcomeStatus};
-use crate::ingest::place::{document_kind, place_chunks, place_document};
-use crate::ingest::split;
+use crate::ingest_config::Config;
+use crate::ingest_embed::embed_chunks;
+use crate::ingest_outcome::{FailureReport, Outcome, OutcomeStatus};
+use crate::ingest_place::{document_kind, place_chunks, place_document};
 use crate::llm::Client as LlmClient;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
@@ -344,7 +343,7 @@ async fn process(
 	let doc_id = util::content_hash(&job.text);
 
 	// Heuristic split ONLY — an LLM split would add a per-document LLM call on the commit path.
-	let chunks = split::split(&job.text, &job.hint, None);
+	let chunks = crate::ingest_split::split(&job.text, &job.hint, None);
 
 	let (doc_thought, doc_fail) = place_document(
 		graph,

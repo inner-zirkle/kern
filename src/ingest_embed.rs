@@ -1,4 +1,4 @@
-use crate::ingest::outcome::FailureReport;
+use crate::ingest_outcome::FailureReport;
 use crate::llm::{is_transient, Client as LlmClient};
 
 const RETRY_DELAYS_MS: [u64; 3] = [150, 300, 600];

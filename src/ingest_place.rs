@@ -3,9 +3,9 @@ use crate::graph::GraphGnn;
 use crate::base_types::*;
 use crate::util;
 use crate::crdt::GCounter;
-use crate::ingest::dedup::{find_duplicate, update_existing_entity};
-use crate::ingest::embed::embed_with_retry;
-use crate::ingest::outcome::FailureReport;
+use crate::ingest_dedup::{find_duplicate, update_existing_entity};
+use crate::ingest_embed::embed_with_retry;
+use crate::ingest_outcome::FailureReport;
 use crate::ingest::Job;
 use crate::llm::Client as LlmClient;
 use std::sync::Arc;
@@ -83,7 +83,7 @@ pub(crate) async fn place_document(
 	job: &Job,
 	doc_id: &str,
 	dedup_threshold: f64,
-	defer_contradiction: Option<&crate::ingest::worker::DeferContradictionFn>,
+	defer_contradiction: Option<&crate::ingest_worker::DeferContradictionFn>,
 ) -> (Option<String>, Option<FailureReport>) {
 	let vec = match embed_with_retry(embedder, &job.text, "document", 0).await {
 		Ok(v) => v,
@@ -200,8 +200,8 @@ pub(crate) fn document_kind(job: &Job) -> (EntityKind, i32) {
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn place_chunks(
 	graph: &Arc<RwLock<GraphGnn>>,
-	defer_questions: Option<&crate::ingest::worker::DeferQuestionsFn>,
-	defer_contradiction: Option<&crate::ingest::worker::DeferContradictionFn>,
+	defer_questions: Option<&crate::ingest_worker::DeferQuestionsFn>,
+	defer_contradiction: Option<&crate::ingest_worker::DeferContradictionFn>,
 	job: &Job,
 	chunks: &[String],
 	chunk_vecs: &[Vec<f32>],
@@ -939,7 +939,7 @@ mod tests {
 		let vecs = vec![vec![1.0, 0.0, 0.0]];
 		let seen: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
 		let seen_c = seen.clone();
-		let defer: crate::ingest::worker::DeferQuestionsFn =
+		let defer: crate::ingest_worker::DeferQuestionsFn =
 			Arc::new(move |id: &str| seen_c.lock().unwrap().push(id.to_string()));
 
 		let placed = place_chunks(

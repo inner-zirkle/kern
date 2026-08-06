@@ -104,7 +104,7 @@ impl IngestSink for KernFileWatcherSink {
 		// because a watcher that silently stops ingesting is the worse outcome.
 		if let Some(dir) = &self.direct_dir {
 			let cfg = self.ingest_config();
-			let job = crate::ingest::direct::DirectJob {
+			let job = crate::ingest_direct::DirectJob {
 				text: content.clone(),
 				source: source.clone(),
 				kind: EntityKind::Document,
@@ -115,7 +115,7 @@ impl IngestSink for KernFileWatcherSink {
 				source_tag: tag.to_string(),
 				scoping: Scoping::default(),
 			};
-			match crate::ingest::direct::intake_direct(dir, &job) {
+			match crate::ingest_direct::intake_direct(dir, &job) {
 				Ok(_) => return,
 				Err(e) => tracing::warn!(
 					target: "kern.ingest.direct",
@@ -457,7 +457,7 @@ mod tests {
 	// So this leg must wait for capacity, never be handed a refusal.
 	#[tokio::test]
 	async fn the_sink_waits_for_queue_capacity_rather_than_losing_the_file() {
-		let _serial = crate::ingest::worker::queue_refused_test_lock().lock().await;
+		let _serial = crate::ingest_worker::queue_refused_test_lock().lock().await;
 		let (url, _server) =
 			crate::test_support::spawn_http(crate::test_support::hanging_embed_app()).await;
 		let embedder = crate::llm::Client::new_embed_only(&url, "m", "");
@@ -491,7 +491,7 @@ mod tests {
 			assert!(offered < 10_000, "the queue never filled");
 		}
 
-		let refused_before = crate::ingest::worker::ingest_queue_refused();
+		let refused_before = crate::ingest_worker::ingest_queue_refused();
 		let sink = KernFileWatcherSink::new(worker, 0, Default::default(), None);
 		let blocked = timeout(
 			Duration::from_millis(150),
@@ -509,7 +509,7 @@ mod tests {
 			"the sink returned while the queue was full — the file was refused, not queued"
 		);
 		assert_eq!(
-			crate::ingest::worker::ingest_queue_refused(),
+			crate::ingest_worker::ingest_queue_refused(),
 			refused_before,
 			"waiting for capacity is not a refusal, and must not be counted as one"
 		);
@@ -614,14 +614,14 @@ mod tests {
 			"the record is on disk before the worker ever sees it: {}",
 			parked.display()
 		);
-		let job: crate::ingest::direct::DirectJob =
+		let job: crate::ingest_direct::DirectJob =
 			serde_json::from_str(&std::fs::read_to_string(&parked).unwrap()).expect("valid payload");
 		assert_eq!(
 			job.source_tag, "file",
 			"the channel is written down, not re-derived by the drain"
 		);
 
-		let drained = crate::ingest::direct::drain_direct_once(
+		let drained = crate::ingest_direct::drain_direct_once(
 			&direct,
 			&worker,
 			&IngestRunConfig {

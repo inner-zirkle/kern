@@ -339,12 +339,12 @@ Nothing is lost on an LLM outage — the delta stays queued until it succeeds.
 
 **How.**
 
-- **Intake** (`src/ingest/intake.rs`) — `run()` (`:315`) polls `.kern/intake/`,
+- **Intake** (`src/ingest_intake.rs`) — `run()` (`:315`) polls `.kern/intake/`,
   `extract_claims` (`:13`) distills, `archive`/`finalize` (`:55`/`:90`) move
   processed deltas to a `done/` dir, `prune_done` (`:99`) ages them out.
-- **Distill** (`src/ingest/distill.rs`) — a structured prompt asks the LLM for
+- **Distill** (`src/ingest_distill.rs`) — a structured prompt asks the LLM for
   a JSON array of `{text, kind, valid_from?}` where `kind` is one of the 7
-  built-in claim kinds (`DEFAULT_KINDS`, `src/ingest/distill.rs:9`) or a
+  built-in claim kinds (`DEFAULT_KINDS`, `src/ingest_distill.rs:9`) or a
   registered one (`root.claim_kinds`, offered to the LLM by `spawn_intake`'s
   kinds closure). The prompt names today's date (UTC `YYYY-MM-DD` via
   `date_string` in `src/time.rs`, from a `now: SystemTime` param callers
@@ -354,22 +354,22 @@ Nothing is lost on an LLM outage — the delta stays queued until it succeeds.
   `Some([])` = nothing worth keeping (archive); `None` = no LLM
   output (transient outage, retry). `parse_claims` is lenient (finds the JSON
   array anywhere in the output).
-- **Worker** (`src/ingest/worker.rs`) — async job queue bounded at
+- **Worker** (`src/ingest_worker.rs`) — async job queue bounded at
   `QUEUE_CAP` = 64 with no detached send behind it. Three offers: `enqueue`
   refuses when full (`None`, counted as `ingest_queue_refused`), `submit` awaits
   capacity for a producer that can be slowed instead (the file watcher), `run`
   awaits the outcome. The fill is a gauge, not a counter: `queue_depth`
-  (`src/ingest/worker.rs:148`) reads the channel's own occupancy and surfaces as
+  (`src/ingest_worker.rs:148`) reads the channel's own occupancy and surfaces as
   `ingest_queue_depth` on every health surface (ROADMAP item 30). Owns the embed + accept path. Defers question/contradiction follow-ups to
   the tick via callback closures (`DeferQuestionsFn`/`DeferContradictionFn`).
-- **Embed** (`src/ingest/embed.rs`) — batches texts to the embedding endpoint.
-- **Dedup** (`src/ingest/dedup.rs`) — `find_duplicate` at the preset's dedup
+- **Embed** (`src/ingest_embed.rs`) — batches texts to the embedding endpoint.
+- **Dedup** (`src/ingest_dedup.rs`) — `find_duplicate` at the preset's dedup
   threshold (0.98 on the default `relaxed`), `update_existing_entity`.
 - **Place / split / direct** — `place.rs` builds chunk `Entity`s
   (`build_chunk_entity`, `chunk_source_id`), `split.rs` chunks by free-text hint
   (LLM-assisted when given), `direct.rs` handles `.kern/intake/direct/` synchronous
   ingest (`drain_direct_once`).
-- **Per-source TTL** (`src/ingest/config.rs`) — `ingest::Config` carries a
+- **Per-source TTL** (`src/ingest_config.rs`) — `ingest::Config` carries a
   `valid_until`; `valid_until_from_retention(secs)` is the one conversion from
   the caller's duration to that absolute instant, so the four entrances cannot
   drift. `0`/absent = no TTL; an overflowing duration errors, never a silent
@@ -381,11 +381,11 @@ Nothing is lost on an LLM outage — the delta stays queued until it succeeds.
   a flag take a standing policy instead: `[intake]` / `[watcher] retention_secs`
   via `Config::with_retention`, per drain pass and per record so no deadline
   dates to daemon boot, validated at load, never the preset-owned `[ingest]`.
-- **File watcher sink** (`src/ingest/file_watcher.rs`) — `KernFileWatcherSink`
+- **File watcher sink** (`src/ingest_file_watcher.rs`) — `KernFileWatcherSink`
   adapts the watcher into ingest jobs, stamping `[watcher] retention_secs`. Since item 30 it parks each record as a durable `DirectJob` first (`:104`, gated on `intake.enabled` — the same flag that spawns the drain) and falls through to `Worker::submit` (`:128`) only when that write fails, so a record still in flight when the daemon dies is re-offered by the next drain instead of lost.
-- **Outcome** (`src/ingest/outcome.rs`) — `OutcomeStatus` (`Committed`/`Partial`/`Deduped`/`Failed`, `src/ingest/outcome.rs:2`),
+- **Outcome** (`src/ingest_outcome.rs`) — `OutcomeStatus` (`Committed`/`Partial`/`Deduped`/`Failed`, `src/ingest_outcome.rs:2`),
   `FailureReport::document_permanent` for non-retryable errors.
-- **Status & sidecars** (`src/ingest/intake_status.rs`) — every path that leaves
+- **Status & sidecars** (`src/ingest_intake_status.rs`) — every path that leaves
   a delta queued writes why to `<intake>/errors/<name>.txt` through
   `record_stuck`, cleared on the next success; `scan` reports pending (age +
   last error), quarantined and done. Without this a delta retried forever is
@@ -397,7 +397,7 @@ Nothing is lost on an LLM outage — the delta stays queued until it succeeds.
   `intake::drain_now` flushed through the same guarded retry as `cmd_ingest`.
   Both share `drain_once` with the daemon loop, and both print the same tail.
 
-**Where.** `src/ingest/*` (3583 LoC, 13 files). Spawned by `spawn_intake`
+**Where.** `src/ingest_* (and src/ingest.rs shim)` (3583 LoC, 13 files). Spawned by `spawn_intake`
 (`src/commands.rs`); driven manually by `src/commands_intake_cmd.rs`.
 
 A **deduped** ingest carries its retention too. `accept::merge_valid_until` is
@@ -627,7 +627,7 @@ to external clients (Claude, Cursor, etc.). Protocol version `2024-11-05`.
 | `degrade` | `tools_mutate.rs` | Down-weight edges along a bad retrieval path (`DEGRADE_*` decay). Returns `decayed_edges` and `removed_edges` — the reap count exists so a CLI `degrade` routed through the daemon can print what the local path prints. |
 | `move` | `tools_mutate.rs:467` | Relocate a thought to another kern, carrying outgoing edges and restamping cross-kern references. |
 | `promote` | `tools_mutate.rs` | Release a thought a review policy is holding: flips `ReviewState::Pending` to `Active`, so a `query {exclude_pending: true}` returns it again. The release half of the lifecycle `[ingest] review_policy` opens; idempotent, returning `promoted: false` on an already-active row rather than failing, and a hard `thought not found` on an id nothing resolves — a silent success would tell a curator a claim was released while it is still held. Shares `graph_ops::promote_entity` with the CLI's no-daemon fallback so the routed and local writes cannot disagree. Any caller holding the graph's `mcp-token` may promote — the process boundary is the access model. |
-| `health` | `tools_admin.rs:83` | Graph stats (gravitons/kerns/entities/reasons/unnamed/claim_kinds) **plus the degradation surface**: `queue_depth`, `tasks_done`, `task_avg_ms`, `task_panics`, `last_task_panic`, `task_failures`, `last_task_failure`, `cold_evicted`, `embed_model`, `embed_dim`, `embed_mismatch`, and the eight fail-open counters — `query_dim_rejected`, `below_floor_deliveries`, `clock_skew_skips`, `ingest_dropped_chunks`, `remote_cap_dropped`, `unspilled_drops`, `ingest_queue_refused`, `gnn_train_refused` — each a path that returns something rather than erroring, so the count is the only way to tell a degraded result from a good one (`Server::health_stats`, `src/mcp.rs:116`). The first seven come off `HealthStats` (`src/health.rs:9`), `gnn_train_refused` straight from the trainer's own global (`src/mcp.rs:149`) — but all eight are process-scoped counters read in the *serving* process, which is why only a daemon's answer carries real ones and any other reader reports its own zeros (`ROADMAP.md` item 100). Beside the counters, one gauge: `ingest_queue_depth` reads the serving worker's mpsc channel occupancy live (`src/mcp.rs:148`, `Worker::queue_depth` at `src/ingest/worker.rs:148`) — how full the RAM queue is right now, where `ingest_queue_refused` only says its bound was ever hit (item 30). |
+| `health` | `tools_admin.rs:83` | Graph stats (gravitons/kerns/entities/reasons/unnamed/claim_kinds) **plus the degradation surface**: `queue_depth`, `tasks_done`, `task_avg_ms`, `task_panics`, `last_task_panic`, `task_failures`, `last_task_failure`, `cold_evicted`, `embed_model`, `embed_dim`, `embed_mismatch`, and the eight fail-open counters — `query_dim_rejected`, `below_floor_deliveries`, `clock_skew_skips`, `ingest_dropped_chunks`, `remote_cap_dropped`, `unspilled_drops`, `ingest_queue_refused`, `gnn_train_refused` — each a path that returns something rather than erroring, so the count is the only way to tell a degraded result from a good one (`Server::health_stats`, `src/mcp.rs:116`). The first seven come off `HealthStats` (`src/health.rs:9`), `gnn_train_refused` straight from the trainer's own global (`src/mcp.rs:149`) — but all eight are process-scoped counters read in the *serving* process, which is why only a daemon's answer carries real ones and any other reader reports its own zeros (`ROADMAP.md` item 100). Beside the counters, one gauge: `ingest_queue_depth` reads the serving worker's mpsc channel occupancy live (`src/mcp.rs:148`, `Worker::queue_depth` at `src/ingest_worker.rs:148`) — how full the RAM queue is right now, where `ingest_queue_refused` only says its bound was ever hit (item 30). |
 | `graviton` | `tools_admin.rs` | list/add/remove focus attractors (name + text — phrase or full document — + optional mass). Replaced the single per-kern "purpose". |
 | `claim_kind` | `tools_admin.rs` | register/remove claim kinds; registered kinds extend the built-in distill set. |
 | `pulse` | `tools_admin.rs` | Trigger a clustering pass across the tree. |
@@ -1449,7 +1449,7 @@ are built, never run.
 - **constants** (`src/base_constants.rs`) — every magic number in one file.
   The 7 built-in claim kinds are **not** here, and there is no claim-kinds
   module under `src/`: they are the `DEFAULT_KINDS` const in
-  `src/ingest/distill.rs:9`.
+  `src/ingest_distill.rs:9`.
 - **test support** (`src/test_support.rs`) — `cfg(test)` graph/entity/edge
   builders shared across the unit tests. There is no `src/log/` or
   `src/test-utils/` crate; the workspace members are exactly `src/transport`

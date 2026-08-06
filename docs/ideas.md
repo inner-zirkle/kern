@@ -6,6 +6,17 @@ item carrying the grep that produced it. Driven by the `/improve` skill.
 ## A. Combine
 ## B. Simplify
 
+### Flatten `ingest` subdir into src/ root — DONE 2026-08-06 (this fire)
+
+Moved all 12 `src/ingest/*.rs` up to `src/ingest_*.rs` (prefix-rename to dodge
+`config` collision + keep grouping); `mod.rs` → `ingest.rs` SHIM re-exporting
+the 12 submodules (`pub use crate::ingest_config as config;` etc.) + item
+re-exports so `crate::ingest::X` still resolves for ~18 external consumers —
+shim minimizes churn vs full rewrite. lib.rs gained 12 `pub mod ingest_*`.
+Rewrites: `super::X`(sibling)→`crate::ingest_X`, `crate::ingest::X`(own
+submod)→`crate::ingest_X`; ITEM refs (Config/Worker/Job/ReviewPolicy/review_for/
+stub_one_hot) kept as `crate::ingest::`. Build clean, 1096 tests pass, guards 0.
+
 ### Flatten `gnn` subdir into src/ root — DONE 2026-08-06 (this fire)
 
 Moved all 13 `src/gnn/*.rs` up to `src/gnn_*.rs` (prefix-rename to dodge

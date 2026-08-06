@@ -3,8 +3,8 @@ use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
 use crate::base_types::{EntityKind, Source};
-use crate::ingest::distill::{distill, Claim};
-use crate::ingest::outcome::OutcomeStatus;
+use crate::ingest_distill::{distill, Claim};
+use crate::ingest_outcome::OutcomeStatus;
 use crate::ingest::Worker;
 use crate::types::LlmFunc;
 
@@ -54,7 +54,7 @@ fn read_text(path: &Path) -> Option<Text> {
 // Best effort: on rename failure (cross-device) the source is removed so it is not re-processed.
 pub fn archive(path: &Path, done_dir: &Path) {
 	if let (Some(dir), Some(name)) = (path.parent(), path.file_name().and_then(|n| n.to_str())) {
-		crate::ingest::intake_status::clear_failure(dir, name);
+		crate::ingest_intake_status::clear_failure(dir, name);
 	}
 	let _ = std::fs::create_dir_all(done_dir);
 	if let Some(name) = path.file_name() {
@@ -65,7 +65,7 @@ pub fn archive(path: &Path, done_dir: &Path) {
 }
 
 // The queue dir is the file's parent; sidecars live in `<queue>/errors/`.
-fn record_intake_failure(path: &Path, outcome: &crate::ingest::outcome::Outcome) {
+fn record_intake_failure(path: &Path, outcome: &crate::ingest_outcome::Outcome) {
 	let first = outcome
 		.failures
 		.first()
@@ -84,7 +84,7 @@ fn record_stuck(path: &Path, message: &str) {
 	let (Some(dir), Some(name)) = (path.parent(), path.file_name().and_then(|n| n.to_str())) else {
 		return;
 	};
-	crate::ingest::intake_status::record_failure(dir, name, message);
+	crate::ingest_intake_status::record_failure(dir, name, message);
 }
 
 pub fn finalize(path: &Path, done_dir: &Path, results: &[bool]) -> bool {
@@ -318,7 +318,7 @@ async fn drain_once(
 			archived += 1;
 		}
 	}
-	archived += super::direct::drain_direct_once(&intake_dir.join("direct"), worker, cfg).await;
+	archived += crate::ingest_direct::drain_direct_once(&intake_dir.join("direct"), worker, cfg).await;
 	prune_done(done, done_retention, now);
 	prune_done(&intake_dir.join("direct").join("done"), done_retention, now);
 	archived
@@ -782,7 +782,7 @@ mod tests {
 	#[tokio::test]
 	async fn a_transcript_left_queued_records_why_it_is_stuck() {
 		use crate::graph::GraphGnn;
-		use crate::ingest::intake_status::{last_failure, scan};
+		use crate::ingest_intake_status::{last_failure, scan};
 		use parking_lot::RwLock;
 
 		let embedder = crate::llm::Client::new_embed_only("http://127.0.0.1:1", "m", "");

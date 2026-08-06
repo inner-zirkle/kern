@@ -3,7 +3,7 @@ use std::path::Path;
 use crate::base_constants::AGENT_SOURCE;
 use crate::base_types::{EntityKind, Scoping, Source};
 use crate::util;
-use crate::ingest::outcome::OutcomeStatus;
+use crate::ingest_outcome::OutcomeStatus;
 use crate::ingest::Worker;
 
 use serde::{Deserialize, Serialize};
@@ -85,7 +85,7 @@ pub async fn drain_direct_once(
 					error = %e,
 					"unreadable direct payload; archiving as poison (retry cannot succeed)"
 				);
-				super::intake::archive(&path, &done);
+				crate::ingest_intake::archive(&path, &done);
 				archived += 1;
 				continue;
 			}
@@ -119,7 +119,7 @@ pub async fn drain_direct_once(
 			);
 			continue;
 		}
-		super::intake::archive(&path, &done);
+		crate::ingest_intake::archive(&path, &done);
 		archived += 1;
 	}
 	archived
