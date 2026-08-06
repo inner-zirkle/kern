@@ -317,4 +317,4 @@ self-organisation claim is unmeasured").
 - Theraulaz & Bonabeau, "A brief history of stigmergy", *Artificial Life* 1999.
 - `crates/retrieval/src/score.rs` — current `qbst`
 - `crates/tick/src/pulse.rs` — current pulse
-- `docs/kern/pagerank-authority.md` — federation-level authority (complementary)
+- `docs/pagerank-authority.md` — federation-level authority (complementary)

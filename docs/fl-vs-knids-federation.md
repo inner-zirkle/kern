@@ -25,9 +25,9 @@ This document answers three questions:
 2. Where does the analogy break, and why?
 3. What primitives should we steal verbatim vs deliberately reject?
 
-It complements the CRDT study (`docs/kern/crdts-federation.md`), which settles
+It complements the CRDT study (`docs/crdts-federation.md`), which settles
 *how* state merges, and the PageRank study
-(`docs/kern/pagerank-authority.md`), which settles *whose* state is trusted.
+(`docs/pagerank-authority.md`), which settles *whose* state is trusted.
 FL settles a third orthogonal axis: *what can a peer learn from a peer
 without exposing its raw data*.
 
@@ -274,5 +274,5 @@ effect", "No Sybil defence is in effect"). Cheapest and least coupled first:
   - `crates/gossip/src/types.rs` — wire envelope.
   - `crates/gossip/src/handler.rs` — merge dispatch.
   - `crates/gossip/src/ledger.rs` — routing / provenance substrate.
-  - `docs/kern/crdts-federation.md` — convergence semantics.
-  - `docs/kern/pagerank-authority.md` — peer authority scoring.
+  - `docs/crdts-federation.md` — convergence semantics.
+  - `docs/pagerank-authority.md` — peer authority scoring.

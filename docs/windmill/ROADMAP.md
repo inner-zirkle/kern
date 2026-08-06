@@ -1771,7 +1771,7 @@ catches up. (`Fetch` is live — `wire_fetch` installs the handler at
 `src/commands.rs:1099` and the question path issues it — but it is single-id, not a
 catch-up mechanism.) Two pieces adopted on paper and unscheduled: **back-off
 pacing** with exponential jitter keyed to a divergence estimate
-(`docs/kern/fl-vs-knids-federation.md:163-168`), and **batch-size / push-vs-pull
+(`docs/fl-vs-knids-federation.md:163-168`), and **batch-size / push-vs-pull
 tuning** at scale (`howto/memory-bank.mdx:149-150`) — the top-32 is hard-coded and
 the push-only choice was never revisited.
 
@@ -1806,7 +1806,7 @@ peers was treated identically to a brand-new peer"
 (`decisions/pagerank-authority.mdx:96-98`). The full design — an
 `AuthorityTable`, TrustRank seeding, `authority_weight` / `authority_floor`
 config, a `kern authority seed` admin command — is written out at
-`docs/kern/pagerank-authority.md:164, :202-235, :274` and was never
+`docs/pagerank-authority.md:164, :202-235, :274` and was never
 scheduled. It ranks immediately above the Sybil work because the defences in 39
 are weightings of a signal that does not exist.
 
@@ -1840,7 +1840,7 @@ retrospective down-weighting of a peer later deemed untrusted, which was never
 written — the shipped `Ledger` (`src/gossip/ledger.rs`) is a TTL- and cap-bounded
 routing cache (`:24, :28, :63`), enough to know where to fetch, not who told you
 what. Adopted-partial and unscheduled beside them: **secure aggregation for
-pulses and counters** (`docs/kern/fl-vs-knids-federation.md:131-136`).
+pulses and counters** (`docs/fl-vs-knids-federation.md:131-136`).
 
 ### 42. The gossip wire has no version negotiation `[federation]`
 
@@ -1856,12 +1856,12 @@ an invariant.
 
 ### 43. CRDT growth and re-embedding across replicas `[federation]`
 
-Two leads from `docs/kern/crdts-federation.md`, adopted and never scheduled:
+Two leads from `docs/crdts-federation.md`, adopted and never scheduled:
 
 - **Tombstone and LWW-history growth is unbounded** (`:278-281`); the note's own
   follow-up was "time-bounded compaction".
 - **Vector LWW is coarse across heterogeneous embedding models** (`:284-286`),
-  and `docs/kern/fl-vs-knids-federation.md:200-204` explicitly *allows*
+  and `docs/fl-vs-knids-federation.md:200-204` explicitly *allows*
   per-node model choice. Item 3 covers the local swap; the federated case — no
   model-identity stamp on the wire — is separate and unfunded.
 
@@ -1870,7 +1870,7 @@ Two leads from `docs/kern/crdts-federation.md`, adopted and never scheduled:
 `valid_from` / `valid_to` / `invalidated_at` are `#[serde(skip)]`
 (`src/base/types.rs:311-316`), so each node re-derives its own `as_of` view and
 two *converged* nodes can answer the same point-in-time query differently
-(`docs/kern/crdts-federation.md:54-62`). The federated twin of item 4.
+(`docs/crdts-federation.md:54-62`). The federated twin of item 4.
 
 ### 45. Multicast discovery is unreliable with no health signal `[federation]`
 
@@ -2140,7 +2140,7 @@ No semantic or structural features (`FEATURES.md:496`), and naming plus
 enrich are a cold LLM call per kern. The adopted-but-unbuilt upgrade is
 thought-level PageRank feeding the split heuristic — high-rank nodes become
 gravitons, bridge nodes become sub-kerns
-(`docs/kern/pagerank-authority.md:258-263`, `decisions/pagerank-authority.mdx:120-121`).
+(`docs/pagerank-authority.md:258-263`, `decisions/pagerank-authority.mdx:120-121`).
 Graph structure informs ranking today and never informs the tree shape that
 routing depends on.
 
@@ -2148,7 +2148,7 @@ routing depends on.
 
 The adopted loop-closing design gated forgetting on convergence — `G ≥ 0.6`
 **and** heat below floor for `forget_ttl`
-(`docs/kern/stigmergy-self-improving.md:210, :236`). Shipped GC has no gate at all.
+(`docs/stigmergy-self-improving.md:210, :236`). Shipped GC has no gate at all.
 Depends on item 62 (the convergence metric) existing.
 
 ### 55. Two freshness signals, different half-lives, neither ever tuned `[retrieval]`
@@ -2158,7 +2158,7 @@ A 24-hour one for ranking (`qbst_recency_half_life_secs`,
 `src/base/constants.rs:12`) and the retention one on `HeatConfig`. The offline
 NDCG sweep meant to tune either was never run
 (`decisions/stigmergy-over-gardening.mdx:117`). Third input nobody reconciled:
-`docs/kern/stigmergy-self-improving.md:160-170` derives a 1–2 day half-life.
+`docs/stigmergy-self-improving.md:160-170` derives a 1–2 day half-life.
 
 **Restated 2026-07-21 — the old "7-day retention" wording was stale.** The 7 days
 at `src/base/heat.rs:17` is the struct default and is never what runs:
@@ -2284,7 +2284,7 @@ process-global serialisation). See the 2026-07-22 CHANGELOG entry.
 rate-limit, so an A/B ping-pong on one `external_id` grows without bound
 (`decisions/edit-convergence.mdx:107`). Compounding it: the three trigger
 conditions that would flip kern to full versioning have **no instrumentation**
-(`docs/kern/wikipedia-edit-convergence.md:100-105`), so the flip is undetectable
+(`docs/wikipedia-edit-convergence.md:100-105`), so the flip is undetectable
 even in principle.~~
 
 ### 59. `degrade` has no floor, no audit trail and no undo — floor half-closed 2026-07-22 `[retrieval]`
@@ -2327,7 +2327,7 @@ permanently erasing a correct path, and nothing records that they happened.~~
 
 Either side of a classified pair can move and nothing re-runs the call, and no
 tool exposes the supersede chain beyond `include_history` (`FEATURES.md:173-174`).
-Two open questions beside it, from `docs/kern/bayesian-belief.md:159-162`: should
+Two open questions beside it, from `docs/bayesian-belief.md:159-162`: should
 `Reason` edges carry belief symmetrically, and does superseding reset or inherit
 belief?
 
@@ -2599,7 +2599,7 @@ central product claim, is a design intention
 (`decisions/stigmergy-over-gardening.mdx:128`). Belongs with item 1's
 replacement. Its surfacing half is separate and also unbuilt: export `HeatStats`
 via health and `kern://health`
-(`docs/kern/stigmergy-self-improving.md:271`). Item 54 depends on this.~~
+(`docs/stigmergy-self-improving.md:271`). Item 54 depends on this.~~
 
 ### 64. Normalize and re-found the scoring stack `[retrieval]`
 
@@ -2631,7 +2631,7 @@ ignored. Decided by fix-the-root (move the ranking factor only, leave
 1.0; auto-tuning is item 66), verify-before-claiming (negative control). See
 the 2026-07-22 CHANGELOG entry.
 
-~~`p − k·√var` instead of the mean (`docs/kern/bayesian-belief.md:149`) — a
+~~`p − k·√var` instead of the mean (`docs/bayesian-belief.md:149`) — a
 one-line ranking change that makes a single-observation claim stop outranking a
 well-evidenced one at equal mean.~~
 
@@ -3252,7 +3252,7 @@ does not exist. Wanted: track it in the repo (`scripts/` was dissolved
 ### 75. Crash consistency on the DiskANN path `[store]`
 
 **Half of this was verified false 2026-07-21 and the residual risk is narrower
-than stated.** The item was written off `docs/kern/diskann-disk-index.md:142-143`
+than stated.** The item was written off `docs/diskann-disk-index.md:142-143`
 ("no WAL and no atomic-rename-per-segment") and never checked against the build.
 Per-segment atomic rename *does* exist: `atomic_write`
 (`src/base/diskann.rs:293-297`) writes `<path>.tmp` then `std::fs::rename`, and
@@ -3296,7 +3296,7 @@ PQ-codebook-drift and Windows-file-locking doc-only notes are unchanged.
 
 Beside it, both unverified against source and still doc-only: mmap file-locking
 and flush semantics differ on Windows
-(`docs/kern/diskann-disk-index.md:149-150`), and PQ codebook training/drift has
+(`docs/diskann-disk-index.md:149-150`), and PQ codebook training/drift has
 no retrain trigger — "a bad codebook silently degrades recall" (`:145-148`) —
 which lands in item 1's lap the moment PQ is promoted out of the non-goals.
 
@@ -3790,7 +3790,7 @@ target back. The list resolved into four classes, not the two the filing guessed
   `src/ingest/direct.rs` and meant `src/ingest/file_watcher.rs` — the *number*
   was right, only the file was wrong, which is the quietest failure of the set;
   and item 75's two doc-only leads bound to `src/base/graph.rs` while meaning
-  `docs/kern/diskann-disk-index.md`. None of these can be fixed by adjusting a
+  `docs/diskann-disk-index.md`. None of these can be fixed by adjusting a
   number. Each citation is now spelled in full at the point the file changes,
   and only the continuations that follow it are left bare.
 - **A quotation the checker read as a citation** — 2, both in this item's own
@@ -3947,7 +3947,7 @@ and item 1's instrument staying the scorer.~~
 - (retired 2026-07-21 — withdrawn in place) the quality claims item 1's standard
   forbids no longer survive. `FEATURES.md:195` keeps only the `+7% p50` latency
   half and says the retrieval-quality half is withdrawn;
-  `docs/kern/diskann-disk-index.md:26` says the note "previously published" the
+  `docs/diskann-disk-index.md:26` says the note "previously published" the
   `recall@10 ≥ 0.90` figure; this file's own "recall@10 A/B" citation was struck
   earlier.
 - (retired 2026-07-21 — `README.md` and `VISION.md` were corrected) neither

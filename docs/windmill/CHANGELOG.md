@@ -54,7 +54,7 @@
   1020 tests — ran green on the exact tree being installed), supersedes the
   v1.2.0 cut entry.
 
-- 2026-07-27 — Federation plan v0 implemented (`docs/FEDERATION_PLAN.md`
+- 2026-07-27 — Federation plan v0 implemented (`docs/plans/FEDERATION_PLAN.md`
   §1–§6, all six phase gates green). ed25519 peer identity + signed wire
   envelopes (`src/gossip/identity.rs`; verify precedes every per-peer state
   touch, invalid frames counted); Kleinberg small-world ring with greedy
