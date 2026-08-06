@@ -146,6 +146,35 @@ as B2 / D1 above, not fixed here.
 
 ## Method
 
+### Pass 3 — deletion axis (residual dead code + duplicated test helpers)
+
+Followed B3. Greps re-ran clean; sampled `pub(crate)` fns all live.
+
+Evidence greps:
+
+    rg -n 'allow\(dead_code\)' src/ --type rust   # → no hits (B3 closed the last)
+    cargo build --lib                            # → no dead_code warnings
+
+Checked all alive (callers exist outside their own `fn` line):
+`strip_deleted_marker`, `civil_from_days`, `date_string`,
+`collect_reason_ids`, `root_graviton_ids`, `remove_graviton`.
+
+`#[allow(clippy::too_many_arguments)]` sites (16) inspected — all are real
+multi-param fns (private: `run_once`, `fuse_hybrid_seeds`,
+`index_kern_into`, `write_files`, `commit_reason`, `job`; exposed:
+`pub(super) cmd_ingest`, `pub retrieve_profiled`). Folding them needs a
+param **struct** (adds code, Combine axis A), not a deletion — out of scope
+for the `/simplify` (remove) half.
+
+`make_server` wrappers in `mcp/resources.rs` and `mcp/tools_mutate.rs` are
+identical 1-line delegations to `test_support::mcp_server()` but serve 14 call
+sites as a short local alias — deleting would add verbosity (move the floor),
+not remove. Kept.
+
+Stall signal: in-crate simplify axis saturated. Next gains are Combine-axis
+(param structs) or cross-crate dead-`pub` analysis (kern consumed by
+ctrl/agent/ui per REPOS.md).
+
 ### Pass 2 — deletion axis (dead_code escape hatches)
 
 Greps pasted under each item below. Axis: `allow(dead_code)` escape hatches
