@@ -168,7 +168,7 @@ fn decode_hex_32(s: &str) -> Option<[u8; 32]> {
 // Owner-only from the moment the file exists — same rationale as the
 // mcp-token minting in `config/serve.rs`.
 #[cfg(unix)]
-fn create_private(path: &Path) -> std::io::Result<std::fs::File> {
+pub(crate) fn create_private(path: &Path) -> std::io::Result<std::fs::File> {
 	use std::os::unix::fs::OpenOptionsExt;
 	std::fs::OpenOptions::new()
 		.write(true)
@@ -178,7 +178,7 @@ fn create_private(path: &Path) -> std::io::Result<std::fs::File> {
 }
 
 #[cfg(not(unix))]
-fn create_private(path: &Path) -> std::io::Result<std::fs::File> {
+pub(crate) fn create_private(path: &Path) -> std::io::Result<std::fs::File> {
 	std::fs::OpenOptions::new()
 		.write(true)
 		.create_new(true)

@@ -3,6 +3,8 @@ use chacha20poly1305::{Key, XChaCha20Poly1305, XNonce};
 
 use crate::base::types::{ChunkPart, ChunkPartKind, Entity};
 
+use super::identity::create_private;
+
 /// PrivacyV0 scheme 0: xchacha20poly1305 (FEDERATION_PLAN §6). Entity text is
 /// encrypted client-side BEFORE it enters the shared kern; the contract
 /// validates signatures and content-hash ids over the ciphertext, so relay
@@ -128,24 +130,6 @@ pub fn load_or_mint_key(path: &std::path::Path) -> std::io::Result<[u8; 32]> {
 		}
 		Err(e) => Err(e),
 	}
-}
-
-#[cfg(unix)]
-fn create_private(path: &std::path::Path) -> std::io::Result<std::fs::File> {
-	use std::os::unix::fs::OpenOptionsExt;
-	std::fs::OpenOptions::new()
-		.write(true)
-		.create_new(true)
-		.mode(0o600)
-		.open(path)
-}
-
-#[cfg(not(unix))]
-fn create_private(path: &std::path::Path) -> std::io::Result<std::fs::File> {
-	std::fs::OpenOptions::new()
-		.write(true)
-		.create_new(true)
-		.open(path)
 }
 
 #[cfg(test)]
