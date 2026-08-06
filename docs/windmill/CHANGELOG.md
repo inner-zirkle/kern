@@ -2,6 +2,7 @@
 
 <!-- docs-check: historical -->
 
+- 2026-08-07 — flattened `retrieval` subdir: 9 `src/retrieval/*.rs` → `src/retrieval_*.rs` at src/ root (prefix-rename, dodges merge collision). `retrieval.rs` kept as shim re-exporting all 9 submodules + EmbedFunc/LlmFunc so ~11 external `crate::retrieval::score::X`/`crate::retrieval::query::X`/`crate::retrieval::seed::X`/`crate::retrieval::LlmFunc` refs resolve unchanged. lib.rs gained 9 `pub mod retrieval_*`. No rewrites in moved files needed. Build green, 1096 tests pass, guards 0. Decided by: single-crate-fold (user-directed full src/ flattening).
 - 2026-08-06 — flattened `mcp` subdir: 10 `src/mcp/*.rs` → `src/mcp_*.rs` at src/ root (prefix-rename). `mcp.rs` → shim re-exporting prompt/resources/sse/tools + tools_query (2 external consumers); dropped 6 unused private re-exports (tool methods impl'''d on Server). lib.rs gained 11 `pub/pub(crate) mod mcp_*`. Response/RpcError fields → pub(crate) (siblings need access). include_str path fixed. Rewrites: top-level super::{parent items}→crate::mcp::{...}, sibling super::→crate::mcp_X, test-internal super:: kept. Build green, 1096 tests pass, guards 0. Decided by: single-crate-fold (user-directed full src/ flattening).
 - 2026-08-06 — flattened `ingest` subdir: 12 `src/ingest/*.rs` → `src/ingest_*.rs` at src/ root (prefix-rename, dodges config collision). `ingest/mod.rs` → `ingest.rs` shim re-exporting the 12 submodules (`pub use crate::ingest_config as config;` etc.) + items so `crate::ingest::X` still resolves (~18 consumers unchanged). lib.rs gained 12 `pub mod ingest_*`. Rewrites: `super::X`(sibling)→`crate::ingest_X`, `crate::ingest::X`(own submod)→`crate::ingest_X`, ITEM refs kept. Build green, 1096 tests pass, guards 0. Decided by: single-crate-fold (user-directed full src/ flattening).
 - 2026-08-06 — flattened `gnn` subdir: 13 `src/gnn/*.rs` → `src/gnn_*.rs` at src/ root (prefix-rename, dodges graph/persist collisions). `gnn/mod.rs` → `gnn.rs` shim re-exporting the 13 submodules (`pub use crate::gnn_gcn as gcn;` etc.) so `crate::gnn::X` still resolves (60 refs unchanged). lib.rs gained 13 `pub mod gnn_*`. Rewrites: `super::X`(sibling)→`crate::gnn_X`, `crate::gnn::X`(own submod)→`crate::gnn_X`, `crate::gnn::GnnError` kept. Build green, 1096 tests pass, guards 0. Decided by: single-crate-fold (user-directed full src/ flattening).
@@ -556,21 +557,4 @@
   extends the same guard — only vector-free CRDT deltas federate across models).
   (c) TLS CA (operator PKI vs TOFU) and (d) network_id source owed — security
   model, user's call; (d) depends on (c). No code change. Decided by: name-the-tradeoff, verify-before-claiming, fix-the-root. Supersedes: nothing.
-
-- 2026-07-22 — item 84 pure-rename half closed (rename re-keying complete):
-  `supersede_renamed` (`src/base/accept.rs:578`) gains `new_external_id: &str`
-  and on `old_id == new_id` (content-unchanged rename) re-keys the survivor —
-  `entity.external_id = new_external_id`, `clear_source_entry(old)`,
-  `set_source_entry(new)`, then `return None` (no supersede edge — same entity).
-  The `file_watcher.rs` caller passes `source.object_id()` (the new path). The
-  rename+edit half (`old_id != new_id`) closed earlier in `789968a`; together a
-  renamed file stops leaving the `Document` under its stale old path whether or
-  not it was edited. Proved by `a_pure_rename_re_keys_the_survivor_external_id`
-  (survivor `external_id` == new path, old source-index cleared, new set,
-  survivor active); negative control (revert to bare `return None` →
-  `external_id` stays old path) reds, green on revert.
-  `a_rename_plus_edit_supersedes_the_old_path_document` and
-  `a_rename_with_no_old_entity_is_a_noop` green unedited. `cargo test -p kern
-  --lib` 937 passed, 0 failed, 4 ignored.
-  Decided by: fix-the-root, name-the-tradeoff, verify-before-claiming.
 

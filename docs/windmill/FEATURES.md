@@ -180,7 +180,7 @@ the history chain directly beyond `include_history`.
 **What.** The hybrid query engine. Hand-rolled end to end (no external ANN or
 rerank lib). This is the product's core IP.
 
-**Stages** (`retrieve_profiled`, `src/retrieval/query.rs`, each checkpoint
+**Stages** (`retrieve_profiled`, `src/retrieval_query.rs`, each checkpoint
 profiled via `src/profile.rs`):
 
 | # | Stage | File | What happens |
@@ -200,7 +200,7 @@ profiled via `src/profile.rs`):
 | 13 | **Cold backfill** | `src/mcp_tools_query.rs:212` | If hot returns `< k`, cold-tier hits (brute-force `Store::cold_search`, `src/base_store.rs:629`) fill remaining slots, flagged `cold:true` — each first put through `matches_filter`, because `cold_search` is a raw cosine scan that answers no predicate of its own and an unfiltered fill made spilling an entity the way around every filter the hot path enforces. Skipped on the exact-text fast path, which never embedded a query vector. <!-- docs-check: anchor-ok --> |
 | 14 | **Access stamping** | `retrieval/score.rs` | Heat deposits off the hot path: `score::commit_access` stamps delivered hits; the tick's `CommitAccess` task calls `score::commit_access_ids`. |
 
-**Where.** `src/retrieval/*` (5182 LoC, 9 files). Entry: `retrieval::query`
+**Where.** `src/retrieval_*.rs (shim: src/retrieval.rs)` (5182 LoC, 9 files). Entry: `retrieval::query`
 (one-shot CLI) and `retrieval::query_locked` (daemon, holds read lock only for
 the graph phase; every LLM call runs unlocked).
 
@@ -1465,7 +1465,7 @@ Ranked by leverage:
 1. (retired 2026-07-21 — ROADMAP item 86 closed) a reason edge does lift its
    neighbour now: bounded source-weighted traversal credit in `expand`, clamped
    below the strongest voucher, all 8 linked pairs in the top 5.
-2. **O(N) importance scan per retrieve** (`src/retrieval/seed.rs:131`) —
+2. **O(N) importance scan per retrieve** (`src/retrieval_seed.rs:131`) —
    `seed_important` walks every entity each query (`par_iter`, `:143`); index
    it, it's the scaling cliff at query time. Open as `ROADMAP.md` item 25.
 3. **Federation security** — add auth + encryption before any real deployment

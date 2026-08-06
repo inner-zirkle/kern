@@ -133,6 +133,10 @@ _(ranked across all four sections)_
 
 ## Closed
 
+### 2026-08-07 — flatten src/retrieval/ into src/ root (retrieval_* prefix)
+
+Moved 9 `src/retrieval/{diversify,expand,fuse,gravity,merge,pagerank,query,score,seed}.rs` → `src/retrieval_*.rs` (retrieval_ prefix, dodges merge collision with root merge.rs). `src/retrieval.rs` kept as SHIM re-exporting all 9 submodules + EmbedFunc/LlmFunc, so ~11 external `crate::retrieval::score::X`/`crate::retrieval::query::X`/`crate::retrieval::seed::X`/`crate::retrieval::LlmFunc` refs resolve unchanged. No rewrites in moved files needed. lib.rs gained 9 `pub mod retrieval_*`. Build clean, 1096 lib tests pass, guards 0.
+
 ### 2026-08-07 — flatten src/base/ into src/ root (base_ prefix)
 
 Folded the `base` subdir (22 files) into src/ root. `src/base/{store,types,constants}.rs`→`src/base_{store,types,constants}.rs` (collided with root `store.rs`/`types.rs`); the other 19 kept bare names (`accept.rs`→`src/accept.rs` etc). `src/base.rs` deleted; lib.rs declares the 22 modules directly. Rewrote `crate::base::store/types/constants`→`crate::base_store/base_types/base_constants` and `crate::base::X`→`crate::X` across 70 consumer files; subfile `super::store/types/constants`→`crate::base_store/base_types/base_constants`; aliased `use crate::base_constants as constants;` where bare `constants::` was used. Build clean, 1096 lib tests pass, guards exit 0.
