@@ -38,6 +38,33 @@ module test import; collapses two graviton-add APIs to one. Net -3 lines,
 ## C. Smooth
 ## D. Fix
 
+### B4. Hand-rolled `parse_ipv4` where std `Ipv4Addr::from_str` does the same
+
+**Claim:** private `fn parse_ipv4(host) -> Option<[u8;4]>` in `src/llm.rs` hand-
+rolls a 4-octet parser; `std::net::Ipv4Addr::from_str` parses the same 4-
+octet form and `.octets()` yields `[u8;4]`. Two callers (`is_local_url`,
+`is_loopback_url`) only feed the octets to `is_local_ipv4` / a `o[0]==127`
+check. Persona #3 (std over hand-rolled) + #1 (delete).
+
+**Evidence:**
+```
+src/llm.rs:642:fn parse_ipv4(host: &str) -> Option<[u8; 4]> {
+src/llm.rs:588:  if let Some(o) = parse_ipv4(host) { return is_local_ipv4(&o); }
+src/llm.rs:612:  if let Some(o) = parse_ipv4(host) { return o[0] == 127; }
+```
+`rg -n 'parse_ipv4' src/` → no other callers.
+
+**Do:** delete `parse_ipv4`; inline
+`if let Ok(a) = host.parse::<Ipv4Addr>() { … a.octets() … }` at both sites;
+add `use std::net::Ipv4Addr;`.
+
+**Payoff:** removes 1 hand-rolled parser (8 lines), uses std. Net -6 lines.
+**Narrowing:** std rejects leading-zero/ambiguous octet forms the manual
+parser accepted; only relevant for local-egress detection on config URLs where
+such forms do not occur. Existing tests use clean IPs (127.0.0.1, 10.0.0.1,
+172.16.0.1, 192.168.1.1, 169.254.0.1, 203.0.113.5) — all parsed identically.
+**Size:** small, one sitting. Private fn, no public API change.
+
 ## Highest payoff first
 
 _(ranked across all four sections)_
@@ -51,6 +78,22 @@ _(ranked across all four sections)_
    then `cargo clippy --all-targets` → red. Out of scope for B1; pick per item.
 
 ## Closed
+
+### 2026-08-06 — B4: hand-rolled `parse_ipv4` replaced by std `Ipv4Addr`
+
+Private `fn parse_ipv4(host) -> Option<[u8;4]>` in `src/llm.rs` hand-rolled a
+4-octet IPv4 parser (split('.'), len==4, each `p.parse::<u8>()`). Its two
+callers (`is_local_url`, `is_loopback_url`) only fed the octets to
+`is_local_ipv4` / a `o[0]==127` loopback check. Deleted the fn, added
+`use std::net::Ipv4Addr;`, inlined `if let Ok(a) = host.parse::<Ipv4Addr>()
+{ … a.octets() … }` at both sites. The old shape was wrong because a hand-
+rolled parser duplicated what std `Ipv4Addr::from_str` already does (persona:
+std over hand-rolled). Net -6 lines. Narrowing: std rejects leading-zero /
+octal-ambiguous octet forms the manual parser accepted; acceptable for a
+local-egress-detection helper on config URLs (such forms do not occur there);
+all existing tests use clean IPs std parses identically. `cargo build --lib` +
+`cargo test --lib` (1020 tests) green; no new clippy errors (D1 noise
+unaffected). Reviewer APPROVED.
 
 ### 2026-08-06 — B3: test-only `add_graviton` deleted; one way to add a graviton
 

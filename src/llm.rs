@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::net::Ipv4Addr;
 use std::time::Duration;
 
 #[derive(Debug, thiserror::Error)]
@@ -585,8 +586,8 @@ pub fn is_local_url(url: &str) -> bool {
 		}
 		return false;
 	}
-	if let Some(o) = parse_ipv4(host) {
-		return is_local_ipv4(&o);
+	if let Ok(a) = host.parse::<Ipv4Addr>() {
+		return is_local_ipv4(&a.octets());
 	}
 	false
 }
@@ -609,8 +610,8 @@ pub fn is_loopback_url(url: &str) -> bool {
 		}
 		return false;
 	}
-	if let Some(o) = parse_ipv4(host) {
-		return o[0] == 127;
+	if let Ok(a) = host.parse::<Ipv4Addr>() {
+		return a.octets()[0] == 127;
 	}
 	false
 }
@@ -637,18 +638,6 @@ fn host_of(url: &str) -> Option<&str> {
 	} else {
 		Some(h)
 	}
-}
-
-fn parse_ipv4(host: &str) -> Option<[u8; 4]> {
-	let mut o = [0u8; 4];
-	let parts: Vec<&str> = host.split('.').collect();
-	if parts.len() != 4 {
-		return None;
-	}
-	for (i, p) in parts.iter().enumerate() {
-		o[i] = p.parse().ok()?;
-	}
-	Some(o)
 }
 
 fn is_local_ipv4(o: &[u8; 4]) -> bool {
