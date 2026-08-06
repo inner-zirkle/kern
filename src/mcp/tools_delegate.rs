@@ -167,10 +167,7 @@ mod tests {
 			.as_str()
 			.or(b["signature"].as_str())
 			.unwrap();
-		let sig: Vec<u8> = (0..sig_hex.len())
-			.step_by(2)
-			.map(|i| u8::from_str_radix(&sig_hex[i..i + 2], 16).unwrap())
-			.collect();
+		let sig: Vec<u8> = crate::base::util::hex::decode(sig_hex).unwrap();
 		assert!(
 			verify_sig_by(&pubkey, &digest, &sig),
 			"the returned signature verifies against the returned pubkey"
@@ -239,10 +236,7 @@ mod tests {
 		)
 		.unwrap();
 		let sig_hex = b["tombstone_sig"].as_str().unwrap();
-		let sig: Vec<u8> = (0..sig_hex.len())
-			.step_by(2)
-			.map(|i| u8::from_str_radix(&sig_hex[i..i + 2], 16).unwrap())
-			.collect();
+		let sig: Vec<u8> = crate::base::util::hex::decode(sig_hex).unwrap();
 		assert!(verify_sig_by(
 			&owner_pk,
 			&tombstone_digest(&old_id, &new_id),

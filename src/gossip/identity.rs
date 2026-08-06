@@ -48,7 +48,7 @@ impl PeerIdentity {
 	pub fn load_or_mint(path: &Path) -> std::io::Result<Self> {
 		match std::fs::read_to_string(path) {
 			Ok(text) => {
-				let seed = decode_hex_32(text.trim()).ok_or_else(|| {
+				let seed = crate::gossip::contract::parse_key_hex(text.trim()).ok_or_else(|| {
 					std::io::Error::new(
 						std::io::ErrorKind::InvalidData,
 						format!("peer key file {} is not 64 hex chars", path.display()),
@@ -152,17 +152,6 @@ pub fn verify_sig_by(pubkey: &[u8; 32], digest: &[u8; 32], sig: &[u8]) -> bool {
 		return false;
 	};
 	vk.verify(digest, &sig).is_ok()
-}
-
-fn decode_hex_32(s: &str) -> Option<[u8; 32]> {
-	if s.len() != 64 || !s.bytes().all(|b| b.is_ascii_hexdigit()) {
-		return None;
-	}
-	let mut out = [0u8; 32];
-	for (i, byte) in out.iter_mut().enumerate() {
-		*byte = u8::from_str_radix(&s[i * 2..i * 2 + 2], 16).ok()?;
-	}
-	Some(out)
 }
 
 // Owner-only from the moment the file exists — same rationale as the

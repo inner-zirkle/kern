@@ -112,15 +112,9 @@ pub fn entity_sig_digest(entity_id: &str, lamport: u64) -> [u8; 32] {
 
 /// Decode a hex-encoded 32-byte key (ed25519 pubkey or contract id).
 pub fn parse_key_hex(s: &str) -> Option<[u8; 32]> {
-	let s = s.trim().strip_prefix("ed25519:").unwrap_or_else(|| s.trim());
-	if s.len() != 64 || !s.bytes().all(|b| b.is_ascii_hexdigit()) {
-		return None;
-	}
-	let mut out = [0u8; 32];
-	for (i, byte) in out.iter_mut().enumerate() {
-		*byte = u8::from_str_radix(&s[i * 2..i * 2 + 2], 16).ok()?;
-	}
-	Some(out)
+	crate::base::util::hex::decode(s.trim())
+		.filter(|v| v.len() == 32)
+		.and_then(|v| v.try_into().ok())
 }
 
 /// Materialize a `[[gossip.contracts]]` table into params. None when a key

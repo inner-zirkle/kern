@@ -50,13 +50,7 @@ pub fn encrypt_text(key: &[u8; 32], plaintext: &str) -> String {
 
 pub fn decrypt_text(key: &[u8; 32], ciphertext: &str) -> Option<String> {
 	let hex = ciphertext.strip_prefix(CIPHERTEXT_PREFIX)?;
-	if hex.len() % 2 != 0 {
-		return None;
-	}
-	let mut bytes = Vec::with_capacity(hex.len() / 2);
-	for i in (0..hex.len()).step_by(2) {
-		bytes.push(u8::from_str_radix(&hex[i..i + 2], 16).ok()?);
-	}
+	let bytes = crate::base::util::hex::decode(hex)?;
 	if bytes.len() <= NONCE_LEN {
 		return None;
 	}

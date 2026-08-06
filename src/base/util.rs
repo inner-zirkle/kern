@@ -17,6 +17,31 @@ pub mod hex {
 		}
 		s
 	}
+
+	/// Decode a hex string of any even length. Odd length or any non-hexdigit
+	/// byte yields `None`. An `ed25519:` prefix is tolerated (key strings).
+	pub fn decode(s: &str) -> Option<Vec<u8>> {
+		let s = s.strip_prefix("ed25519:").unwrap_or(s);
+		if !s.len().is_multiple_of(2) {
+			return None;
+		}
+		let mut out = Vec::with_capacity(s.len() / 2);
+		for chunk in s.as_bytes().chunks(2) {
+			let hi = hex_nibble(chunk[0])?;
+			let lo = hex_nibble(chunk[1])?;
+			out.push((hi << 4) | lo);
+		}
+		Some(out)
+	}
+
+	fn hex_nibble(b: u8) -> Option<u8> {
+		match b {
+			b'0'..=b'9' => Some(b - b'0'),
+			b'a'..=b'f' => Some(b - b'a' + 10),
+			b'A'..=b'F' => Some(b - b'A' + 10),
+			_ => None,
+		}
+	}
 }
 
 pub fn short_id(id: &str) -> &str {
@@ -120,6 +145,17 @@ mod tests {
 	fn hex_encode_is_lowercase_two_chars_per_byte() {
 		assert_eq!(hex::encode([0x00, 0xff, 0x10, 0xab]), "00ff10ab");
 		assert_eq!(hex::encode([]), "");
+	}
+
+	#[test]
+	fn hex_decode_roundtrips_and_rejects_bad_input() {
+		assert_eq!(hex::decode(""), Some(vec![]));
+		assert_eq!(hex::decode("00ff10ab"), Some(vec![0x00, 0xff, 0x10, 0xab]));
+		assert_eq!(hex::decode("00FF10AB"), Some(vec![0x00, 0xff, 0x10, 0xab]));
+		assert_eq!(hex::decode("ed25519:00ff"), Some(vec![0x00, 0xff]));
+		assert_eq!(hex::decode("0"), None, "odd length");
+		assert_eq!(hex::decode("00ff10ag"), None, "non-hex digit");
+		assert_eq!(hex::encode(hex::decode("deadbeef").unwrap()), "deadbeef");
 	}
 
 	#[test]
