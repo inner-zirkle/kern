@@ -842,12 +842,6 @@ pub(crate) fn get_or_spawn_generic_child(g: &mut GraphGnn, parent_id: &str) -> S
 	child_id
 }
 
-// One graviton per name: a same-normalized-name graviton is updated in place.
-#[cfg_attr(not(test), allow(dead_code))]
-pub(crate) fn add_graviton(g: &mut GraphGnn, name: &str, vec: Vec<f32>) {
-	add_graviton_with_mass(g, name, vec, 1.0)
-}
-
 /// A multi-line graviton seed is a list of example statements, one per line.
 /// Measured (2026-07-21, qwen3-embedding:0.6b): the mean of per-example
 /// embeddings sits ~0.39 median cosine distance from held-out claims of the
@@ -1894,7 +1888,7 @@ mod tests {
 	fn add_graviton_creates_named_root_child() {
 		let mut g = GraphGnn::new();
 		let root = g.root.id.clone();
-		add_graviton(&mut g, "work", vec![1.0, 0.0, 0.0]);
+		add_graviton_with_mass(&mut g, "work", vec![1.0, 0.0, 0.0], 1.0);
 		assert!(graviton_names(&g).contains(&"work".to_string()));
 		let r = accept(&mut g, &root, ent("e", vec![1.0, 0.0, 0.0]), "");
 		assert!(
@@ -1908,7 +1902,7 @@ mod tests {
 	#[test]
 	fn remove_graviton_demotes_and_reports() {
 		let mut g = GraphGnn::new();
-		add_graviton(&mut g, "work", vec![1.0, 0.0, 0.0]);
+		add_graviton_with_mass(&mut g, "work", vec![1.0, 0.0, 0.0], 1.0);
 		assert!(remove_graviton(&mut g, "work"), "existing graviton removed");
 		assert!(
 			!graviton_names(&g).contains(&"work".to_string()),
@@ -1924,7 +1918,7 @@ mod tests {
 	fn promote_skips_when_root_has_equivalent_graviton_by_name() {
 		let mut g = GraphGnn::new();
 		let root = g.root.id.clone();
-		add_graviton(&mut g, "sessions with no parent", vec![1.0, 0.0, 0.0]);
+		add_graviton_with_mass(&mut g, "sessions with no parent", vec![1.0, 0.0, 0.0], 1.0);
 		let generic = get_or_spawn_generic_child(&mut g, &root);
 		let root_net = g.root.root_id.clone();
 		let child = Kern::new_named_child(
@@ -1956,7 +1950,7 @@ mod tests {
 	fn promote_skips_when_root_graviton_vec_is_near_duplicate() {
 		let mut g = GraphGnn::new();
 		let root = g.root.id.clone();
-		add_graviton(&mut g, "parentless sessions", vec![1.0, 0.0, 0.0]);
+		add_graviton_with_mass(&mut g, "parentless sessions", vec![1.0, 0.0, 0.0], 1.0);
 		let generic = get_or_spawn_generic_child(&mut g, &root);
 		let root_net = g.root.root_id.clone();
 
@@ -2003,8 +1997,8 @@ mod tests {
 	fn default_mass_preserves_nearest_graviton_routing() {
 		let mut g = GraphGnn::new();
 		let root = g.root.id.clone();
-		add_graviton(&mut g, "near", vec![1.0, 0.0, 0.0]);
-		add_graviton(&mut g, "far", vec![0.0, 1.0, 0.0]);
+		add_graviton_with_mass(&mut g, "near", vec![1.0, 0.0, 0.0], 1.0);
+		add_graviton_with_mass(&mut g, "far", vec![0.0, 1.0, 0.0], 1.0);
 		for id in root_graviton_ids(&g) {
 			assert_eq!(g.loaded(&id).unwrap().mass, 1.0, "default mass is 1.0");
 		}
@@ -2137,8 +2131,8 @@ mod tests {
 	#[test]
 	fn add_graviton_updates_existing_same_name_instead_of_minting_duplicate() {
 		let mut g = GraphGnn::new();
-		add_graviton(&mut g, "work", vec![1.0, 0.0, 0.0]);
-		add_graviton(&mut g, "work", vec![0.0, 1.0, 0.0]);
+		add_graviton_with_mass(&mut g, "work", vec![1.0, 0.0, 0.0], 1.0);
+		add_graviton_with_mass(&mut g, "work", vec![0.0, 1.0, 0.0], 1.0);
 
 		let ids: Vec<String> = root_graviton_ids(&g)
 			.into_iter()

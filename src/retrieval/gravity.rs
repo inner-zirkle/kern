@@ -36,7 +36,7 @@ pub fn apply_gravity<T: Scored>(g: &GraphGnn, cfg: &RetrievalConfig, results: &m
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::base::accept::add_graviton;
+	use crate::base::accept::add_graviton_with_mass;
 	use crate::base::types::{mk_entity, EntityKind};
 	use crate::retrieval::expand::ScoredEntity;
 
@@ -48,7 +48,7 @@ mod tests {
 
 	fn graph_with_graviton(mass: f64) -> GraphGnn {
 		let mut g = GraphGnn::new();
-		add_graviton(&mut g, "work", vec![1.0, 0.0, 0.0]);
+		add_graviton_with_mass(&mut g, "work", vec![1.0, 0.0, 0.0], 1.0);
 		let id = root_graviton_ids(&g).pop().unwrap();
 		g.get_mut(&id).unwrap().mass = mass;
 		g
@@ -107,7 +107,7 @@ mod tests {
 	#[test]
 	fn overlapping_gravitons_take_the_max_not_the_sum() {
 		let mut g = graph_with_graviton(1.0);
-		add_graviton(&mut g, "also-work", vec![1.0, 0.0, 0.0]);
+		add_graviton_with_mass(&mut g, "also-work", vec![1.0, 0.0, 0.0], 1.0);
 		let cfg = RetrievalConfig::default();
 		let mut results = vec![scored("e", vec![1.0, 0.0, 0.0], 1.0)];
 		apply_gravity(&g, &cfg, &mut results);

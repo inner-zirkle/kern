@@ -5,6 +5,36 @@ item carrying the grep that produced it. Driven by the `/improve` skill.
 
 ## A. Combine
 ## B. Simplify
+
+### B3. Test-only `add_graviton` kept alive by a `dead_code` escape hatch
+
+**Claim:** `pub(crate) fn add_graviton(g, name, vec)` in `base/accept.rs` is a
+thin wrapper `add_graviton_with_mass(g, name, vec, 1.0)` marked
+`#[cfg_attr(not(test), allow(dead_code))]` — it is never called outside
+`#[cfg(test)]`. Two ways to add a graviton, one of them dead in prod and
+propped up by an escape hatch the persona says to delete first.
+
+**Evidence:**
+```
+src/base/accept.rs:846:#[cfg_attr(not(test), allow(dead_code))]
+src/base/accept.rs:847:pub(crate) fn add_graviton(g: &mut GraphGnn, name: &str, vec: Vec<f32>) {
+src/base/accept.rs:848:	add_graviton_with_mass(g, name, vec, 1.0)
+}
+```
+Callers (all under `#[cfg(test)]`): 8 in `src/base/accept.rs::tests`, 2 in
+`src/retrieval/gravity.rs::tests` (via `use crate::base::accept::add_graviton`).
+`rg -n 'add_graviton\b' src/` → no non-test hits.
+
+**Do:** delete the fn + the `#[cfg_attr(not(test), allow(dead_code))]` line;
+inline `add_graviton_with_mass(g, name, vec, 1.0)` at all 10 test call sites;
+drop the `use …add_graviton` import in gravity.rs, add
+`use …add_graviton_with_mass`.
+
+**Payoff:** removes 1 `pub(crate)` fn + 1 dead_code escape hatch + 1 cross-
+module test import; collapses two graviton-add APIs to one. Net -3 lines,
++0 chars-per-call-site. Pure deletion of a second way.
+**Size:** small, one sitting. Test-only, no public API change.
+
 ## C. Smooth
 ## D. Fix
 
@@ -21,6 +51,21 @@ _(ranked across all four sections)_
    then `cargo clippy --all-targets` → red. Out of scope for B1; pick per item.
 
 ## Closed
+
+### 2026-08-06 — B3: test-only `add_graviton` deleted; one way to add a graviton
+
+`pub(crate) fn add_graviton(g, name, vec)` in `base/accept.rs` was a thin
+`add_graviton_with_mass(g, name, vec, 1.0)` wrapper marked
+`#[cfg_attr(not(test), allow(dead_code))]` — never called outside `#[cfg(test)]`.
+It existed as a second, mass-defaulted way to add a graviton, kept alive only
+by a dead_code escape hatch. Deleted the fn + the escape hatch + the cross-
+module `use crate::base::accept::add_graviton` import in gravity.rs; inlined
+`add_graviton_with_mass(g, name, vec, 1.0)` at all 10 test call sites (8 in
+accept.rs::tests, 2 in gravity.rs::tests). The old shape was wrong because a
+dead-in-prod `pub(crate)` helper was propping up a second API surface behind
+an escape hatch the persona deletes first. Net -3 lines; 2 graviton-add APIs
+collapse to 1; `cargo build --lib` + `cargo test --lib` (1020 tests) green;
+no new clippy errors (pre-existing D1 noise unaffected). Reviewer APPROVED.
 
 ### 2026-08-06 — B2: duplicated `is_error` MCP-test helpers folded into one `#[cfg(test)]` canonical
 
@@ -57,6 +102,20 @@ collapse to 1; reviewer APPROVED, no behaviour bug. Pre-existing red WIP
 as B2 / D1 above, not fixed here.
 
 ## Method
+
+### Pass 2 — deletion axis (dead_code escape hatches)
+
+Greps pasted under each item below. Axis: `allow(dead_code)` escape hatches
+and test-only `pub(crate)` helpers propping them up.
+
+Evidence grep:
+
+    rg -n 'allow\(dead_code\)' src/ --type rust
+
+Hits:
+- src/base/accept.rs:846 — `#[cfg_attr(not(test), allow(dead_code))]` over
+  `pub(crate) fn add_graviton` (a thin wrapper over `add_graviton_with_mass`).
+  Callers all `#[cfg(test)]` (see B3).
 
 ### Pass 1 — deletion axis (hex decode duplication)
 
