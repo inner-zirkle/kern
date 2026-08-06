@@ -5,6 +5,8 @@ use std::time::Duration;
 use transport::kern_rpc::KernRpcClient;
 use transport::typed::{Endpoint, JsonEnvelopeCodec};
 
+use crate::base::identity::strip_deleted_marker;
+
 // Bootstrap loads the whole graph before binding kern.sock, so a big store
 // needs a generous ready window.
 const READY_RETRIES: u32 = 40;
@@ -65,12 +67,6 @@ pub async fn probe(root: &Path) -> bool {
 }
 
 // A rebuild unlinks the running binary; /proc/self/exe then reads
-// "<path> (deleted)" and spawning it ENOENTs. The fresh binary sits at the
-// original path — strip the marker so a long-lived hub keeps spawning nodes.
-fn strip_deleted_marker(s: &str) -> &str {
-	s.strip_suffix(" (deleted)").unwrap_or(s)
-}
-
 fn self_exe() -> Result<PathBuf, String> {
 	let exe = std::env::current_exe().map_err(|e| format!("current_exe: {e}"))?;
 	let s = exe.to_string_lossy();
