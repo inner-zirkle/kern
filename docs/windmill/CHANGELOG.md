@@ -2,6 +2,8 @@
 
 <!-- docs-check: historical -->
 
+- 2026-08-06 — deleted `pub fn is_semantic` from `ReasonKind` (`src/base/types.rs`). The predicate (`matches! Similarity | Provenance | Ratification`) had zero callers — `rg 'is_semantic' src/` returns nothing; the enum variants stay live (Similarity used in tick/accept/commands/query). A dead `pub` predicate is surface area with no consumer; if the classification is ever needed it's a one-line `matches!` at the call site. Also reconciled `docs/ideas.md`: the stale open copies of B6/B3/B4/B1 (all already closed) were pruned and B6 got its `## Closed` entry. Net -99 lines of dead doc.
+
 - 2026-08-06 — replaced the dead oracle pre-commit hook with the windmill
   gate. The tracked `hooks/pre-commit` (oracle ruling) targeted `docs/oracle/`
   (or root `CHANGELOG.md`), neither of which exists; the repo lives under

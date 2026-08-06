@@ -120,13 +120,6 @@ impl ReasonKind {
 			_ => None,
 		}
 	}
-
-	pub fn is_semantic(self) -> bool {
-		matches!(
-			self,
-			ReasonKind::Similarity | ReasonKind::Provenance | ReasonKind::Ratification
-		)
-	}
 }
 
 // URI schemes: file://<path>, ticket://<system>/<id>[#section],

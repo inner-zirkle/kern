@@ -6,26 +6,6 @@ item carrying the grep that produced it. Driven by the `/improve` skill.
 ## A. Combine
 ## B. Simplify
 
-### B6. Dead `pub fn is_semantic` — unused ReasonKind predicate
-
-**Claim:** `pub fn is_semantic(self) -> bool` on `ReasonKind` in
-`src/base/types.rs` classifies `Similarity | Provenance | Ratification`. The
-enum variants are live (Similarity used in tick/accept/commands/query), but
-the *predicate* has zero callers — nothing asks "is this semantic?".
-
-**Evidence:**
-```
-src/base/types.rs:124:	pub fn is_semantic(self) -> bool {
-src/base/types.rs:125:		matches!(self, ReasonKind::Similarity | ReasonKind::Provenance | ReasonKind::Ratification)
-```
-`rg -n '\bis_semantic\b' src/ -g '*.rs' | grep -v 'fn is_semantic' | grep -v '//.*is_semantic'`
-→ no hits.
-
-**Do:** delete the fn (6 lines incl. match block).
-
-**Payoff:** removes 1 dead `pub` predicate. Pure deletion.
-**Size:** tiny, one sitting.
-
 ### Dead-`pub` scrape rejects (Pass 4, for the record)
 
 - `for_eval` / `with_temperature` (src/llm.rs builder methods, seed+temperature
@@ -38,64 +18,8 @@ src/base/types.rs:125:		matches!(self, ReasonKind::Similarity | ReasonKind::Prov
   loses a diagnostic intent that may be wired later → needs a decision, not a
   clean fold. Keep for now.
 
-### B3. Test-only `add_graviton` kept alive by a `dead_code` escape hatch
-
-**Claim:** `pub(crate) fn add_graviton(g, name, vec)` in `base/accept.rs` is a
-thin wrapper `add_graviton_with_mass(g, name, vec, 1.0)` marked
-`#[cfg_attr(not(test), allow(dead_code))]` — it is never called outside
-`#[cfg(test)]`. Two ways to add a graviton, one of them dead in prod and
-propped up by an escape hatch the persona says to delete first.
-
-**Evidence:**
-```
-src/base/accept.rs:846:#[cfg_attr(not(test), allow(dead_code))]
-src/base/accept.rs:847:pub(crate) fn add_graviton(g: &mut GraphGnn, name: &str, vec: Vec<f32>) {
-src/base/accept.rs:848:	add_graviton_with_mass(g, name, vec, 1.0)
-}
-```
-Callers (all under `#[cfg(test)]`): 8 in `src/base/accept.rs::tests`, 2 in
-`src/retrieval/gravity.rs::tests` (via `use crate::base::accept::add_graviton`).
-`rg -n 'add_graviton\b' src/` → no non-test hits.
-
-**Do:** delete the fn + the `#[cfg_attr(not(test), allow(dead_code))]` line;
-inline `add_graviton_with_mass(g, name, vec, 1.0)` at all 10 test call sites;
-drop the `use …add_graviton` import in gravity.rs, add
-`use …add_graviton_with_mass`.
-
-**Payoff:** removes 1 `pub(crate)` fn + 1 dead_code escape hatch + 1 cross-
-module test import; collapses two graviton-add APIs to one. Net -3 lines,
-+0 chars-per-call-site. Pure deletion of a second way.
-**Size:** small, one sitting. Test-only, no public API change.
-
 ## C. Smooth
 ## D. Fix
-
-### B4. Hand-rolled `parse_ipv4` where std `Ipv4Addr::from_str` does the same
-
-**Claim:** private `fn parse_ipv4(host) -> Option<[u8;4]>` in `src/llm.rs` hand-
-rolls a 4-octet parser; `std::net::Ipv4Addr::from_str` parses the same 4-
-octet form and `.octets()` yields `[u8;4]`. Two callers (`is_local_url`,
-`is_loopback_url`) only feed the octets to `is_local_ipv4` / a `o[0]==127`
-check. Persona #3 (std over hand-rolled) + #1 (delete).
-
-**Evidence:**
-```
-src/llm.rs:642:fn parse_ipv4(host: &str) -> Option<[u8; 4]> {
-src/llm.rs:588:  if let Some(o) = parse_ipv4(host) { return is_local_ipv4(&o); }
-src/llm.rs:612:  if let Some(o) = parse_ipv4(host) { return o[0] == 127; }
-```
-`rg -n 'parse_ipv4' src/` → no other callers.
-
-**Do:** delete `parse_ipv4`; inline
-`if let Ok(a) = host.parse::<Ipv4Addr>() { … a.octets() … }` at both sites;
-add `use std::net::Ipv4Addr;`.
-
-**Payoff:** removes 1 hand-rolled parser (8 lines), uses std. Net -6 lines.
-**Narrowing:** std rejects leading-zero/ambiguous octet forms the manual
-parser accepted; only relevant for local-egress detection on config URLs where
-such forms do not occur. Existing tests use clean IPs (127.0.0.1, 10.0.0.1,
-172.16.0.1, 192.168.1.1, 169.254.0.1, 203.0.113.5) — all parsed identically.
-**Size:** small, one sitting. Private fn, no public API change.
 
 ## Highest payoff first
 
@@ -110,6 +34,21 @@ _(ranked across all four sections)_
    then `cargo clippy --all-targets` → red. Out of scope for B1; pick per item.
 
 ## Closed
+
+### 2026-08-06 — B6: dead `pub fn is_semantic` deleted (unused ReasonKind predicate)
+
+**Claim:** `pub fn is_semantic(self) -> bool` on `ReasonKind` classified
+`Similarity | Provenance | Ratification` but had zero callers — nothing asked
+"is this semantic?".
+
+**Evidence (re-run 2026-08-06):** `rg -n 'is_semantic' src/ -g '*.rs'` → no
+hits; the enum variants stay (Similarity used in tick/accept/commands/query).
+
+**What changed:** deleted the 6-line predicate from `src/base/types.rs`.
+
+**Why the old shape was wrong:** a `pub` predicate nobody calls is surface
+area with no consumer; the classification, if ever needed, is a one-line
+`matches!` at the call site. Kept variants live; only the dead reader went.
 
 ### 2026-08-06 — B5: dead `pub fn neighbor_ids` deleted (cross-crate dead-pub axis)
 
@@ -272,41 +211,3 @@ Canonical home: `src/base/util.rs` `pub mod hex` has `encode` only — no
 `decode`. `parse_key_hex` (contract.rs) is already pub and imported cross-
 module (mcp/tools_delegate uses it).
 
-## B. Simplify
-
-### B1. Duplicated hex-decode loops; no canonical `hex::decode`
-
-**Claim:** five manual hex-decode loops re-implement what should be one
-`hex::decode` in `base::util::hex` (which today has only `encode`). Two of
-them (`decode_hex_32` in identity.rs, `parse_key_hex` in contract.rs) are
-near-identical 32-byte decoders; the latter is pub and the former is a
-private duplicate.
-
-**Evidence:**
-```
-src/gossip/identity.rs:163:    *byte = u8::from_str_radix(&s[i * 2..i * 2 + 2], 16).ok()?;
-src/gossip/contract.rs:121:    *byte = u8::from_str_radix(&s[i * 2..i * 2 + 2], 16).ok()?;
-src/gossip/privacy.rs:58:    bytes.push(u8::from_str_radix(&hex[i..i + 2], 16).ok()?);
-src/mcp/tools_delegate.rs:169: .map(|i| u8::from_str_radix(&sig_hex[i..i + 2], 16).unwrap())
-src/mcp/tools_delegate.rs:241: .map(|i| u8::from_str_radix(&sig_hex[i..i + 2], 16).unwrap())
-```
-`base::util::hex` surface today: `encode` only (src/base/util.rs:13).
-
-**Do:**
-1. Add `pub fn decode(s: &str) -> Option<Vec<u8>>` to `base::util::hex`
-   (hexdigit + even-length check, one loop).
-2. `parse_key_hex` (contract.rs) -> strip prefix, `hex::decode`, len==32
-   check, `try_into`.
-3. Delete `decode_hex_32` (identity.rs) -> call `parse_key_hex` (or
-   `hex::decode` + `try_into`).
-4. `decrypt_text` (privacy.rs) -> `hex::decode` after prefix strip.
-5. Two test loops in mcp/tools_delegate.rs -> `hex::decode` (sigs are 64
-   bytes; `parse_key_hex` is 32-only, so the canonical `hex::decode` is the
-   right call here).
-Add one test for `hex::decode` (round-trip with `encode`, odd-length ->
-None, non-hex -> None).
-
-**Payoff:** removes 4 manual loops + 1 private fn; one authoritative
-decoder. ~25 lines out, ~12 in (helper + test). Net deletion.
-**Size:** small, one sitting. Crosses `base`, `gossip`, `mcp` — gate fires
-(see step 0); add of a `pub fn` is an internal-crate API addition.
