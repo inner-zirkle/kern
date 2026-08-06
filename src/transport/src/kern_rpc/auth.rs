@@ -3,6 +3,8 @@ use serde_json::Value;
 
 use crate::typed::{AdapterError, Channel, JsonEnvelopeCodec};
 
+use crate::http::ct_eq;
+
 /// The one frame a caller sends before any `KernRpc` method is reachable.
 ///
 /// `token` is the per-graph secret the daemon minted (`resolve_mcp_token`) —
@@ -37,19 +39,6 @@ impl AuthReq {
 			token: token.into(),
 		}
 	}
-}
-
-// Constant time over the compared bytes: a compare that returns at the first
-// mismatch reports how long a shared prefix was.
-fn ct_eq(a: &[u8], b: &[u8]) -> bool {
-	if a.len() != b.len() {
-		return false;
-	}
-	let mut diff = 0u8;
-	for (x, y) in a.iter().zip(b) {
-		diff |= x ^ y;
-	}
-	diff == 0
 }
 
 /// Client half: present the token, then wait for the daemon's verdict.
