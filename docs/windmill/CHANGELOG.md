@@ -2,6 +2,16 @@
 
 <!-- docs-check: historical -->
 
+- 2026-08-06 — replaced the dead oracle pre-commit hook with the windmill
+  gate. The tracked `hooks/pre-commit` (oracle ruling) targeted `docs/oracle/`
+  (or root `CHANGELOG.md`), neither of which exists; the repo lives under
+  `docs/windmill/`, so the hook matched nothing and let every commit through.
+  The windmill gate targets `docs/windmill/{CHANGELOG,VISION,FEATURES,ROADMAP}.md`
+  — the real layout — so rule 1 fires again. No backup kept (the oracle hook
+  was inert: wrong path + no `CLAUDE.local.md` means its citation check never
+  ran). `core.hooksPath=hooks` unchanged; the tracked file IS the live hook.
+  Decided by: the oracle
+
 - 2026-08-06 — removed `legacy_network_id` from `ParamsV0` + `legacy_contract`.
   Alpha has no compat (AGENTS.md): no legacy decode fallbacks, no migration
   paths. The `legacy_network_id: Option<String>` field on `ParamsV0` and the

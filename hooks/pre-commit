@@ -1,83 +1,60 @@
 #!/usr/bin/env bash
-# oracle ruling, rules 1-2 (per-clone install product; see ORACLE.md "Ruling")
+# windmill-gate: an unrecorded decision cannot be committed.
+#
+# Rule 1: a commit touching a direction file must add a new CHANGELOG entry at
+# the top. The topmost entry is compared before against after — never counted
+# (the cap evicts from the bottom, so at steady state the total never moves) and
+# never grepped for the phrase (which matches from the second commit onward
+# forever, so the hook would go green exactly when it is wrong).
+#
+# WINDMILL.md and SPECIALISTS.md are not direction files: wording and learned
+# notes are not evolution.
 set -u
 
-staged=$(git diff --cached --name-only --diff-filter=ACMRD)
-[ -z "$staged" ] && exit 0
+CHANGELOG="docs/windmill/CHANGELOG.md"
+DIRECTION="docs/windmill/VISION.md docs/windmill/FEATURES.md docs/windmill/ROADMAP.md"
+CAP=50
 
-# The oracle file set lives at the repo root or under docs/oracle/; accept
-# either, so a docs reorganisation cannot silently disable the ruling.
-if [ -f docs/oracle/CHANGELOG.md ] || git show :docs/oracle/CHANGELOG.md >/dev/null 2>&1; then
-  ORACLE_DIR='docs/oracle/'
-else
-  ORACLE_DIR=''
-fi
-CHANGELOG="${ORACLE_DIR}CHANGELOG.md"
+staged="$(git diff --cached --name-only)"
+[ -n "$staged" ] || exit 0
 
-oracle_touched=$(printf '%s\n' "$staged" | grep -Ex "${ORACLE_DIR}(ORACLE|VISION|FEATURES|ROADMAP|SPECIALISTS)\.md" || true)
+changelog_staged=0
+printf '%s\n' "$staged" | grep -qx "$CHANGELOG" && changelog_staged=1
 
-count_entries() { grep -c 'Decided by:' || true; }
-after=$(git show ":$CHANGELOG" 2>/dev/null | count_entries)
-if git rev-parse -q --verify HEAD >/dev/null 2>&1; then
-  before=$(git show "HEAD:$CHANGELOG" 2>/dev/null | count_entries)
-  has_parent=1
-else
-  before=0
-  has_parent=0
-fi
-: "${after:=0}" "${before:=0}"
+touched=0
+for f in $DIRECTION; do
+	printf '%s\n' "$staged" | grep -qx "$f" && touched=1
+done
 
-# Rule 1: oracle-governed markdown moved -> CHANGELOG.md must gain an entry,
-# and each new entry must cite a pinned behavior or `the oracle`.
-if [ -n "$oracle_touched" ]; then
-  if [ "$after" -le "$before" ]; then
-    echo "oracle: blocked. These files changed:" >&2
-    printf '  %s\n' $oracle_touched >&2
-    echo "but $CHANGELOG gained no new 'Decided by:' entry ($before before, $after after)." >&2
-    echo "Recording is part of deciding — add the entry in this same commit." >&2
-    exit 1
-  fi
-
-  if [ "$has_parent" = 1 ]; then
-    new_entries=$(git diff --cached HEAD -- "$CHANGELOG" | grep '^+.*Decided by:' || true)
-  else
-    new_entries=$(git show ":$CHANGELOG" 2>/dev/null | grep 'Decided by:' || true)
-  fi
-
-  pinned=""
-  if [ -f CLAUDE.local.md ]; then
-    pinned=$(grep -oE '[A-Za-z0-9._-]+\.md' CLAUDE.local.md | grep -vx 'ORACLE.md' | sed 's/\.md$//' | sort -u || true)
-  fi
-
-  while IFS= read -r entry; do
-    [ -z "$entry" ] && continue
-    if printf '%s' "$entry" | grep -q 'the oracle'; then
-      continue
-    fi
-    if [ -z "$pinned" ]; then
-      echo "oracle: warning — pinned behavior list is empty; cannot check citation:" >&2
-      echo "  $entry" >&2
-      continue
-    fi
-    cited=0
-    while IFS= read -r name; do
-      [ -z "$name" ] && continue
-      if printf '%s' "$entry" | grep -qF "$name"; then cited=1; break; fi
-    done <<< "$pinned"
-    if [ "$cited" = 0 ]; then
-      echo "oracle: blocked. New $CHANGELOG entry cites no pinned behavior and not 'the oracle':" >&2
-      echo "  $entry" >&2
-      echo "Pinned behaviors: $(printf '%s' "$pinned" | tr '\n' ' ')" >&2
-      exit 1
-    fi
-  done <<< "$new_entries"
+# The cap binds whenever the changelog moves, whatever moved it.
+if [ "$changelog_staged" -eq 1 ]; then
+	count="$(git show ":$CHANGELOG" 2>/dev/null | grep -c 'Decided by:' || true)"
+	: "${count:=0}"
+	if [ "$count" -gt "$CAP" ]; then
+		printf 'windmill rule 1: %s holds %s entries, the cap is %s.\nDrop the oldest in this same commit — git keeps what you remove.\n' \
+			"$CHANGELOG" "$count" "$CAP" >&2
+		exit 1
+	fi
 fi
 
-# Rule 2: non-markdown changes without CHANGELOG.md -> warn, let through.
-non_md=$(printf '%s\n' "$staged" | grep -v '\.md$' || true)
-changelog_staged=$(printf '%s\n' "$staged" | grep -qx "$CHANGELOG" && echo yes || true)
-if [ -n "$non_md" ] && [ -z "$changelog_staged" ]; then
-  echo "oracle: warning — non-markdown files changed without $CHANGELOG; a feature or decision may have gone unrecorded." >&2
+if [ "$touched" -eq 1 ]; then
+	if [ "$changelog_staged" -eq 0 ]; then
+		printf 'windmill rule 1: a direction file changed but %s is not staged.\nRecord the decision in the same change, one line, or you are not making one.\n' \
+			"$CHANGELOG" >&2
+		exit 1
+	fi
+	after="$(git show ":$CHANGELOG" 2>/dev/null | grep -m1 'Decided by:' || true)"
+	before="$(git show "HEAD:$CHANGELOG" 2>/dev/null | grep -m1 'Decided by:' || true)"
+	if [ -z "$after" ] || [ "$after" = "$before" ]; then
+		printf 'windmill rule 1: a direction file changed but %s gained no new "Decided by:" entry at the top.\nRecord the decision in the same change, one line, or you are not making one.\n' \
+			"$CHANGELOG" >&2
+		exit 1
+	fi
+fi
+
+# Rule 2: non-markdown changed with no changelog entry — warn, let through.
+if printf '%s\n' "$staged" | grep -qv '\.md$' && [ "$changelog_staged" -eq 0 ]; then
+	printf 'windmill rule 2: non-markdown files changed with no %s entry — a feature or decision may have gone unrecorded.\n' "$CHANGELOG" >&2
 fi
 
 exit 0
