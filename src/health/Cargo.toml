@@ -1,0 +1,17 @@
+[package]
+name = "health"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+graph = { path = "../graph" }
+store = { path = "../store" }
+base = { path = "../base" }
+tick = { path = "../tick" }
+ingest = { path = "../ingest" }
+retrieval = { path = "../retrieval" }
+util = { path = "../util" }
+
+[dev-dependencies]
+tempfile = "3"
+test_support = { path = "../test_support" }

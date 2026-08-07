@@ -41,7 +41,7 @@ pub(crate) fn cmd_compress(src: &str, mode_str: &str, out: Option<&str>) {
 
 pub(crate) async fn cmd_health(cfg: &config::Config) {
 	let g = load_graph(cfg);
-	let h = crate::health::graph_health_stats(&g);
+	let h = ::health::graph_health_stats(&g);
 	// Asked once, before anything prints: the degradation lines below need it too,
 	// not just the tick lines.
 	let d = daemon_health(cfg).await;
@@ -150,7 +150,7 @@ async fn daemon_health(cfg: &config::Config) -> Option<transport::kern_rpc::Heal
 // `tick_health_lines`: reading the statics here would make any test of it depend
 // on what else ran in the same process.
 fn degradation_lines(
-	h: &crate::health::HealthStats,
+	h: &::health::HealthStats,
 	d: Option<&transport::kern_rpc::HealthRes>,
 ) -> Vec<String> {
 	let [cold_evicted, query_dim_rejected, below_floor_deliveries, clock_skew_skips, ingest_dropped_chunks, remote_cap_dropped, unspilled_drops, ingest_queue_refused] =
@@ -935,15 +935,15 @@ async fn cmd_hub_merge(src: &str, dst: &str) {
 	let src_g = load_graph(&src_cfg);
 	let mut dst_g = load_graph(&dst_cfg);
 
-	let src_h = crate::health::graph_health_stats(&src_g);
+	let src_h = ::health::graph_health_stats(&src_g);
 	if src_h.entities == 0 {
 		eprintln!("merge: src {} holds no entities", src_root.display());
 		return;
 	}
-	let before = crate::health::graph_health_stats(&dst_g);
+	let before = ::health::graph_health_stats(&dst_g);
 	let changed = graph::merge::absorb_graph(&mut dst_g, src_g);
 	save_graph_unguarded(&dst_g);
-	let after = crate::health::graph_health_stats(&dst_g);
+	let after = ::health::graph_health_stats(&dst_g);
 	println!(
 		"merged {} -> {}: {} rows joined, entities {} -> {}, kerns {} -> {} (src untouched)",
 		src_root.display(),
@@ -1029,7 +1029,7 @@ async fn probe(
 #[cfg(test)]
 mod degradation_lines_tests {
 	use super::*;
-	use crate::health::HealthStats;
+	use ::health::HealthStats;
 	use transport::kern_rpc::HealthRes;
 
 	// What a CLI can actually see of the eight: it opened its own store and ran
@@ -1716,7 +1716,7 @@ mod hub_merge_tests {
 	fn dst_entities(root: &std::path::Path) -> usize {
 		let cfg = config::Config::default_in(root);
 		let g = crate::commands::load_graph(&cfg);
-		crate::health::graph_health_stats(&g).entities
+		::health::graph_health_stats(&g).entities
 	}
 
 	#[tokio::test(flavor = "multi_thread", worker_threads = 2)]

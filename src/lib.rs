@@ -53,7 +53,6 @@ mod commands_mcp_cmd;
 mod commands_query;
 mod commands_reembed;
 mod commands_route;
-pub mod health;
 pub mod hub;
 pub mod mcp;
 pub mod mcp_prompt;

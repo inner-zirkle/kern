@@ -1535,7 +1535,7 @@ mod entry_point_tests {
 	// model must reach health as a mismatch.
 	#[test]
 	fn a_normal_open_stamps_the_model_and_a_swap_reaches_health() {
-		use crate::health::graph_health_stats;
+		use ::health::graph_health_stats;
 		use base::base_types::{mk_entity, EntityKind, Kern};
 		use store::base_store::EmbedStamp;
 

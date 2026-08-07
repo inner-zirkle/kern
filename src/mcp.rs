@@ -111,7 +111,7 @@ impl Server {
 
 	pub(crate) fn health_stats(&self) -> serde_json::Value {
 		let g = self.graph.read();
-		let h = crate::health::graph_health_stats(&g);
+		let h = ::health::graph_health_stats(&g);
 		let claim_kinds = g.root.claim_kinds.len();
 		let tick = self.task_q.as_ref().map(TickHealth::of).unwrap_or_default();
 		serde_json::json!({

@@ -147,7 +147,7 @@ impl crate::mcp::Server {
 	pub(crate) fn tool_setup(&self) -> serde_json::Value {
 		let (gravitons, thoughts, claim_kinds) = {
 			let g = self.graph.read();
-			let h = crate::health::graph_health_stats(&g);
+			let h = ::health::graph_health_stats(&g);
 			(
 				h.gravitons,
 				h.entities as u64,
