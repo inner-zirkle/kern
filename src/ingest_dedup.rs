@@ -3,9 +3,9 @@
 //! into it — updating text, confidence evidence, and TTL — instead of minting
 //! a twin.
 
-use crate::accept::merge_duplicate;
-use crate::graph::GraphGnn;
 use base::base_types::*;
+use graph::accept::merge_duplicate;
+use graph::graph::GraphGnn;
 use std::sync::Arc;
 
 use parking_lot::RwLock;

@@ -11,8 +11,8 @@ use heed::{CompactionOption, Database, Env, EnvOpenOptions};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
-use math::quant::{QuantizationMode, QuantizedVec};
 use base::base_types::{Embedding, Entity, Kern};
+use math::quant::{QuantizationMode, QuantizedVec};
 use util::LogThrottle;
 
 // Headroom is a DURABILITY requirement: a full env fails even the deletes that

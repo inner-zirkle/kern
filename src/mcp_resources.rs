@@ -3,7 +3,7 @@
 
 use serde_json::value::RawValue;
 
-use crate::search::{find_entity, find_reason};
+use graph::search::{find_entity, find_reason};
 use util::truncate;
 
 use crate::mcp::{err_resp, ok, Response, Server, ERR_INVALID_REQ, ERR_NOT_FOUND};
@@ -160,7 +160,7 @@ fn resource_thought(server: &Server, id: &str) -> String {
 		Some((thought, kern_id)) => {
 			let mut edges = Vec::new();
 			if let Some(kern) = g.kerns.get(&kern_id) {
-				let rids = crate::reason::collect_reason_ids(kern, &thought.id);
+				let rids = graph::reason::collect_reason_ids(kern, &thought.id);
 				for rid in &rids {
 					if let Some(re) = kern.reasons.get(rid) {
 						edges.push(edge_json(re));
@@ -214,8 +214,8 @@ mod tests {
 	use super::*;
 
 	use crate::mcp::Server;
-	use crate::reason::add_reason;
 	use base::base_types::{Entity, Kern, Reason};
+	use graph::reason::add_reason;
 
 	fn make_server() -> Server {
 		crate::test_support::mcp_server()

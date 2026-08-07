@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use clap::{Args, Parser, Subcommand};
 
-use crate::graph::GraphGnn;
+use graph::graph::GraphGnn;
 
 const SELF_HEAL_BLOAT_BYTES: u64 = 512 * 1024 * 1024;
 
@@ -308,7 +308,7 @@ pub(crate) fn apply_graph_config(g: &mut GraphGnn, cfg: &crate::config::GraphCon
 }
 
 pub(crate) fn load_graph(cfg: &crate::config::Config) -> GraphGnn {
-	let mut g = match crate::persist::load_dir(&cfg.data_dir) {
+	let mut g = match graph::persist::load_dir(&cfg.data_dir) {
 		Ok(g) => g,
 		Err(e) => {
 			// The empty fallback boots at epoch 0, so its flushes are refused
@@ -340,7 +340,7 @@ pub(crate) fn load_graph(cfg: &crate::config::Config) -> GraphGnn {
 // here — the stamp is what turns a silent model swap into a reported one.
 fn bind_embed_model(g: &mut GraphGnn, cfg: &crate::config::Config) {
 	g.set_embed_model(&cfg.embed.model);
-	crate::persist::check_graph_stamp(g);
+	graph::persist::check_graph_stamp(g);
 }
 
 // Writes the whole kern map with no epoch check, so a commit that landed since
@@ -348,13 +348,13 @@ fn bind_embed_model(g: &mut GraphGnn, cfg: &crate::config::Config) {
 // the writer lock (`gc`, `compact`, `reembed`) or owns the dir outright. Anything
 // else wants `save_graph_guarded`, which refuses a stale flush and absorbs.
 pub(crate) fn save_graph_unguarded(g: &GraphGnn) {
-	if let Err(e) = crate::persist::save_all(g) {
+	if let Err(e) = graph::persist::save_all(g) {
 		eprintln!("save: {e}");
 	}
 }
 
 pub(crate) fn reload_graph(cfg: &crate::config::Config, old: &GraphGnn) -> GraphGnn {
-	match crate::persist::reload_from_disk(old) {
+	match graph::persist::reload_from_disk(old) {
 		Some(mut g) => {
 			bind_embed_model(&mut g, cfg);
 			apply_graph_config(&mut g, &cfg.graph);
@@ -375,12 +375,12 @@ pub(crate) fn save_graph_guarded(
 	for attempt in 0..FLUSH_RETRIES {
 		let (snapshot, expected) = {
 			let g = graph.read();
-			(crate::persist::snapshot_for_flush(&g), g.flushed_epoch())
+			(graph::persist::snapshot_for_flush(&g), g.flushed_epoch())
 		};
 		let Some(snapshot) = snapshot else {
 			return;
 		};
-		let outcome = crate::persist::flush_snapshot(&snapshot, expected);
+		let outcome = graph::persist::flush_snapshot(&snapshot, expected);
 		match outcome {
 			Ok(store::base_store::FlushOutcome::Flushed { epoch }) => {
 				graph.write().set_flushed_epoch(epoch);
@@ -399,7 +399,7 @@ pub(crate) fn save_graph_guarded(
 					"refused to flush a stale snapshot — disk advanced under us (another writer); absorbing disk rows and retrying"
 				);
 				let mut w = graph.write();
-				let Some(fresh) = crate::persist::reload_from_disk(&w) else {
+				let Some(fresh) = graph::persist::reload_from_disk(&w) else {
 					tracing::error!(
 						target: "kern.persist",
 						data_dir = %cfg.data_dir,
@@ -408,7 +408,7 @@ pub(crate) fn save_graph_guarded(
 					return;
 				};
 				let disk_epoch = fresh.flushed_epoch();
-				crate::merge::absorb_graph(&mut w, fresh);
+				graph::merge::absorb_graph(&mut w, fresh);
 				w.set_flushed_epoch(disk_epoch);
 			}
 			Err(e) => {
@@ -1532,9 +1532,9 @@ mod entry_point_tests {
 	// model must reach health as a mismatch.
 	#[test]
 	fn a_normal_open_stamps_the_model_and_a_swap_reaches_health() {
-		use store::base_store::EmbedStamp;
 		use crate::health::graph_health_stats;
 		use base::base_types::{mk_entity, EntityKind, Kern};
+		use store::base_store::EmbedStamp;
 
 		let dir = tempfile::tempdir().unwrap();
 		let data_dir = dir.path().to_string_lossy().into_owned();
@@ -1836,10 +1836,10 @@ mod entry_point_tests {
 	#[test]
 	fn apply_graph_config_spills_to_disk_when_threshold_enabled() {
 		use crate::config::GraphConfig;
-		use crate::graph::GraphGnn;
-		use crate::vector_backend::VectorBackend;
 		use base::base_constants::KERN_CAP_DISABLED;
 		use base::base_types::{Entity, EntityStatus, Kern};
+		use graph::graph::GraphGnn;
+		use graph::vector_backend::VectorBackend;
 
 		let dir = tempfile::tempdir().unwrap();
 		let mut g = GraphGnn::new();

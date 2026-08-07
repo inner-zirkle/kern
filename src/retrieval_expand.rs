@@ -3,11 +3,11 @@
 //! [`PathChain`] so every delivered result carries its provenance chain.
 
 use crate::config::RetrievalConfig;
-use crate::graph::GraphGnn;
-use math::cosine;
 use crate::retrieval::seed::Weights;
-use crate::search::EntityHit;
 use base::base_types::*;
+use graph::graph::GraphGnn;
+use graph::search::EntityHit;
+use math::cosine;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
@@ -432,7 +432,7 @@ pub fn find_entity_ref_in_graph<'a>(g: &'a GraphGnn, id: &str) -> Option<&'a Ent
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::reason::add_reason;
+	use graph::reason::add_reason;
 
 	use crate::test_support::entity_vec as ent;
 	fn edge(from: &str, to: &str, score: f64) -> Reason {

@@ -6,12 +6,12 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::config::RetrievalConfig;
-use crate::graph::GraphGnn;
-use crate::heat::{self, HeatConfig};
-use crate::lexical::LexicalIndex;
 use crate::retrieval::expand::{Scored, ScoredEntity};
 use base::base_constants::CONFIDENCE_BOUND_K;
 use base::base_types::{Entity, EntityKind, EntityStatus, ReviewState};
+use graph::graph::GraphGnn;
+use graph::heat::{self, HeatConfig};
+use graph::lexical::LexicalIndex;
 use std::collections::HashMap;
 use std::time::{Duration, SystemTime};
 use util::cmp_partial;
@@ -182,7 +182,7 @@ pub fn apply_remote_trust<T: Scored>(g: &GraphGnn, cfg: &RetrievalConfig, result
 // Kern id, not a graph load: a cold/unloaded remote kern must still read as remote.
 pub fn is_remote_entity(g: &GraphGnn, entity_id: &str) -> bool {
 	g.kern_of_entity(entity_id)
-		.is_some_and(crate::merge::is_remote_kern_id)
+		.is_some_and(graph::merge::is_remote_kern_id)
 }
 
 // A thought's access count and heat may be reinforced at most once per window.
@@ -426,7 +426,7 @@ pub fn commit_access_ids(g: &mut GraphGnn, ids: &[String], heat_cfg: &HeatConfig
 				continue;
 			}
 			let value = e.access_count.slots().get(&replica).copied().unwrap_or(0);
-			g.push_delta(crate::graph::PendingDelta {
+			g.push_delta(graph::graph::PendingDelta {
 				object_id: id.clone(),
 				target: 0,
 				replica,
@@ -810,10 +810,10 @@ mod query_filter_tests {
 
 	mod remote_trust {
 		use super::*;
-		use crate::merge::merge_remote_entity;
 		use crate::retrieval::query::retrieve;
 		use crate::retrieval::seed::{Mode, Weights};
 		use base::base_types::{mk_entity, Kern};
+		use graph::merge::merge_remote_entity;
 
 		const PHANTOM: &str = "remote-evilnet-k1";
 

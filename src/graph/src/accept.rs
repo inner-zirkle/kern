@@ -5,12 +5,12 @@
 //! through here so placement, dedup, and bitemporal stamping stay consistent.
 
 use super::graph::GraphGnn;
-use math::{average_vec, cosine_distance, reason_id};
 use super::reason::{add_reason, superseded_ancestors};
 use super::search::search_all_unlocked;
 use base::base_constants::*;
 use base::base_types::*;
 use base::crdt::GCounter;
+use math::{average_vec, cosine_distance, reason_id};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 #[derive(Debug)]
@@ -855,7 +855,7 @@ pub(crate) fn get_or_spawn_generic_child(g: &mut GraphGnn, parent_id: &str) -> S
 /// same focus, vs ~0.55 for an abstract description and ~0.55-0.61 for the
 /// same examples embedded as one concatenated blob. Pooling separate embeds
 /// is the win; concatenation muddies it.
-pub(crate) fn seed_examples(text: &str) -> Vec<String> {
+pub fn seed_examples(text: &str) -> Vec<String> {
 	let lines: Vec<String> = text
 		.lines()
 		.map(str::trim)
@@ -892,7 +892,7 @@ pub(crate) fn seed_examples(text: &str) -> Vec<String> {
 
 /// Normalized mean of the example embeddings. Empty input or mismatched
 /// dimensions yield None — the caller falls back to a single whole-text embed.
-pub(crate) fn mean_pool(vecs: &[Vec<f32>]) -> Option<Vec<f32>> {
+pub fn mean_pool(vecs: &[Vec<f32>]) -> Option<Vec<f32>> {
 	let first = vecs.first()?;
 	let dim = first.len();
 	if dim == 0 || vecs.iter().any(|v| v.len() != dim) {
@@ -915,7 +915,7 @@ pub(crate) fn mean_pool(vecs: &[Vec<f32>]) -> Option<Vec<f32>> {
 	Some(mean)
 }
 
-pub(crate) fn add_graviton_with_mass(g: &mut GraphGnn, name: &str, vec: Vec<f32>, mass: f64) {
+pub fn add_graviton_with_mass(g: &mut GraphGnn, name: &str, vec: Vec<f32>, mass: f64) {
 	if let Some(existing) = find_graviton_by_name(g, name) {
 		if let Some(k) = g.get_mut(&existing) {
 			k.graviton_vec = vec;
@@ -983,15 +983,14 @@ fn equivalent_graviton_exists(g: &GraphGnn, name: &str, vec: &[f32]) -> bool {
 		g.loaded(&cid)
 			.map(|c| {
 				!c.graviton_vec.is_empty()
-					&& math::cosine(&c.graviton_vec, vec)
-						>= base::base_constants::GRAVITON_DEDUP_THRESHOLD
+					&& math::cosine(&c.graviton_vec, vec) >= base::base_constants::GRAVITON_DEDUP_THRESHOLD
 			})
 			.unwrap_or(false)
 	})
 }
 
 // Read from the kern map, not the g.root snapshot — runtime mutations land there.
-pub(crate) fn root_graviton_ids(g: &GraphGnn) -> Vec<String> {
+pub fn root_graviton_ids(g: &GraphGnn) -> Vec<String> {
 	let root = g.root.id.clone();
 	let children = g
 		.loaded(&root)
@@ -1007,7 +1006,7 @@ pub(crate) fn root_graviton_ids(g: &GraphGnn) -> Vec<String> {
 		.collect()
 }
 
-pub(crate) fn promote_to_root_if_generic(g: &mut GraphGnn, kern_id: &str) -> bool {
+pub fn promote_to_root_if_generic(g: &mut GraphGnn, kern_id: &str) -> bool {
 	let parent_id = match g.loaded(kern_id) {
 		Some(k) => k.parent.clone(),
 		None => return false,
@@ -1041,7 +1040,7 @@ pub(crate) fn promote_to_root_if_generic(g: &mut GraphGnn, kern_id: &str) -> boo
 	true
 }
 
-pub(crate) fn remove_graviton(g: &mut GraphGnn, name: &str) -> bool {
+pub fn remove_graviton(g: &mut GraphGnn, name: &str) -> bool {
 	let root = g.root.id.clone();
 	let generic = get_or_spawn_generic_child(g, &root);
 	let target = root_graviton_ids(g).into_iter().find(|cid| {
@@ -1849,7 +1848,7 @@ mod tests {
 	// `&kern.children` is held alongside the `&GraphGnn` reborrow (item 31).
 	#[test]
 	fn route_entity_does_not_clone_children_per_descent() {
-		use crate::test_support::alloc_probe;
+		use test_support::alloc_probe;
 
 		let build = |n: usize| -> (GraphGnn, String) {
 			let mut g = GraphGnn::new();

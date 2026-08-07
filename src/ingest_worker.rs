@@ -2,12 +2,12 @@
 //! A full queue refuses the job back to the producer (counted), and every
 //! commit funnels through the same accept/dedup path as the durable legs.
 
-use crate::graph::GraphGnn;
 use crate::ingest_config::Config;
 use crate::ingest_place::{document_kind, place_chunks, place_document};
 use crate::llm::Client as LlmClient;
-use math::clamp_confidence;
 use base::base_types::*;
+use graph::graph::GraphGnn;
+use math::clamp_confidence;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use util;

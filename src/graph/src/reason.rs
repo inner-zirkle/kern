@@ -7,7 +7,7 @@ use super::graph::GraphGnn;
 use base::base_types::{Kern, Reason, ReasonKind};
 use std::collections::HashSet;
 
-pub(crate) fn collect_reason_ids(kern: &Kern, entity_id: &str) -> Vec<String> {
+pub fn collect_reason_ids(kern: &Kern, entity_id: &str) -> Vec<String> {
 	let mut ids = Vec::new();
 	if let Some(from_ids) = kern.by_from.get(entity_id) {
 		ids.extend(from_ids.iter().cloned());
@@ -229,7 +229,7 @@ mod tests {
 	use super::*;
 	use base::base_types::{Entity, EntityKind, Kern};
 
-	use crate::test_support::{edge, entity_vec as ent};
+	use test_support::{edge, entity_vec as ent};
 
 	#[test]
 	fn superseded_ancestors_walks_the_supersedes_chain_backward() {

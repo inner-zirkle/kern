@@ -131,7 +131,7 @@ pub async fn drain_direct_once(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::graph::GraphGnn;
+	use graph::graph::GraphGnn;
 	use parking_lot::RwLock;
 	use std::sync::Arc;
 	use std::time::Duration;

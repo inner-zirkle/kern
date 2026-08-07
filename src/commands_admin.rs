@@ -26,7 +26,7 @@ pub(crate) fn cmd_compress(src: &str, mode_str: &str, out: Option<&str>) {
 		eprintln!("compress: output path '{out_dir}' already exists; refusing to overwrite");
 		return;
 	}
-	match crate::persist::compress_dir(src, &out_dir, mode) {
+	match graph::persist::compress_dir(src, &out_dir, mode) {
 		Ok(()) => {
 			let bpd = mode.bytes_per_dim();
 			println!(
@@ -527,7 +527,7 @@ async fn graviton_at(
 			// Multi-line seed = example statements, embedded separately and
 			// mean-pooled (see accept::seed_examples for the measurement).
 			let mut vecs = Vec::new();
-			for ex in crate::accept::seed_examples(&text) {
+			for ex in graph::accept::seed_examples(&text) {
 				match llm_client.embed(&ex).await {
 					Ok(v) => vecs.push(v),
 					Err(e) => {
@@ -536,12 +536,12 @@ async fn graviton_at(
 					}
 				}
 			}
-			let Some(vec) = crate::accept::mean_pool(&vecs) else {
+			let Some(vec) = graph::accept::mean_pool(&vecs) else {
 				eprintln!("embed: empty or mismatched embeddings");
 				return;
 			};
 			with_graph(cfg, |g| {
-				crate::accept::add_graviton_with_mass(g, &name, vec, mass)
+				graph::accept::add_graviton_with_mass(g, &name, vec, mass)
 			});
 			print_graviton_added(&name, mass);
 		}
@@ -568,7 +568,7 @@ async fn graviton_at(
 				Routed::Refused(e) => return eprintln!("{e}"),
 				Routed::NoDaemon => {}
 			}
-			let removed = with_graph(cfg, |g| crate::accept::remove_graviton(g, &name));
+			let removed = with_graph(cfg, |g| graph::accept::remove_graviton(g, &name));
 			if removed {
 				print_graviton_removed(&name);
 			} else {
@@ -585,8 +585,8 @@ pub(crate) struct GravitonRow {
 	pub(crate) reasons: usize,
 }
 
-pub(crate) fn graviton_rows(g: &crate::graph::GraphGnn) -> Vec<GravitonRow> {
-	crate::accept::root_graviton_ids(g)
+pub(crate) fn graviton_rows(g: &graph::graph::GraphGnn) -> Vec<GravitonRow> {
+	graph::accept::root_graviton_ids(g)
 		.iter()
 		.filter_map(|cid| g.loaded(cid))
 		.map(|c| GravitonRow {
@@ -705,10 +705,10 @@ fn peers_summary(cfg: &crate::config::Config) -> String {
 pub(crate) fn cmd_register(cfg: &crate::config::Config, path: &str) {
 	// The loaded graph is bound to the SOURCE store, so write into a freshly
 	// opened destination store — save_graph_unguarded would write back to the source.
-	match crate::persist::load_dir(path) {
+	match graph::persist::load_dir(path) {
 		Ok(g) => match store::base_store::Store::open(&cfg.data_dir) {
 			Ok(dest) => {
-				let _ = crate::persist::save_graph_into(&dest, &g);
+				let _ = graph::persist::save_graph_into(&dest, &g);
 				println!("registered {path}");
 			}
 			Err(e) => eprintln!("register: {e}"),
@@ -747,7 +747,7 @@ pub(crate) async fn cmd_unnamed(cfg: &crate::config::Config, action: UnnamedActi
 			let (url, model) = embed.resolve(cfg);
 			let llm_client = Client::new_embed_only(url, model, &cfg.embed.key);
 			let mut vecs = Vec::new();
-			for ex in crate::accept::seed_examples(&text) {
+			for ex in graph::accept::seed_examples(&text) {
 				match llm_client.embed(&ex).await {
 					Ok(v) => vecs.push(v),
 					Err(e) => {
@@ -756,7 +756,7 @@ pub(crate) async fn cmd_unnamed(cfg: &crate::config::Config, action: UnnamedActi
 					}
 				}
 			}
-			let Some(vec) = crate::accept::mean_pool(&vecs) else {
+			let Some(vec) = graph::accept::mean_pool(&vecs) else {
 				eprintln!("embed: empty or mismatched embeddings");
 				return;
 			};
@@ -773,7 +773,7 @@ pub(crate) async fn cmd_unnamed(cfg: &crate::config::Config, action: UnnamedActi
 				return;
 			};
 			with_graph(cfg, |g| {
-				if let Err(e) = crate::accept::promote_unnamed(g, &full, &name, vec.clone(), mass) {
+				if let Err(e) = graph::accept::promote_unnamed(g, &full, &name, vec.clone(), mass) {
 					eprintln!("{e}");
 				}
 			});
@@ -945,7 +945,7 @@ async fn cmd_hub_merge(src: &str, dst: &str) {
 		return;
 	}
 	let before = crate::health::graph_health_stats(&dst_g);
-	let changed = crate::merge::absorb_graph(&mut dst_g, src_g);
+	let changed = graph::merge::absorb_graph(&mut dst_g, src_g);
 	save_graph_unguarded(&dst_g);
 	let after = crate::health::graph_health_stats(&dst_g);
 	println!(
@@ -1551,13 +1551,13 @@ mod cmd_tests {
 		// The local store carries the same graviton, so a command that fell through
 		// to `with_graph` would visibly delete it here.
 		with_graph(&cfg, |g| {
-			crate::accept::add_graviton_with_mass(g, "docs", vec![1.0, 0.0], 1.0)
+			graph::accept::add_graviton_with_mass(g, "docs", vec![1.0, 0.0], 1.0)
 		});
 
 		let ep = crate::test_support::scratch_endpoint("graviton-routed");
 		let srv = crate::test_support::mcp_server();
 		let graph = srv.graph.clone();
-		crate::accept::add_graviton_with_mass(&mut graph.write(), "docs", vec![1.0, 0.0], 1.0);
+		graph::accept::add_graviton_with_mass(&mut graph.write(), "docs", vec![1.0, 0.0], 1.0);
 		crate::test_support::serving(srv, &ep).await;
 
 		graviton_at(
@@ -1700,7 +1700,7 @@ mod hub_merge_tests {
 	fn store_with_entity(root: &std::path::Path, eid: &str) {
 		std::fs::create_dir_all(root.join(".kern")).unwrap();
 		let cfg = crate::config::Config::default_in(root);
-		let mut g = crate::graph::GraphGnn::new();
+		let mut g = graph::graph::GraphGnn::new();
 		g.data_dir = cfg.data_dir.clone();
 		std::fs::create_dir_all(&g.data_dir).unwrap();
 		let mut k = Kern::new("k-hub-merge", g.root.id.clone());
@@ -1714,7 +1714,7 @@ mod hub_merge_tests {
 		// save_all silently no-ops without a store attached.
 		let store = store::base_store::Store::open(&g.data_dir).unwrap();
 		g.set_store(std::sync::Arc::new(store));
-		crate::persist::save_all(&g).unwrap();
+		graph::persist::save_all(&g).unwrap();
 	}
 
 	fn dst_entities(root: &std::path::Path) -> usize {

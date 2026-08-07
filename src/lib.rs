@@ -44,7 +44,6 @@ pub fn launch_dir_join(path: impl AsRef<Path>) -> PathBuf {
 	}
 }
 
-pub mod accept;
 pub mod commands;
 pub(crate) mod commands_admin;
 pub(crate) mod commands_graph_ops;
@@ -55,7 +54,6 @@ mod commands_query;
 mod commands_reembed;
 mod commands_route;
 pub mod config;
-pub mod diskann;
 pub mod gnn;
 pub mod gnn_graph;
 pub mod gnn_propagate;
@@ -72,10 +70,7 @@ pub mod gossip_seen;
 pub mod gossip_subs;
 pub mod gossip_transport;
 pub mod gossip_types;
-pub mod graph;
 pub mod health;
-pub mod heat;
-pub mod hnsw;
 pub mod hub;
 pub mod identity;
 pub mod ingest;
@@ -88,7 +83,6 @@ pub mod ingest_intake;
 pub mod ingest_intake_status;
 pub mod ingest_place;
 pub mod ingest_worker;
-pub mod lexical;
 pub mod llm;
 pub mod mcp;
 pub mod mcp_prompt;
@@ -100,9 +94,6 @@ pub(crate) mod mcp_tools_events;
 pub(crate) mod mcp_tools_mutate;
 pub(crate) mod mcp_tools_query;
 pub(crate) mod mcp_tools_setup;
-pub mod merge;
-pub mod persist;
-pub mod reason;
 pub mod retrieval;
 pub mod retrieval_diversify;
 pub mod retrieval_expand;
@@ -111,7 +102,6 @@ pub mod retrieval_query;
 pub mod retrieval_score;
 pub mod retrieval_seed;
 pub mod rpc;
-pub mod search;
 pub mod store;
 pub mod tick;
 pub mod tick_cluster;
@@ -125,10 +115,13 @@ pub mod tick_trainer;
 pub mod transport;
 pub mod transport_hub_rpc;
 pub mod transport_kern_rpc;
-pub mod vector_backend;
 
 #[cfg(test)]
 mod test_support;
+
+#[cfg(test)]
+#[global_allocator]
+static COUNTING: test_support::alloc_probe::Counting = test_support::alloc_probe::Counting;
 
 #[cfg(test)]
 mod launch_dir_tests {

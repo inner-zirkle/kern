@@ -106,8 +106,8 @@ mod tests {
 	use crate::test_support::{scratch_endpoint, serving, test_caller};
 
 	fn kern_with_edge() -> crate::mcp::Server {
-		use crate::reason::add_reason;
 		use base::base_types::Kern;
+		use graph::reason::add_reason;
 		let srv = crate::test_support::mcp_server();
 		let mut k = Kern::new("kx", "");
 		k.entities

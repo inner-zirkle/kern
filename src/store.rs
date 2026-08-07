@@ -11,11 +11,11 @@ use parking_lot::{Mutex, RwLock};
 use std::time::Instant;
 
 use crate::config::Config;
-use crate::graph::GraphGnn;
 use crate::ingest::Worker;
 use crate::llm::Client as LlmClient;
 use crate::tick_queue::Queue;
 use crate::tick_tasks::{BroadcastQuestionFunc, EmbedFunc, LlmFunc as TickLlmFunc};
+use graph::graph::GraphGnn;
 
 pub type StoreKey = PathBuf;
 

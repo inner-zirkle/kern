@@ -10,11 +10,11 @@ use util::LogThrottle;
 
 use parking_lot::RwLock;
 
-use crate::graph::GraphGnn;
-use crate::search::search_all_unlocked;
 use base::base_constants::*;
 use base::base_types::{Kern, ReasonKind};
 use base::crdt::{lww_wins, GCounter};
+use graph::graph::GraphGnn;
+use graph::search::search_all_unlocked;
 
 use crate::gossip_contract::{
 	contract_kern_id, contract_loc, entity_sig_digest, tombstone_digest, Applied, ContractId,
@@ -131,7 +131,7 @@ fn spawn_fetch_entity(d: &Arc<Deps>, network_id: String, kern_id: String, entity
 				let k = new_phantom_kern(&g, &phantom);
 				g.register(k);
 			}
-			crate::merge::merge_remote_entity(&mut g, &phantom, entity)
+			graph::merge::merge_remote_entity(&mut g, &phantom, entity)
 		};
 		if changed {
 			d.persist();
@@ -197,7 +197,7 @@ fn hottest_local(g: &GraphGnn, n: usize) -> Vec<base::base_types::Entity> {
 	let mut refs: Vec<&base::base_types::Entity> = g
 		.kerns
 		.iter()
-		.filter(|(kid, _)| !crate::merge::is_remote_kern_id(kid))
+		.filter(|(kid, _)| !graph::merge::is_remote_kern_id(kid))
 		.flat_map(|(_, k)| k.entities.values())
 		.collect();
 	let by_heat = |a: &&base::base_types::Entity, b: &&base::base_types::Entity| {
@@ -402,7 +402,7 @@ fn handle_pulse(d: &Deps, msg: GossipMessage) {
 	// sending a garbage id drove maintenance straight into it. No design intent
 	// justified that. Reject the id, confine the fan-out to `remote-*`, and clamp
 	// the strength — the wire carries an arbitrary f64 and nothing else bounded it.
-	if !crate::merge::is_remote_kern_id(&pulse.kern_id) {
+	if !graph::merge::is_remote_kern_id(&pulse.kern_id) {
 		return;
 	}
 	if !g.kerns.contains_key(&pulse.kern_id) {
@@ -578,7 +578,7 @@ pub(crate) fn id_matches_body(e: &base::base_types::Entity) -> bool {
 fn remote_kern_ids(g: &GraphGnn) -> Vec<String> {
 	g.all_ids()
 		.into_iter()
-		.filter(|k| crate::merge::is_remote_kern_id(k))
+		.filter(|k| graph::merge::is_remote_kern_id(k))
 		.collect()
 }
 
@@ -626,7 +626,7 @@ fn handle_entity_sync(d: &Deps, msg: GossipMessage) {
 			continue;
 		}
 		d.node.ledger.put_thought(&e.id, &msg.origin);
-		changed |= crate::merge::merge_remote_entity(&mut g, &phantom, e.clone());
+		changed |= graph::merge::merge_remote_entity(&mut g, &phantom, e.clone());
 	}
 	drop(g);
 	if changed {
@@ -998,7 +998,7 @@ fn resolve_question_from_peer(
 
 	let (reason, kern_id, local_net) = {
 		let g = d.graph.read();
-		match crate::search::find_reason(&g, reason_id) {
+		match graph::search::find_reason(&g, reason_id) {
 			Some((reason, kern_id)) => (reason, kern_id, g.network_id.clone()),
 			None => return,
 		}
@@ -1045,8 +1045,8 @@ fn resolve_question_from_peer(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::reason::add_reason;
 	use base::base_types::{mk_entity as mk_entity_kind, Entity, EntityKind, Reason};
+	use graph::reason::add_reason;
 
 	fn mk_entity(id: &str, text: &str, heat: f64) -> Entity {
 		mk_entity_kind(id, text, heat, EntityKind::Fact)

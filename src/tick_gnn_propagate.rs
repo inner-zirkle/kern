@@ -9,8 +9,8 @@ use parking_lot::RwLock;
 
 use crate::gnn::graph::Graph;
 use crate::gnn::propagate::{self, GnnConfig, GnnSnapshot};
-use crate::graph::GraphGnn;
 use base::base_types::{Embedding, EntityStatus, Kern};
+use graph::graph::GraphGnn;
 
 use crate::tick_queue::{task, Queue, TaskKind};
 
@@ -266,8 +266,8 @@ fn cosine_align(a: &[f32], b: &[f32]) -> f64 {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::reason::add_reason;
 	use base::base_types::{mk_entity, EntityKind, Reason};
+	use graph::reason::add_reason;
 
 	fn kern_with_n(n: usize) -> Kern {
 		let mut k = Kern::new("k", "");

@@ -6,11 +6,11 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use crate::graph::GraphGnn;
 use base::base_constants::{
 	DISK_CONSOLIDATE_INTERVAL, DISK_CONSOLIDATE_MIN_DELTA, KERN_IDLE_SWEEP_EVERY, PULSE_DECAY,
 	PULSE_THRESHOLD, STIGMERGY_GC_INTERVAL,
 };
+use graph::graph::GraphGnn;
 
 use crate::tick_queue::{task, Queue, TaskKind};
 
@@ -204,9 +204,9 @@ mod tests {
 	// half-lives to fall under the 0.01 cold gate.
 	#[test]
 	fn at_equal_usage_survival_does_not_depend_on_depth() {
-		use crate::heat::HeatConfig;
 		use crate::retrieval::score::commit_access_ids;
 		use crate::tick_stigmergy::run_gc;
+		use graph::heat::HeatConfig;
 		use parking_lot::RwLock;
 
 		const DEPTHS: usize = 8;

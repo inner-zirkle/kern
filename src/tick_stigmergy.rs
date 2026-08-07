@@ -12,11 +12,11 @@ use util::LogThrottle;
 
 use parking_lot::RwLock;
 
-use crate::graph::GraphGnn;
-use crate::heat::{self, HeatConfig};
-use crate::reason::remove_entity;
 use base::base_constants::{COLD_GC_AGE, COLD_HEAT_THRESHOLD, EVIDENCE_HALF_LIFE_SECS};
 use base::base_types::{Entity, EntityKind};
+use graph::graph::GraphGnn;
+use graph::heat::{self, HeatConfig};
+use graph::reason::remove_entity;
 
 const SKEW_WARN_SECS: u64 = 300;
 static CLOCK_SKEW: AtomicU64 = AtomicU64::new(0);
@@ -103,7 +103,7 @@ pub fn run_gc(graph: &Arc<RwLock<GraphGnn>>, kern_id: &str, heat_cfg: &HeatConfi
 	let mut g = graph.write();
 
 	let now = SystemTime::now();
-	let kern_is_remote = crate::merge::is_remote_kern_id(kern_id);
+	let kern_is_remote = graph::merge::is_remote_kern_id(kern_id);
 
 	// Evidence decay — tick-based γ damping of conf_alpha/conf_beta toward the
 	// Jeffreys prior (1,1). Default-off (EVIDENCE_HALF_LIFE_SECS = 0 → noop,
@@ -244,8 +244,8 @@ mod tests {
 	// stale active Fact (immune), stale superseded Fact (victim), stale Document
 	// (immune).
 	fn mixed_population(dir: &tempfile::TempDir) -> (GraphGnn, Arc<store::base_store::Store>) {
-		use store::base_store::Store;
 		use base::base_types::EntityStatus;
+		use store::base_store::Store;
 
 		let store = Arc::new(Store::open(&dir.path().to_string_lossy()).unwrap());
 		let now = SystemTime::now();
@@ -588,10 +588,10 @@ mod tests {
 
 	#[test]
 	fn run_gc_spills_superseded_fact_to_cold_while_active_fact_stays_immune() {
-		use store::base_store::Store;
 		use base::base_types::EntityStatus;
 		use parking_lot::RwLock;
 		use std::sync::Arc;
+		use store::base_store::Store;
 
 		let dir = tempfile::tempdir().unwrap();
 		let store = Arc::new(Store::open(&dir.path().to_string_lossy()).unwrap());
@@ -673,9 +673,9 @@ mod tests {
 
 	#[test]
 	fn run_gc_spills_stale_victim_to_cold_store_and_spares_facts() {
-		use store::base_store::Store;
 		use parking_lot::RwLock;
 		use std::sync::Arc;
+		use store::base_store::Store;
 
 		let dir = tempfile::tempdir().unwrap();
 		let store = Arc::new(Store::open(&dir.path().to_string_lossy()).unwrap());

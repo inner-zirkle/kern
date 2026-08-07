@@ -7,7 +7,7 @@ use std::time::{Duration, SystemTime};
 
 use parking_lot::RwLock;
 
-use crate::graph::GraphGnn;
+use graph::graph::GraphGnn;
 
 pub fn is_idle(last_access: Option<SystemTime>, now: SystemTime, timeout: Duration) -> bool {
 	match last_access {

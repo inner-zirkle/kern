@@ -6,9 +6,9 @@
 //   cargo test --release --test spill_transparency -- --nocapture
 use base::base_constants::KERN_CAP_DISABLED;
 use base::base_types::{ChunkPart, ChunkPartKind, Entity, EntityKind, Kern};
-use kern::graph::GraphGnn;
-use kern::search::search_all_unlocked;
-use kern::vector_backend::VectorBackend;
+use graph::graph::GraphGnn;
+use graph::search::search_all_unlocked;
+use graph::vector_backend::VectorBackend;
 
 const DIM: usize = 64;
 const N: usize = 1_000;

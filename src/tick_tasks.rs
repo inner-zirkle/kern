@@ -7,21 +7,21 @@ use std::sync::Arc;
 
 use parking_lot::RwLock;
 
-use crate::accept::{
-	classify_prompt, parse_contradiction, supersede_by_contradiction, ContradictionClass,
-};
 use crate::config::TickConfig;
-use crate::graph::GraphGnn;
-use crate::heat::HeatConfig;
 use crate::ingest::place::build_chunk_entity;
-use math::reason_id;
-use crate::reason::{add_reason, remove_reason};
-use crate::search::search_all_unlocked;
 use base::base_constants::{
 	DEFAULT_SEED_K, KERN_INNER_RADIUS, KERN_OUTER_RADIUS, PROVENANCE_SCORE,
 	QUESTION_RESOLVE_THRESHOLD,
 };
 use base::base_types::{Embedding, Reason, ReasonKind, Scoping};
+use graph::accept::{
+	classify_prompt, parse_contradiction, supersede_by_contradiction, ContradictionClass,
+};
+use graph::graph::GraphGnn;
+use graph::heat::HeatConfig;
+use graph::reason::{add_reason, remove_reason};
+use graph::search::search_all_unlocked;
+use math::reason_id;
 use util;
 
 use crate::tick_cluster::{
@@ -208,7 +208,7 @@ pub fn do_classify_contradiction(
 			}
 			// The wording just became the revision's own text — drop it from the
 			// superseded entity's document, which no longer carries that Rephrase.
-			crate::lexical::reindex_entity(&graph, kern_id, &old_id);
+			graph::lexical::reindex_entity(&graph, kern_id, &old_id);
 			if let Some(lex) = graph.lexical() {
 				lex.insert(&new_id, &new_text);
 			}
@@ -292,7 +292,7 @@ pub fn do_name(
 			}
 		}
 
-		crate::accept::promote_to_root_if_generic(&mut graph, kern_id)
+		graph::accept::promote_to_root_if_generic(&mut graph, kern_id)
 	};
 
 	{
@@ -490,7 +490,7 @@ pub fn do_persist(g: &Arc<RwLock<GraphGnn>>, kern_id: &str) {
 	// Root authoritative fields live on `graph.root`, not the map entry — persist
 	// through the same merge `save_all` uses so they can't be dropped.
 	if kern_id == graph.root.id {
-		let _ = store.save_one_kern(&crate::persist::merged_root(&graph));
+		let _ = store.save_one_kern(&graph::persist::merged_root(&graph));
 		return;
 	}
 	let kern = match graph.loaded(kern_id) {
@@ -585,8 +585,8 @@ pub fn do_reembed(g: &Arc<RwLock<GraphGnn>>, kern_id: &str, embed: Option<&Embed
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::graph::GraphGnn;
 	use base::base_types::{Entity, Kern};
+	use graph::graph::GraphGnn;
 	use parking_lot::RwLock;
 	use std::sync::Arc;
 

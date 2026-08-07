@@ -15,8 +15,8 @@
 // `KERN_SPILL_N` overrides the corpus size.
 use base::base_constants::KERN_CAP_DISABLED;
 use base::base_types::{ChunkPart, ChunkPartKind, Entity, EntityKind, Kern, Reason};
-use kern::graph::GraphGnn;
-use kern::vector_backend::VectorBackend;
+use graph::graph::GraphGnn;
+use graph::vector_backend::VectorBackend;
 
 const DIM: usize = 384;
 const DEFAULT_N: usize = 50_000;
@@ -149,11 +149,11 @@ fn spill(g: &GraphGnn, which: Index, root: &std::path::Path, name: &str) -> Vect
 		.map(|(id, v)| (id.to_string(), v.to_vec()))
 		.collect();
 	let dir = root.join("diskann").join(name);
-	kern::diskann::build_and_save(&dir, &owned, kern::diskann::Params::default())
+	graph::diskann::build_and_save(&dir, &owned, graph::diskann::Params::default())
 		.expect("snapshot build");
 	drop(owned);
 	VectorBackend::disk(
-		kern::diskann::DiskIndex::open(&dir).expect("snapshot open"),
+		graph::diskann::DiskIndex::open(&dir).expect("snapshot open"),
 		g.quant_mode,
 	)
 }
@@ -206,8 +206,8 @@ fn child(mode: &str, n: usize) {
 	let mut search_ns: u64 = 0;
 	for (i, q) in queries.iter().enumerate() {
 		let t0 = std::time::Instant::now();
-		std::hint::black_box(kern::search::search_all_unlocked(&g, q, 20));
-		std::hint::black_box(kern::search::search_reasons_all_unlocked(&g, q, 20));
+		std::hint::black_box(graph::search::search_all_unlocked(&g, q, 20));
+		std::hint::black_box(graph::search::search_reasons_all_unlocked(&g, q, 20));
 		if i >= 20 {
 			search_ns += t0.elapsed().as_nanos() as u64;
 		}

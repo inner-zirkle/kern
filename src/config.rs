@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use crate::heat::HeatConfig;
+use graph::heat::HeatConfig;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
@@ -1009,7 +1009,7 @@ impl Preset {
 #[cfg(test)]
 mod preset_tests {
 	use super::*;
-	use crate::heat::HeatConfig;
+	use graph::heat::HeatConfig;
 	use std::path::Path;
 
 	fn applied(p: Preset) -> Config {

@@ -185,10 +185,10 @@ mod tests {
 	use tempfile::tempdir;
 	use tokio::time::{sleep, timeout};
 
-	use crate::accept;
-	use crate::graph::GraphGnn;
 	use base::base_types::{ChunkPart, ChunkPartKind, Embedding, Entity, EntityStatus};
 	use base::crdt::GCounter;
+	use graph::accept;
+	use graph::graph::GraphGnn;
 	use util;
 
 	#[derive(Clone)]

@@ -8,8 +8,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use serde::{Deserialize, Serialize};
 
-use crate::graph::GraphGnn;
 use base::base_types::{Entity, EntityKind};
+use graph::graph::GraphGnn;
 
 use crate::gossip_identity::{loc_of, verify_sig_by};
 
@@ -399,7 +399,7 @@ impl SyncContract for SignedCrdt {
 					true
 				}
 			};
-			let graph_changed = crate::merge::merge_remote_entity(g, kern_id, entity);
+			let graph_changed = graph::merge::merge_remote_entity(g, kern_id, entity);
 			if graph_changed {
 				merged += 1;
 			}

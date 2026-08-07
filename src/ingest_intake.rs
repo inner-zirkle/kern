@@ -496,7 +496,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn drain_once_ingests_a_delta_and_archives_it_end_to_end() {
-		use crate::graph::GraphGnn;
+		use graph::graph::GraphGnn;
 		use parking_lot::RwLock;
 
 		let app = axum::Router::new().route(
@@ -556,7 +556,7 @@ mod tests {
 	// The intake promise: drop a document in, it lands — no reason LLM, no .txt suffix.
 	#[tokio::test]
 	async fn drain_once_ingests_a_non_txt_document_without_an_llm() {
-		use crate::graph::GraphGnn;
+		use graph::graph::GraphGnn;
 		use parking_lot::RwLock;
 
 		let app = axum::Router::new().route(
@@ -616,7 +616,7 @@ mod tests {
 	// standing retention policy still produced claims that never expire.
 	#[tokio::test]
 	async fn a_queue_retention_reaches_the_distilled_claim() {
-		use crate::graph::GraphGnn;
+		use graph::graph::GraphGnn;
 		use parking_lot::RwLock;
 
 		let app = axum::Router::new().route(
@@ -682,7 +682,7 @@ mod tests {
 	// Two passes a beat apart must therefore stamp two different deadlines.
 	#[tokio::test]
 	async fn the_poll_loop_resolves_its_deadline_per_pass_not_once_at_startup() {
-		use crate::graph::GraphGnn;
+		use graph::graph::GraphGnn;
 		use parking_lot::RwLock;
 
 		// Distinct vectors per text: a constant embedding makes the second claim
@@ -795,8 +795,8 @@ mod tests {
 	// `kern intake` reports a permanently stuck transcript as merely waiting.
 	#[tokio::test]
 	async fn a_transcript_left_queued_records_why_it_is_stuck() {
-		use crate::graph::GraphGnn;
 		use crate::ingest_intake_status::{last_failure, scan};
+		use graph::graph::GraphGnn;
 		use parking_lot::RwLock;
 
 		let embedder = crate::llm::Client::new_embed_only("http://127.0.0.1:1", "m", "");

@@ -2,7 +2,7 @@
 //! counters, and convergence gauges from across the crate — every silent
 //! failure mode gets a number here so it stops being silent.
 
-use crate::graph::GraphGnn;
+use graph::graph::GraphGnn;
 
 // `Default` is what lets a caller name the one or two counters it cares about
 // without reading the process statics `graph_health_stats` reads — which is the
@@ -127,7 +127,7 @@ pub fn graph_health_stats(g: &GraphGnn) -> HealthStats {
 			unnamed += 1;
 		}
 	}
-	let gravitons: Vec<String> = crate::accept::root_graviton_ids(g)
+	let gravitons: Vec<String> = graph::accept::root_graviton_ids(g)
 		.iter()
 		.filter_map(|cid| g.loaded(cid))
 		.map(|c| c.graviton_text.clone())
@@ -166,16 +166,16 @@ pub fn graph_health_stats(g: &GraphGnn) -> HealthStats {
 			d => d,
 		},
 		embed_mismatch: store.map(|s| s.embed_mismatch()).unwrap_or(false),
-		query_dim_rejected: crate::search::query_dim_rejected(),
+		query_dim_rejected: graph::search::query_dim_rejected(),
 		below_floor_deliveries: crate::retrieval::score::below_floor_deliveries(),
 		clock_skew_skips: crate::tick_stigmergy::clock_skew_skips(),
 		ingest_dropped_chunks: crate::ingest::worker::ingest_dropped_chunks(),
-		remote_cap_dropped: crate::merge::remote_cap_dropped(),
+		remote_cap_dropped: graph::merge::remote_cap_dropped(),
 		unspilled_drops: crate::tick_stigmergy::unspilled_drops(),
 		ingest_queue_refused: crate::ingest::worker::ingest_queue_refused(),
 		gini_access,
 		max_kerns: g.max_loaded_kerns(),
-		supersede_chain_depth_exceeded: crate::accept::supersede_chain_depth_exceeded(),
+		supersede_chain_depth_exceeded: graph::accept::supersede_chain_depth_exceeded(),
 		largest_kern_entities,
 		gini_kern_sizes,
 	}
@@ -411,7 +411,7 @@ mod tests {
 		let h = graph_health_stats(&GraphGnn::new());
 		assert_eq!(
 			h.supersede_chain_depth_exceeded,
-			crate::accept::supersede_chain_depth_exceeded(),
+			graph::accept::supersede_chain_depth_exceeded(),
 			"HealthStats mirrors the process-global counter"
 		);
 	}

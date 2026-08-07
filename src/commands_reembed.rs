@@ -95,7 +95,7 @@ pub(crate) async fn cmd_reembed(cfg: &crate::config::Config, embed_url: &str, em
 // `check_embed_stamp` deliberately never adopts on mismatch — a config swap must
 // not rewrite the record of what produced the stored vectors. A completed
 // re-embed is the one legitimate transition, so it restamps explicitly here.
-fn restamp(g: &crate::graph::GraphGnn, embed_model: &str, new_vecs: &HashMap<String, Vec<f32>>) {
+fn restamp(g: &graph::graph::GraphGnn, embed_model: &str, new_vecs: &HashMap<String, Vec<f32>>) {
 	let (Some(store), Some(dim)) = (g.store(), new_vecs.values().next().map(|v| v.len())) else {
 		return;
 	};
@@ -190,8 +190,8 @@ mod tests {
 
 	#[tokio::test]
 	async fn a_completed_reembed_restamps_the_store_with_the_new_model() {
-		use store::base_store::{EmbedCheck, EmbedStamp, Store};
 		use base::base_types::Entity;
+		use store::base_store::{EmbedCheck, EmbedStamp, Store};
 
 		// Fake embed endpoint: one 2-dim vector per input, any batch size.
 		let app = axum::Router::new().route(
@@ -211,7 +211,7 @@ mod tests {
 		// A store holding one 3-dim entity, stamped with the model that made it.
 		{
 			let store = std::sync::Arc::new(Store::open(&cfg.data_dir).unwrap());
-			let mut g = crate::graph::GraphGnn::new();
+			let mut g = graph::graph::GraphGnn::new();
 			g.data_dir = cfg.data_dir.clone();
 			let mut child = base::base_types::Kern::new("k", &g.root.id);
 			child.entities.insert(
@@ -224,7 +224,7 @@ mod tests {
 			);
 			g.root.children.push("k".to_string());
 			g.kerns.insert("k".into(), child);
-			crate::persist::save_graph_into(&store, &g).unwrap();
+			graph::persist::save_graph_into(&store, &g).unwrap();
 			store
 				.set_embed_stamp(&EmbedStamp {
 					model: "old-model".into(),
@@ -278,8 +278,8 @@ mod tests {
 
 	#[tokio::test]
 	async fn reembed_cold_reports_stale_count_and_leaves_the_tier_unchanged_on_failure() {
-		use store::base_store::Store;
 		use base::base_types::Entity;
+		use store::base_store::Store;
 
 		let app = axum::Router::new().route(
 			"/api/embed",

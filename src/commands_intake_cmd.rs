@@ -5,8 +5,8 @@ use std::time::{Duration, SystemTime};
 
 use parking_lot::RwLock;
 
-use store::base_store::FlushOutcome;
 use crate::ingest::intake_status::{scan, Report};
+use store::base_store::FlushOutcome;
 
 use crate::commands::{load_graph, Client, Endpoint, IntakeAction};
 use crate::commands_route::{route, u64_field, Routed};
@@ -181,10 +181,10 @@ async fn drain_locally(
 // Same guarded retry as `cmd_ingest`: this opens the store directly, so a
 // running daemon is a second writer (ROADMAP item 9). The guard turns that
 // into a refused flush and a reload, never a silent clobber.
-fn flush(g: &Arc<RwLock<crate::graph::GraphGnn>>, cfg: &crate::config::Config) {
+fn flush(g: &Arc<RwLock<graph::graph::GraphGnn>>, cfg: &crate::config::Config) {
 	for attempt in 0..WRITE_RETRIES {
 		let expected = g.read().flushed_epoch();
-		let flushed = crate::persist::flush_guarded(&g.read(), expected);
+		let flushed = graph::persist::flush_guarded(&g.read(), expected);
 		match flushed {
 			Ok(FlushOutcome::Flushed { .. }) => return,
 			Ok(FlushOutcome::RefusedStale { .. }) if attempt + 1 < WRITE_RETRIES => {

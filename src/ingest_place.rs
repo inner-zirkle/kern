@@ -2,8 +2,6 @@
 //! stable per-chunk source ids, context/statement parts, and the metadata
 //! (scopes, retention, review state) stamped on before placement.
 
-use crate::accept;
-use crate::graph::GraphGnn;
 use crate::ingest::Job;
 use crate::ingest_dedup::{find_duplicate, update_existing_entity};
 use crate::ingest_worker::embed_with_retry;
@@ -11,6 +9,8 @@ use crate::ingest_worker::FailureReport;
 use crate::llm::Client as LlmClient;
 use base::base_types::*;
 use base::crdt::GCounter;
+use graph::accept;
+use graph::graph::GraphGnn;
 use std::sync::Arc;
 use util;
 

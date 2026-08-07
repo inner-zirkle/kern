@@ -5,9 +5,9 @@ use std::sync::Arc;
 
 use parking_lot::RwLock;
 
-use store::base_store::FlushOutcome;
-use math::clamp_confidence;
 use base::base_types::Source;
+use math::clamp_confidence;
+use store::base_store::FlushOutcome;
 use util::truncate;
 
 use crate::commands::{load_graph, Client, Endpoint};
@@ -86,7 +86,7 @@ pub(crate) async fn cmd_ingest(
 		let expected = g.read().flushed_epoch();
 		// Bind before matching: a scrutinee temporary keeps the read guard alive
 		// across the match — deadlocking the write() below.
-		let flushed = crate::persist::flush_guarded(&g.read(), expected);
+		let flushed = graph::persist::flush_guarded(&g.read(), expected);
 		match flushed {
 			Ok(FlushOutcome::Flushed { .. }) => break,
 			Ok(FlushOutcome::RefusedStale { .. }) if attempt + 1 < WRITE_RETRIES => {
@@ -132,7 +132,7 @@ pub(crate) async fn cmd_ingest(
 #[allow(clippy::too_many_arguments)]
 async fn run_once(
 	worker: &crate::ingest::Worker,
-	_g: &Arc<RwLock<crate::graph::GraphGnn>>,
+	_g: &Arc<RwLock<graph::graph::GraphGnn>>,
 	text: &str,
 	src: &Source,
 	kind: base::base_types::EntityKind,

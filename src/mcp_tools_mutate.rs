@@ -4,11 +4,11 @@
 use serde::Deserialize;
 
 use crate::ingest;
-use math::clamp_confidence;
-use crate::reason::move_entity;
-use crate::search::find_entity;
 use base::base_constants::AGENT_SOURCE;
 use base::base_types::{Scoping, Source};
+use graph::reason::move_entity;
+use graph::search::find_entity;
+use math::clamp_confidence;
 use util::explain_relationship_prompt;
 use util::validate_conf;
 
@@ -545,8 +545,8 @@ impl Server {
 mod tests {
 	use crate::mcp::tools::is_error;
 	use crate::mcp::Server;
-	use crate::reason::add_reason;
 	use base::base_types::{Entity, EntityKind, Kern, Reason};
+	use graph::reason::add_reason;
 
 	fn make_server() -> Server {
 		crate::test_support::mcp_server()

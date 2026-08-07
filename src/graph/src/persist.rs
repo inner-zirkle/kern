@@ -6,14 +6,14 @@
 //! overwritten.
 
 use super::graph::GraphGnn;
-use math::quant::QuantizationMode;
 use base::base_types::Kern;
+use math::quant::QuantizationMode;
 use std::collections::HashMap;
 use util;
 
 pub fn load_dir(dir: &str) -> Result<GraphGnn, store::base_store::StoreError> {
-	use store::base_store::Store;
 	use std::sync::Arc;
+	use store::base_store::Store;
 
 	let store = Arc::new(Store::open(dir)?);
 	graph_from_store(store, dir)
@@ -281,8 +281,8 @@ mod tests {
 		// resident map (residency, not forgetting), and the next full save's
 		// destructive prune used to delete its disk row — the only copy —
 		// permanently losing its thoughts while their reason edges lived on.
-		use store::base_store::Store;
 		use base::base_types::{mk_entity, EntityKind};
+		use store::base_store::Store;
 		let dir = tempdir().unwrap();
 		let d = dir.path().to_string_lossy().to_string();
 

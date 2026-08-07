@@ -3,8 +3,8 @@
 //! relevance against similarity to what is already kept.
 
 use crate::config::RetrievalConfig;
-use math::cosine;
 use crate::retrieval::expand::Scored;
+use math::cosine;
 use std::collections::HashMap;
 
 pub fn dedup_by_section<T: Scored>(cfg: &RetrievalConfig, results: &mut Vec<T>) {

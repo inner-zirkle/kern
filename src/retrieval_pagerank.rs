@@ -2,8 +2,8 @@
 //! an authority signal that rewards entities the graph itself keeps pointing
 //! at, fused into ranking alongside content and lexical scores.
 
-use crate::graph::GraphGnn;
-use crate::search::EntityHit;
+use graph::graph::GraphGnn;
+use graph::search::EntityHit;
 use std::cell::Cell;
 use std::collections::HashMap;
 

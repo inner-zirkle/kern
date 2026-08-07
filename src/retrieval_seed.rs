@@ -3,13 +3,13 @@
 //! with importance fallbacks so an empty ANN result still seeds a walk.
 
 use crate::config::RetrievalConfig;
-use crate::graph::GraphGnn;
-use crate::lexical::LexicalIndex;
-use math::cosine;
 use crate::retrieval::score::{matches_filter, QueryOptions};
-use crate::search::{
+use graph::graph::GraphGnn;
+use graph::lexical::LexicalIndex;
+use graph::search::{
 	search_all_filtered, search_all_unlocked, search_reasons_all_unlocked, EntityHit,
 };
+use math::cosine;
 use rayon::iter::Either;
 use rayon::prelude::*;
 use std::collections::HashMap;
@@ -196,8 +196,7 @@ pub fn seed_important(
 }
 
 pub fn merge_seeds(a: Vec<EntityHit>, b: Vec<EntityHit>) -> Vec<EntityHit> {
-	let scored =
-		math::softmax_merge_scores(a.into_iter().chain(b).map(|h| (h.entity_id, h.score)));
+	let scored = math::softmax_merge_scores(a.into_iter().chain(b).map(|h| (h.entity_id, h.score)));
 	let mut out: Vec<EntityHit> = scored.into_iter().map(EntityHit::from).collect();
 	out.sort_by(|a, b| util::cmp_rank(a.score, &a.entity_id, b.score, &b.entity_id));
 	out
@@ -681,8 +680,8 @@ mod tests {
 	// an_eligibility_change_is_reflected_with_no_epoch_bump (the access site).
 	#[test]
 	fn non_access_mutations_leave_mutation_epoch_unchanged() {
-		use crate::merge::merge_remote_entity;
-		use crate::reason::move_entity;
+		use graph::merge::merge_remote_entity;
+		use graph::reason::move_entity;
 
 		// (1) merge_remote_entity — insert a remote Fact into a phantom kern.
 		{

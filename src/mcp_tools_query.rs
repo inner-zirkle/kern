@@ -4,8 +4,8 @@
 
 use serde::Deserialize;
 
-use crate::search::find_entity_by_prefix;
 use base::base_types::EntityKind;
+use graph::search::find_entity_by_prefix;
 use util::truncate;
 
 use crate::retrieval;
@@ -308,7 +308,7 @@ impl Server {
 			let mut have: std::collections::HashSet<String> =
 				scored.iter().map(|s| s.entity.id.clone()).collect();
 			for (head_id, head_score) in heads {
-				for anc_id in crate::reason::superseded_ancestors(&g, &head_id) {
+				for anc_id in graph::reason::superseded_ancestors(&g, &head_id) {
 					if !have.insert(anc_id.clone()) {
 						continue;
 					}
@@ -342,7 +342,7 @@ impl Server {
 						.kern_of_entity(&st.entity.id)
 						.and_then(|kid| g.kerns.get(kid))
 						.map(|kern| {
-							crate::reason::collect_reason_ids(kern, &st.entity.id)
+							graph::reason::collect_reason_ids(kern, &st.entity.id)
 								.into_iter()
 								.filter_map(|rid| kern.reasons.get(&rid))
 								.filter(|r| r.is_enriched())
@@ -388,7 +388,7 @@ const COLD_KERN: &str = "(cold)";
 // would let the routed and local reads disagree about what an id resolves to —
 // prefix or cold, resolved here or resolved by a daemon, same answer.
 pub(crate) fn entity_detail_by_id(
-	g: &crate::graph::GraphGnn,
+	g: &graph::graph::GraphGnn,
 	id: &str,
 ) -> Option<serde_json::Value> {
 	let hit = resolve_by_id(g, id)?;
@@ -405,7 +405,7 @@ struct IdHit {
 }
 
 impl IdHit {
-	fn detail(&self, g: &crate::graph::GraphGnn) -> serde_json::Value {
+	fn detail(&self, g: &graph::graph::GraphGnn) -> serde_json::Value {
 		let mut v = entity_detail(&self.thought, &self.kern_id, g);
 		if self.cold {
 			// The label is for the printer; the flag is for anything reading the
@@ -416,7 +416,7 @@ impl IdHit {
 	}
 }
 
-fn resolve_by_id(g: &crate::graph::GraphGnn, id: &str) -> Option<IdHit> {
+fn resolve_by_id(g: &graph::graph::GraphGnn, id: &str) -> Option<IdHit> {
 	if let Some((thought, kern_id)) = find_entity_by_prefix(g, id) {
 		return Some(IdHit {
 			thought,
@@ -435,11 +435,11 @@ fn resolve_by_id(g: &crate::graph::GraphGnn, id: &str) -> Option<IdHit> {
 fn entity_detail(
 	thought: &base::base_types::Entity,
 	kern_id: &str,
-	g: &crate::graph::GraphGnn,
+	g: &graph::graph::GraphGnn,
 ) -> serde_json::Value {
 	let mut edges = Vec::new();
 	if let Some(kern) = g.kerns.get(kern_id) {
-		let rids = crate::reason::collect_reason_ids(kern, &thought.id);
+		let rids = graph::reason::collect_reason_ids(kern, &thought.id);
 		for rid in &rids {
 			if let Some(re) = kern.reasons.get(rid) {
 				edges.push(serde_json::json!({

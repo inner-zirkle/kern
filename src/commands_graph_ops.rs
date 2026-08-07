@@ -2,15 +2,15 @@
 //! degrade, promote, move — the per-thought reads and writes shared by the
 //! CLI and MCP surfaces.
 
-use crate::graph::GraphGnn;
-use math::{average_vec, reason_id};
 use crate::mcp::tools_query::entity_detail_by_id;
-use crate::reason::{add_reason, remove_entity, remove_reason};
-use crate::search::find_entity;
 use base::base_constants::{
 	DEGRADE_DECAY_BASE, DEGRADE_DECAY_POW, DEGRADE_FLOOR, DEGRADE_MIN_THRESHOLD,
 };
 use base::base_types::{EntityKind, Kern, Reason, ReasonKind, ReviewState, Source};
+use graph::graph::GraphGnn;
+use graph::reason::{add_reason, remove_entity, remove_reason};
+use graph::search::find_entity;
+use math::{average_vec, reason_id};
 use util::{explain_relationship_prompt, short_id, truncate};
 
 use crate::commands::{load_graph, with_graph, Client, Endpoint};
@@ -157,7 +157,7 @@ pub(crate) fn forget_entity(
 ) -> Result<usize, &'static str> {
 	let (thought, kern_id) = find_entity(g, id).ok_or("thought not found")?;
 	// A remote Fact is a peer's assertion, not durable local knowledge — forgettable.
-	if thought.is_fact() && !force && !crate::merge::is_remote_kern_id(&kern_id) {
+	if thought.is_fact() && !force && !graph::merge::is_remote_kern_id(&kern_id) {
 		return Err("cannot forget a fact");
 	}
 	let edges_before = g.kerns.get(&kern_id).map(|k| k.reasons.len()).unwrap_or(0);
@@ -486,7 +486,7 @@ pub(crate) async fn cmd_degrade(cfg: &crate::config::Config, id: &str) {
 
 pub(crate) fn degrade_entity_reasons(g: &mut GraphGnn, kern_id: &str, id: &str) -> (usize, usize) {
 	let rids: Vec<String> = match g.kerns.get(kern_id) {
-		Some(kern) => crate::reason::collect_reason_ids(kern, id),
+		Some(kern) => graph::reason::collect_reason_ids(kern, id),
 		None => Vec::new(),
 	};
 
@@ -507,7 +507,7 @@ pub(crate) fn degrade_entity_reasons(g: &mut GraphGnn, kern_id: &str, id: &str) 
 				remove_reason(kern, rid);
 			}
 			// A degraded Rephrase takes its alternate wording out of the index with it.
-			crate::lexical::reindex_entity(g, kern_id, id);
+			graph::lexical::reindex_entity(g, kern_id, id);
 			removed += 1;
 		} else {
 			let lamport = g.bump_lamport();
@@ -519,7 +519,7 @@ pub(crate) fn degrade_entity_reasons(g: &mut GraphGnn, kern_id: &str, id: &str) 
 					r.score_producer = producer.clone();
 					let lww_value =
 						bincode::serde::encode_to_vec(r.score, bincode::config::standard()).unwrap_or_default();
-					g.push_delta(crate::graph::PendingDelta {
+					g.push_delta(graph::graph::PendingDelta {
 						object_id: rid.clone(),
 						target: 2,
 						replica: String::new(),

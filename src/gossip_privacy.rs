@@ -239,7 +239,7 @@ mod tests {
 		let kid = contract_kern_id(&cid);
 
 		// The relay applies the delta like any tree hop.
-		let mut g = crate::graph::GraphGnn::new();
+		let mut g = graph::graph::GraphGnn::new();
 		let mut k = base::base_types::Kern::new(&kid, &g.root.id);
 		k.root_id = g.root.root_id.clone();
 		g.register(k);

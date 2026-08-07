@@ -2,7 +2,7 @@
 //! and render results for a terminal reader.
 
 use crate::mcp::tools_query::base_entity_json;
-use crate::search::{find_entity, search_all_unlocked};
+use graph::search::{find_entity, search_all_unlocked};
 use util::{short_id, truncate};
 
 use crate::commands::{load_graph, Client};
