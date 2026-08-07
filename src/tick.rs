@@ -663,7 +663,7 @@ mod tests {
 		let dir = tempfile::tempdir().unwrap();
 		let mut g = GraphGnn::new();
 		let root_id = g.root.id.clone();
-		let store = crate::base_store::Store::open(&dir.path().to_string_lossy()).unwrap();
+		let store = store::base_store::Store::open(&dir.path().to_string_lossy()).unwrap();
 		g.set_store(Arc::new(store));
 
 		let mut child = Kern::new("generic", &root_id);

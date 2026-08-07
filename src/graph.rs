@@ -11,7 +11,7 @@ use std::time::SystemTime;
 
 use super::lexical::LexicalIndex;
 use super::vector_backend::VectorBackend;
-use crate::base_store::{Store, StoreError};
+use store::base_store::{Store, StoreError};
 use math::quant::QuantizationMode;
 use base::base_constants::KERN_CAP_DISABLED;
 use base::base_types::{EntityStatus, Kern};

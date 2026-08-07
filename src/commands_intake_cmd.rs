@@ -5,7 +5,7 @@ use std::time::{Duration, SystemTime};
 
 use parking_lot::RwLock;
 
-use crate::base_store::FlushOutcome;
+use store::base_store::FlushOutcome;
 use crate::ingest::intake_status::{scan, Report};
 
 use crate::commands::{load_graph, Client, Endpoint, IntakeAction};

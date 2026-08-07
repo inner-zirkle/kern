@@ -45,7 +45,6 @@ pub fn launch_dir_join(path: impl AsRef<Path>) -> PathBuf {
 }
 
 pub mod accept;
-pub mod base_store;
 pub mod commands;
 pub(crate) mod commands_admin;
 pub(crate) mod commands_graph_ops;
@@ -91,7 +90,6 @@ pub mod ingest_place;
 pub mod ingest_worker;
 pub mod lexical;
 pub mod llm;
-pub mod lock;
 pub mod mcp;
 pub mod mcp_prompt;
 pub mod mcp_resources;

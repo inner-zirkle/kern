@@ -11,8 +11,8 @@ use base::base_types::Kern;
 use std::collections::HashMap;
 use util;
 
-pub fn load_dir(dir: &str) -> Result<GraphGnn, crate::base_store::StoreError> {
-	use crate::base_store::Store;
+pub fn load_dir(dir: &str) -> Result<GraphGnn, store::base_store::StoreError> {
+	use store::base_store::Store;
 	use std::sync::Arc;
 
 	let store = Arc::new(Store::open(dir)?);
@@ -28,9 +28,9 @@ pub fn reload_from_disk(old: &GraphGnn) -> Option<GraphGnn> {
 }
 
 fn graph_from_store(
-	store: std::sync::Arc<crate::base_store::Store>,
+	store: std::sync::Arc<store::base_store::Store>,
 	dir: &str,
-) -> Result<GraphGnn, crate::base_store::StoreError> {
+) -> Result<GraphGnn, store::base_store::StoreError> {
 	let (kerns, mut network_id, quant_mode) = store.load_all_kerns()?;
 	if network_id.is_empty() {
 		network_id = util::uuid_v4();
@@ -44,7 +44,7 @@ fn graph_from_store(
 		// overwrote every row on disk with nothing. Error instead — the caller's
 		// fallback boots at epoch 0, where the guarded flush refuses and absorbs.
 		if !kerns.is_empty() {
-			return Err(crate::base_store::StoreError::RootMissing { kerns: kerns.len() });
+			return Err(store::base_store::StoreError::RootMissing { kerns: kerns.len() });
 		}
 		let mut g = GraphGnn::new();
 		g.data_dir = dir.to_string();
@@ -74,19 +74,19 @@ fn graph_from_store(
 // known: the configured model (bound at open) and a dimension the graph actually
 // holds. Stamping a dimension of 0 on an empty store would make the first real
 // ingest look like a model change.
-fn stamp_of(g: &GraphGnn) -> Option<crate::base_store::EmbedStamp> {
+fn stamp_of(g: &GraphGnn) -> Option<store::base_store::EmbedStamp> {
 	let model = g.embed_model();
 	if model.is_empty() {
 		return None;
 	}
-	Some(crate::base_store::EmbedStamp {
+	Some(store::base_store::EmbedStamp {
 		model: model.to_string(),
 		dim: g.entity_vector_dim()?,
 	})
 }
 
 // Fail-open: a stamp that cannot be read or written must never block a save.
-fn check_stamp(store: &crate::base_store::Store, stamp: Option<&crate::base_store::EmbedStamp>) {
+fn check_stamp(store: &store::base_store::Store, stamp: Option<&store::base_store::EmbedStamp>) {
 	let Some(stamp) = stamp else {
 		return;
 	};
@@ -125,9 +125,9 @@ pub fn merged_root(g: &GraphGnn) -> Kern {
 }
 
 pub fn save_graph_into(
-	store: &crate::base_store::Store,
+	store: &store::base_store::Store,
 	g: &GraphGnn,
-) -> Result<(), crate::base_store::StoreError> {
+) -> Result<(), store::base_store::StoreError> {
 	check_stamp(store, stamp_of(g).as_ref());
 	let mut kerns = g.map().clone();
 	kerns.insert(g.root.id.clone(), merged_root(g));
@@ -138,7 +138,7 @@ pub fn save_graph_into(
 pub fn flush_guarded(
 	g: &GraphGnn,
 	expected: u64,
-) -> Result<crate::base_store::FlushOutcome, crate::base_store::StoreError> {
+) -> Result<store::base_store::FlushOutcome, store::base_store::StoreError> {
 	match g.store() {
 		Some(store) => {
 			check_stamp(&store, stamp_of(g).as_ref());
@@ -152,17 +152,17 @@ pub fn flush_guarded(
 				g.unloaded_ids(),
 			)
 		}
-		None => Ok(crate::base_store::FlushOutcome::Flushed { epoch: expected }),
+		None => Ok(store::base_store::FlushOutcome::Flushed { epoch: expected }),
 	}
 }
 
 // Cloned under the read guard so the graph lock can be DROPPED before the flush txn.
 pub struct FlushSnapshot {
-	store: std::sync::Arc<crate::base_store::Store>,
+	store: std::sync::Arc<store::base_store::Store>,
 	kerns: HashMap<String, Kern>,
 	network_id: String,
 	quant_mode: QuantizationMode,
-	stamp: Option<crate::base_store::EmbedStamp>,
+	stamp: Option<store::base_store::EmbedStamp>,
 	// Unloaded-kern ids at snapshot time; the flush prune must spare their rows.
 	unloaded: std::collections::HashSet<String>,
 }
@@ -187,7 +187,7 @@ pub fn snapshot_for_flush(g: &GraphGnn) -> Option<FlushSnapshot> {
 pub fn flush_snapshot(
 	snap: &FlushSnapshot,
 	expected: u64,
-) -> Result<crate::base_store::FlushOutcome, crate::base_store::StoreError> {
+) -> Result<store::base_store::FlushOutcome, store::base_store::StoreError> {
 	check_stamp(&snap.store, snap.stamp.as_ref());
 	snap.store.flush_guarded(
 		&snap.kerns,
@@ -201,7 +201,7 @@ pub fn flush_snapshot(
 // save_all_kerns prunes rows outside the live set — minus the unloaded ids,
 // whose disk rows are residency, not garbage — so no deregistered kern can
 // resurrect while an idle-unloaded one survives the flush.
-pub fn save_all(g: &GraphGnn) -> Result<(), crate::base_store::StoreError> {
+pub fn save_all(g: &GraphGnn) -> Result<(), store::base_store::StoreError> {
 	match g.store() {
 		Some(store) => save_graph_into(&store, g),
 		None => Ok(()),
@@ -213,10 +213,10 @@ pub fn compress_dir(
 	src: &str,
 	out_dir: &str,
 	target_mode: QuantizationMode,
-) -> Result<(), crate::base_store::StoreError> {
+) -> Result<(), store::base_store::StoreError> {
 	let mut g = load_dir(src)?;
 	g.quant_mode = target_mode;
-	let dest = crate::base_store::Store::open(out_dir)?;
+	let dest = store::base_store::Store::open(out_dir)?;
 	save_graph_into(&dest, &g)
 }
 
@@ -253,7 +253,7 @@ mod tests {
 		// no root used to return an EMPTY graph stamped with the store's live
 		// epoch. Reconcile then saw nothing stale and the first dirty flush
 		// overwrote every row on disk with nothing. It must be an error.
-		use crate::base_store::{Store, StoreError};
+		use store::base_store::{Store, StoreError};
 		let dir = tempdir().unwrap();
 		let d = dir.path().to_string_lossy().to_string();
 		let store = Store::open(&d).unwrap();
@@ -281,7 +281,7 @@ mod tests {
 		// resident map (residency, not forgetting), and the next full save's
 		// destructive prune used to delete its disk row — the only copy —
 		// permanently losing its thoughts while their reason edges lived on.
-		use crate::base_store::Store;
+		use store::base_store::Store;
 		use base::base_types::{mk_entity, EntityKind};
 		let dir = tempdir().unwrap();
 		let d = dir.path().to_string_lossy().to_string();

@@ -11,7 +11,7 @@
 // from eviction without touching the code under measurement.
 use base::base_constants::COLD_GC_AGE;
 use base::base_types::{ChunkPart, ChunkPartKind, Entity, EntityKind, Kern};
-use kern::base_store::Store;
+use store::base_store::Store;
 use kern::graph::GraphGnn;
 use kern::heat::HeatConfig;
 use kern::tick_stigmergy::run_gc;

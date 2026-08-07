@@ -408,7 +408,7 @@ fn llm_health_lines(h: Option<&crate::transport::kern_rpc::HealthRes>) -> Vec<St
 
 // Daemon must be stopped: a live daemon would race and re-persist the bloated graph.
 pub(crate) fn cmd_gc(cfg: &crate::config::Config) {
-	let _lock = match crate::lock::acquire(&cfg.data_dir, "gc") {
+	let _lock = match store::lock::acquire(&cfg.data_dir, "gc") {
 		Ok(l) => l,
 		Err(e) => {
 			eprintln!("gc: {e}");
@@ -424,7 +424,7 @@ pub(crate) fn cmd_gc(cfg: &crate::config::Config) {
 	// Drop the graph FIRST to release its env handle: compact_dir closes its own
 	// env deterministically — a lazy drop on Windows leaves data.mdb mmap'd.
 	drop(g);
-	match crate::base_store::compact_dir(&cfg.data_dir) {
+	match store::base_store::compact_dir(&cfg.data_dir) {
 		Ok((old, new)) => println!(
 			"gc: compacted data.mdb {} -> {} ({:.0}% reclaimed)",
 			human_bytes(old),
@@ -441,7 +441,7 @@ pub(crate) fn cmd_gc(cfg: &crate::config::Config) {
 
 // Daemon must be stopped: compaction swaps data.mdb underneath any open env.
 pub(crate) fn cmd_compact(cfg: &crate::config::Config) {
-	let _lock = match crate::lock::acquire(&cfg.data_dir, "compact") {
+	let _lock = match store::lock::acquire(&cfg.data_dir, "compact") {
 		Ok(l) => l,
 		Err(e) => {
 			eprintln!("compact: {e}");
@@ -449,7 +449,7 @@ pub(crate) fn cmd_compact(cfg: &crate::config::Config) {
 			return;
 		}
 	};
-	match crate::base_store::compact_dir(&cfg.data_dir) {
+	match store::base_store::compact_dir(&cfg.data_dir) {
 		Ok((old, new)) => println!(
 			"compact: data.mdb {} -> {} ({:.0}% reclaimed)",
 			human_bytes(old),
@@ -706,7 +706,7 @@ pub(crate) fn cmd_register(cfg: &crate::config::Config, path: &str) {
 	// The loaded graph is bound to the SOURCE store, so write into a freshly
 	// opened destination store — save_graph_unguarded would write back to the source.
 	match crate::persist::load_dir(path) {
-		Ok(g) => match crate::base_store::Store::open(&cfg.data_dir) {
+		Ok(g) => match store::base_store::Store::open(&cfg.data_dir) {
 			Ok(dest) => {
 				let _ = crate::persist::save_graph_into(&dest, &g);
 				println!("registered {path}");
@@ -989,7 +989,7 @@ pub(crate) async fn cmd_status(cfg: &crate::config::Config) {
 
 	// Read AFTER the probes: a daemon that answers but holds no lock is the
 	// state worth seeing, and it is exactly what an older binary produces.
-	match crate::lock::holder(&cfg.data_dir) {
+	match store::lock::holder(&cfg.data_dir) {
 		Some(who) => {
 			println!("writer lock  held by {who}");
 			println!();
@@ -1712,7 +1712,7 @@ mod hub_merge_tests {
 		);
 		g.register(k);
 		// save_all silently no-ops without a store attached.
-		let store = crate::base_store::Store::open(&g.data_dir).unwrap();
+		let store = store::base_store::Store::open(&g.data_dir).unwrap();
 		g.set_store(std::sync::Arc::new(store));
 		crate::persist::save_all(&g).unwrap();
 	}

@@ -322,7 +322,7 @@ pub(crate) fn load_graph(cfg: &crate::config::Config) -> GraphGnn {
 			);
 			let mut g = GraphGnn::new();
 			g.data_dir = cfg.data_dir.clone();
-			if let Ok(store) = crate::base_store::Store::open(&cfg.data_dir) {
+			if let Ok(store) = store::base_store::Store::open(&cfg.data_dir) {
 				g.set_store(std::sync::Arc::new(store));
 			}
 			g
@@ -382,11 +382,11 @@ pub(crate) fn save_graph_guarded(
 		};
 		let outcome = crate::persist::flush_snapshot(&snapshot, expected);
 		match outcome {
-			Ok(crate::base_store::FlushOutcome::Flushed { epoch }) => {
+			Ok(store::base_store::FlushOutcome::Flushed { epoch }) => {
 				graph.write().set_flushed_epoch(epoch);
 				return;
 			}
-			Ok(crate::base_store::FlushOutcome::RefusedStale {
+			Ok(store::base_store::FlushOutcome::RefusedStale {
 				disk_epoch,
 				expected,
 			}) => {
@@ -484,7 +484,7 @@ fn maybe_self_heal_store(cfg: &crate::config::Config) {
 			eprintln!("kern: self-heal reaped {reaped} empty kerns ({before} -> {after})");
 		}
 	}
-	match crate::base_store::compact_dir(&cfg.data_dir) {
+	match store::base_store::compact_dir(&cfg.data_dir) {
 		Ok((old, new)) => eprintln!(
 			"kern: self-heal compacted data.mdb {} MiB -> {} MiB",
 			old / (1024 * 1024),
@@ -686,7 +686,7 @@ pub(crate) struct EngineHandle {
 	// Held for the daemon's lifetime so a direct-writer admin command refuses
 	// instead of racing it. Dropped (and released by the OS) when the daemon
 	// exits, kill included.
-	pub _writer_lock: Option<crate::lock::WriterLock>,
+	pub _writer_lock: Option<store::lock::WriterLock>,
 }
 
 pub(crate) async fn bootstrap(cli: &Cli, cfg: &crate::config::Config) -> EngineHandle {
@@ -710,7 +710,7 @@ pub(crate) async fn bootstrap(cli: &Cli, cfg: &crate::config::Config) -> EngineH
 		const LOCK_RETRIES: u32 = 10;
 		let mut lock = None;
 		for attempt in 0..LOCK_RETRIES {
-			match crate::lock::acquire(&cfg.data_dir, "daemon") {
+			match store::lock::acquire(&cfg.data_dir, "daemon") {
 				Ok(l) => {
 					lock = Some(l);
 					break;
@@ -1532,7 +1532,7 @@ mod entry_point_tests {
 	// model must reach health as a mismatch.
 	#[test]
 	fn a_normal_open_stamps_the_model_and_a_swap_reaches_health() {
-		use crate::base_store::EmbedStamp;
+		use store::base_store::EmbedStamp;
 		use crate::health::graph_health_stats;
 		use base::base_types::{mk_entity, EntityKind, Kern};
 

@@ -385,7 +385,7 @@ impl McpServer for ProxyServer {
 }
 
 enum StandaloneEntry {
-	Own(crate::lock::WriterLock),
+	Own(store::lock::WriterLock),
 	Attach(Box<KernRpcClient<JsonEnvelopeCodec>>),
 	Refuse(String),
 }
@@ -403,7 +403,7 @@ async fn claim_standalone(
 	retries: u32,
 	delay: std::time::Duration,
 ) -> StandaloneEntry {
-	let held = match crate::lock::acquire(data_dir, "mcp-standalone") {
+	let held = match store::lock::acquire(data_dir, "mcp-standalone") {
 		Ok(l) => return StandaloneEntry::Own(l),
 		Err(e) => e,
 	};
@@ -643,7 +643,7 @@ mod standalone_tests {
 		)
 		.await;
 		match out {
-			StandaloneEntry::Own(l) => assert!(l.path().ends_with(crate::lock::LOCK_FILE)),
+			StandaloneEntry::Own(l) => assert!(l.path().ends_with(store::lock::LOCK_FILE)),
 			_ => panic!("nothing holds the dir — the standalone server is its writer"),
 		}
 	}
@@ -655,7 +655,7 @@ mod standalone_tests {
 	async fn a_held_dir_with_nothing_serving_refuses_rather_than_writing_beside_it() {
 		let dir = tempfile::tempdir().unwrap();
 		let d = dir.path().to_str().unwrap();
-		let _sibling = crate::lock::acquire(d, "mcp-standalone").expect("sibling claims it");
+		let _sibling = store::lock::acquire(d, "mcp-standalone").expect("sibling claims it");
 
 		let out = claim_standalone(
 			d,
@@ -681,7 +681,7 @@ mod standalone_tests {
 	async fn a_held_dir_whose_holder_answers_is_proxied_to_instead() {
 		let dir = tempfile::tempdir().unwrap();
 		let d = dir.path().to_str().unwrap();
-		let _daemon = crate::lock::acquire(d, "daemon").expect("the daemon claims it");
+		let _daemon = store::lock::acquire(d, "daemon").expect("the daemon claims it");
 		let ep = scratch_endpoint("late");
 		serving(&ep).await;
 

@@ -1,0 +1,24 @@
+[package]
+name = "store"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+base = { path = "../base" }
+math = { path = "../math" }
+util = { path = "../util" }
+heed = "0.20"
+serde.workspace = true
+bincode.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+thiserror.workspace = true
+zstd = "0.13"
+
+[dev-dependencies]
+tracing-subscriber.workspace = true
+tempfile = "3"
+
+[lints]
+workspace = true

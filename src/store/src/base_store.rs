@@ -736,7 +736,7 @@ impl Store {
 	// is a disk bound, not a correctness boundary, and 2% overshoot buys a ~500x
 	// reduction in decode work. Direct callers of `cold_cap` still get the exact
 	// cap, so nothing that asks for a hard trim gets a soft one.
-	pub(crate) fn cold_cap_amortized(&self, max: usize) -> Result<(), StoreError> {
+	pub fn cold_cap_amortized(&self, max: usize) -> Result<(), StoreError> {
 		let len = {
 			let rtxn = self.env.read_txn()?;
 			self.cold.len(&rtxn)? as usize
@@ -747,7 +747,7 @@ impl Store {
 		self.cold_cap(max)
 	}
 
-	pub(crate) fn cold_cap(&self, max: usize) -> Result<(), StoreError> {
+	pub fn cold_cap(&self, max: usize) -> Result<(), StoreError> {
 		let len = {
 			let rtxn = self.env.read_txn()?;
 			self.cold.len(&rtxn)? as usize

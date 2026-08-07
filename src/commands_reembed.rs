@@ -15,7 +15,7 @@ use crate::commands::{load_graph, save_graph_unguarded, Client};
 const BATCH: usize = 64;
 
 pub(crate) async fn cmd_reembed(cfg: &crate::config::Config, embed_url: &str, embed_model: &str) {
-	let _lock = match crate::lock::acquire(&cfg.data_dir, "reembed") {
+	let _lock = match store::lock::acquire(&cfg.data_dir, "reembed") {
 		Ok(l) => l,
 		Err(e) => {
 			eprintln!("reembed: {e}");
@@ -99,7 +99,7 @@ fn restamp(g: &crate::graph::GraphGnn, embed_model: &str, new_vecs: &HashMap<Str
 	let (Some(store), Some(dim)) = (g.store(), new_vecs.values().next().map(|v| v.len())) else {
 		return;
 	};
-	let stamp = crate::base_store::EmbedStamp {
+	let stamp = store::base_store::EmbedStamp {
 		model: embed_model.to_string(),
 		dim,
 	};
@@ -136,7 +136,7 @@ async fn embed_all(
 // Atomic: commits only if every batch succeeds; old-dim cold vectors silently
 // drop from search otherwise.
 async fn reembed_cold(
-	store: Option<std::sync::Arc<crate::base_store::Store>>,
+	store: Option<std::sync::Arc<store::base_store::Store>>,
 	client: &crate::llm::Client,
 ) -> Result<usize, String> {
 	let Some(store) = store else { return Ok(0) };
@@ -190,7 +190,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn a_completed_reembed_restamps_the_store_with_the_new_model() {
-		use crate::base_store::{EmbedCheck, EmbedStamp, Store};
+		use store::base_store::{EmbedCheck, EmbedStamp, Store};
 		use base::base_types::Entity;
 
 		// Fake embed endpoint: one 2-dim vector per input, any batch size.
@@ -278,7 +278,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn reembed_cold_reports_stale_count_and_leaves_the_tier_unchanged_on_failure() {
-		use crate::base_store::Store;
+		use store::base_store::Store;
 		use base::base_types::Entity;
 
 		let app = axum::Router::new().route(

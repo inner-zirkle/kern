@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use parking_lot::RwLock;
 
-use crate::base_store::FlushOutcome;
+use store::base_store::FlushOutcome;
 use math::clamp_confidence;
 use base::base_types::Source;
 use util::truncate;

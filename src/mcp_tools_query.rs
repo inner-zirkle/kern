@@ -885,7 +885,7 @@ mod cold_tier_filter_tests {
 		srv.llm = Some(crate::llm::Client::new_embed_only(&url, "test", ""));
 
 		let dir = tempfile::tempdir().expect("tmpdir");
-		let store = crate::base_store::Store::open(&dir.path().to_string_lossy()).expect("store");
+		let store = store::base_store::Store::open(&dir.path().to_string_lossy()).expect("store");
 		store
 			.cold_put_all(&[
 				spilled("cold_fact", EntityKind::Fact),

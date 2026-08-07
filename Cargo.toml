@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["src/util", "src/base", "src/math", "src/transport/macros"]
+members = ["src/util", "src/base", "src/math", "src/store", "src/transport/macros"]
 
 [workspace.package]
 version = "1.3.0"
@@ -35,6 +35,7 @@ parking_lot = "0.12"
 util = { path = "src/util" }
 base = { path = "src/base" }
 math = { path = "src/math" }
+store = { path = "src/store" }
 
 [workspace.lints.rust]
 warnings = "deny"
@@ -97,6 +98,7 @@ chacha20poly1305 = "0.11"
 util = { path = "src/util" }
 base = { path = "src/base" }
 math = { path = "src/math" }
+store = { path = "src/store" }
 
 # Unix socket ownership: std exposes the owner of a *file* but never the
 # identity of this process — `geteuid` spells whose socket it is.

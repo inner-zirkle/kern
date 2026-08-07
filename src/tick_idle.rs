@@ -169,7 +169,7 @@ mod tests {
 		let mut g = GraphGnn::new();
 		g.data_dir = dir.to_string_lossy().into_owned();
 		g.set_store(Arc::new(
-			crate::base_store::Store::open(&g.data_dir).unwrap(),
+			store::base_store::Store::open(&g.data_dir).unwrap(),
 		));
 		g
 	}
