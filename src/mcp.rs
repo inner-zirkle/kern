@@ -46,7 +46,7 @@ pub struct Server {
 	pub worker: Arc<ingest::Worker>,
 	pub llm: Option<llm::Client>,
 	pub save_fn: Arc<dyn Fn() + Send + Sync>,
-	pub task_q: Option<Arc<crate::tick_queue::Queue>>,
+	pub task_q: Option<Arc<tick::tick_queue::Queue>>,
 	pub cfg: Arc<Config>,
 	pub broadcast_pulse: Option<PulseBroadcast>,
 	// Epoch ms of the last real tool call (health polls excluded, or the hub's
@@ -82,7 +82,7 @@ struct TickHealth {
 }
 
 impl TickHealth {
-	fn of(q: &Arc<crate::tick_queue::Queue>) -> Self {
+	fn of(q: &Arc<tick::tick_queue::Queue>) -> Self {
 		let (done, avg_ms) = q.metrics();
 		let (task_panics, last_panic) = q.panics();
 		let (task_failures, last_failure) = q.failures();
@@ -491,7 +491,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn health_reports_degraded_maintenance_after_a_task_panic() {
-		use crate::tick_queue::{task, Queue, TaskKind};
+		use tick::tick_queue::{task, Queue, TaskKind};
 		use std::sync::Arc;
 
 		let mut srv = crate::test_support::mcp_server();
@@ -511,7 +511,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn health_reports_contained_task_failures_beside_panics() {
-		use crate::tick_queue::{task, Queue, TaskKind};
+		use tick::tick_queue::{task, Queue, TaskKind};
 		use std::sync::Arc;
 
 		let mut srv = crate::test_support::mcp_server();

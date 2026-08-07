@@ -442,7 +442,7 @@ pub async fn serve_kern_rpc_loop(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::tick_queue::{task, Queue, TaskKind};
+	use tick::tick_queue::{task, Queue, TaskKind};
 
 	#[tokio::test]
 	async fn health_carries_every_degradation_signal_to_the_rpc_surface() {

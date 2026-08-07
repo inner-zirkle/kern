@@ -11,7 +11,7 @@ use parking_lot::{Mutex, RwLock};
 use std::time::Instant;
 
 use ingest::Worker;
-use crate::tick_queue::Queue;
+use tick::tick_queue::Queue;
 use crate::tick_tasks::{BroadcastQuestionFunc, EmbedFunc, LlmFunc as TickLlmFunc};
 use config::Config;
 use graph::graph::GraphGnn;
@@ -99,8 +99,8 @@ impl Registry {
 
 		let defer_q = tick_q.clone();
 		let defer: ingest::worker::DeferQuestionsFn = Arc::new(move |entity_id: &str| {
-			let _ = defer_q.enqueue(crate::tick_queue::task_extra(
-				crate::tick_queue::TaskKind::SeedQuestions,
+			let _ = defer_q.enqueue(tick::tick_queue::task_extra(
+				tick::tick_queue::TaskKind::SeedQuestions,
 				"",
 				entity_id,
 			));
@@ -109,8 +109,8 @@ impl Registry {
 		let contra_q = tick_q.clone();
 		let defer_contradiction: ingest::worker::DeferContradictionFn =
 			Arc::new(move |kern_id: &str, reason_id: &str| {
-				let _ = contra_q.enqueue(crate::tick_queue::task_extra(
-					crate::tick_queue::TaskKind::ClassifyContradiction,
+				let _ = contra_q.enqueue(tick::tick_queue::task_extra(
+					tick::tick_queue::TaskKind::ClassifyContradiction,
 					kern_id,
 					reason_id,
 				));

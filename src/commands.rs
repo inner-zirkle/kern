@@ -680,7 +680,7 @@ pub async fn dispatch(cmd: Commands, cfg: &config::Config) {
 
 pub(crate) struct EngineHandle {
 	pub server: std::sync::Arc<crate::mcp::Server>,
-	pub task_q: std::sync::Arc<crate::tick_queue::Queue>,
+	pub task_q: std::sync::Arc<tick::tick_queue::Queue>,
 	// Guarded persist closure: the shutdown flush never overwrites a grown disk.
 	pub save_fn: std::sync::Arc<dyn Fn() + Send + Sync>,
 	// Held for the daemon's lifetime so a direct-writer admin command refuses
@@ -1201,7 +1201,7 @@ type BroadcastPulseFn = Arc<dyn Fn(&str, f64) + Send + Sync>;
 async fn start_gossip(
 	cfg: &config::Config,
 	g: &SharedGraph,
-	q: &Arc<crate::tick_queue::Queue>,
+	q: &Arc<tick::tick_queue::Queue>,
 	save_fn: &Arc<dyn Fn() + Send + Sync>,
 ) -> (
 	Option<BroadcastPulseFn>,
@@ -1369,7 +1369,7 @@ async fn start_gossip(
 fn spawn_maintenance_tick(
 	cfg: &config::Config,
 	g: &SharedGraph,
-	q: &Arc<crate::tick_queue::Queue>,
+	q: &Arc<tick::tick_queue::Queue>,
 	broadcast_pulse: Option<crate::mcp::PulseBroadcast>,
 ) {
 	if cfg.tick.interval_secs == 0 {
@@ -1392,7 +1392,7 @@ fn spawn_maintenance_tick(
 			};
 			{
 				let g = g_tick.read();
-				crate::tick_pulse::pulse(&q_tick, &g, &root_id, 1.0);
+				tick::tick_pulse::pulse(&q_tick, &g, &root_id, 1.0);
 			}
 			if let Some(broadcast) = &broadcast_pulse {
 				broadcast(&root_id, 1.0);

@@ -1,0 +1,25 @@
+[package]
+name = "tick"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+base = { path = "../base" }
+graph = { path = "../graph" }
+store = { path = "../store" }
+retrieval = { path = "../retrieval" }
+config = { path = "../config" }
+util = { path = "../util" }
+serde.workspace = true
+serde_json.workspace = true
+parking_lot.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+test_support = { path = "../test_support" }
+tempfile = "3"
+
+[lints]
+workspace = true

@@ -13,7 +13,7 @@ use base::base_constants::COLD_GC_AGE;
 use base::base_types::{ChunkPart, ChunkPartKind, Entity, EntityKind, Kern};
 use config::HeatConfig;
 use graph::graph::GraphGnn;
-use kern::tick_stigmergy::run_gc;
+use tick::tick_stigmergy::run_gc;
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
 use store::base_store::Store;

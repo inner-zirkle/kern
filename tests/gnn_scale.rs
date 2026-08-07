@@ -21,7 +21,7 @@ use graph::graph::GraphGnn;
 use graph::reason::add_reason;
 use gnn::gnn::propagate::GnnConfig;
 use kern::tick_gnn_propagate::do_gnn_propagate;
-use kern::tick_queue::{task, task_commit_access, Queue, TaskKind};
+use tick::tick_queue::{task, task_commit_access, Queue, TaskKind};
 
 const DIM: usize = 384;
 
@@ -219,7 +219,7 @@ fn other_tick_tasks_scale() {
 		let q = Queue::new(512);
 
 		let t = Instant::now();
-		kern::tick_stigmergy::run_gc(&g, "kx", &HeatConfig::default());
+		tick::tick_stigmergy::run_gc(&g, "kx", &HeatConfig::default());
 		let gc_ms = t.elapsed().as_secs_f64() * 1000.0;
 
 		let ids: Vec<String> = g.read().kerns["kx"].entities.keys().cloned().collect();

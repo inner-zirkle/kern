@@ -12,7 +12,7 @@ use parking_lot::Mutex;
 
 use util::LogThrottle;
 
-use crate::tick_queue::{task, Queue, TaskKind};
+use tick::tick_queue::{task, Queue, TaskKind};
 
 // Distinct kerns that may wait behind the one training. Small on purpose: a
 // waiting job holds a kern id, but the graph state it will train on is whatever

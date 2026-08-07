@@ -26,7 +26,7 @@ use math::reason_id;
 use crate::tick_cluster::{
 	centroid_thought, graviton_prompt, largest_cohesive_cluster_for_naming, vector_cluster,
 };
-use crate::tick_queue::{task, task_extra, Queue, TaskKind};
+use tick::tick_queue::{task, task_extra, Queue, TaskKind};
 
 pub use llm::{EmbedFunc, LlmFunc};
 pub type BroadcastQuestionFunc = Arc<dyn Fn(&str, &[f32], &str) + Send + Sync>;

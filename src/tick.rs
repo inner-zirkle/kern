@@ -16,7 +16,7 @@ use graph::graph::GraphGnn;
 
 use crate::tick_cluster::{cohesion, is_core_cluster, vector_cluster, Cluster};
 use crate::tick_gnn_propagate::do_gnn_propagate;
-use crate::tick_queue::{task, task_extra, Queue, Task, TaskKind};
+use tick::tick_queue::{task, task_extra, Queue, Task, TaskKind};
 use crate::tick_tasks::{
 	do_classify_contradiction, do_commit_access, do_disk_consolidate, do_enrich, do_name, do_persist,
 	do_reembed, do_resolve, do_seed_questions, BroadcastQuestionFunc, EmbedFunc, LlmFunc,
@@ -124,7 +124,7 @@ fn process_task(
 			}
 			None => do_gnn_propagate(q, g, &t.kern_id, &ctx.gnn_cfg),
 		},
-		TaskKind::StigmergyGc => crate::tick_stigmergy::run_gc(g, &t.kern_id, &ctx.heat_cfg),
+		TaskKind::StigmergyGc => tick::tick_stigmergy::run_gc(g, &t.kern_id, &ctx.heat_cfg),
 		TaskKind::Reembed => do_reembed(g, &t.kern_id, embed),
 		TaskKind::DiskConsolidate => do_disk_consolidate(g),
 		TaskKind::IdleSweep => {
@@ -906,7 +906,7 @@ mod tests {
 
 		let q = Arc::new(Queue::new(8));
 		assert!(q.enqueue(task(TaskKind::Reembed, "k")));
-		assert!(q.enqueue(crate::tick_queue::task_commit_access(&["e1".to_string()])));
+		assert!(q.enqueue(tick::tick_queue::task_commit_access(&["e1".to_string()])));
 
 		let ctx = TickContext {
 			llm: None,

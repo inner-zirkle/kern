@@ -449,12 +449,12 @@ async fn run_standalone(cfg: &config::Config) {
 	let save_fn: Arc<dyn Fn() + Send + Sync> = Arc::new(move || {
 		crate::commands::save_graph_guarded(&save_g, &save_cfg);
 	});
-	let q = Arc::new(crate::tick_queue::Queue::new(512));
+	let q = Arc::new(tick::tick_queue::Queue::new(512));
 	let defer: ingest::worker::DeferQuestionsFn = {
 		let defer_q = q.clone();
 		Arc::new(move |entity_id: &str| {
-			let _ = defer_q.enqueue(crate::tick_queue::task_extra(
-				crate::tick_queue::TaskKind::SeedQuestions,
+			let _ = defer_q.enqueue(tick::tick_queue::task_extra(
+				tick::tick_queue::TaskKind::SeedQuestions,
 				"",
 				entity_id,
 			));
@@ -463,8 +463,8 @@ async fn run_standalone(cfg: &config::Config) {
 	let defer_contradiction: ingest::worker::DeferContradictionFn = {
 		let contra_q = q.clone();
 		Arc::new(move |kern_id: &str, reason_id: &str| {
-			let _ = contra_q.enqueue(crate::tick_queue::task_extra(
-				crate::tick_queue::TaskKind::ClassifyContradiction,
+			let _ = contra_q.enqueue(tick::tick_queue::task_extra(
+				tick::tick_queue::TaskKind::ClassifyContradiction,
 				kern_id,
 				reason_id,
 			));

@@ -255,7 +255,7 @@ impl Server {
 				.map(|s| s.entity.id.clone())
 				.collect();
 			if !ids.is_empty() {
-				q.enqueue(crate::tick_queue::task_commit_access(&ids));
+				q.enqueue(tick::tick_queue::task_commit_access(&ids));
 			}
 		}
 		let vec = Some(vec);
