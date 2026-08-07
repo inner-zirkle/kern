@@ -5,7 +5,7 @@ use retrieval::id_detail::base_entity_json;
 use graph::search::{find_entity, search_all_unlocked};
 use util::{short_id, truncate};
 
-use crate::commands::{load_graph, Client};
+use crate::{load_graph, Client};
 use crate::commands_route::{array_field, f64_field, route, str_field, Routed};
 
 pub(crate) struct QueryParams<'a> {
@@ -144,7 +144,7 @@ use std::time::Instant;
 use retrieval::seed::Mode;
 use util::profile::{render_timeline, Profile};
 
-use crate::commands::Endpoint;
+use crate::Endpoint;
 
 const TIMELINE_WIDTH: usize = 40;
 
@@ -249,7 +249,7 @@ mod tests {
 				axum::Json(json!({ "embeddings": [[0.1, 0.2, 0.3]] }))
 			}),
 		);
-		let (embed_url, _server) = crate::test_support::spawn_http(app).await;
+		let (embed_url, _server) = test_support::spawn_http(app).await;
 
 		let dir = std::env::temp_dir().join(format!("kern_profile_smoke_{}", std::process::id()));
 		std::fs::create_dir_all(&dir).unwrap();

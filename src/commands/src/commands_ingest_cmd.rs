@@ -10,7 +10,7 @@ use math::clamp_confidence;
 use store_core::FlushOutcome;
 use util::truncate;
 
-use crate::commands::{load_graph, Client, Endpoint};
+use crate::{load_graph, Client, Endpoint};
 
 const WRITE_RETRIES: u32 = 5;
 
@@ -93,7 +93,7 @@ pub(crate) async fn cmd_ingest(
 				// Adopt the committed graph reusing the open store handle — never reopen the env.
 				{
 					let mut w = g.write();
-					let fresh = crate::commands::reload_graph(cfg, &w);
+					let fresh = crate::reload_graph(cfg, &w);
 					*w = fresh;
 				}
 				outcome = run_once(&worker, &g, &text, &src, kind, conf, cfg, valid_until).await;

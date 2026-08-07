@@ -10,7 +10,7 @@ use std::collections::HashMap;
 
 use math::average_vec;
 
-use crate::commands::{load_graph, save_graph_unguarded, Client};
+use crate::{load_graph, save_graph_unguarded, Client};
 
 const BATCH: usize = 64;
 
@@ -202,7 +202,7 @@ mod tests {
 				axum::Json(serde_json::json!({ "embeddings": vecs }))
 			}),
 		);
-		let (url, server) = crate::test_support::spawn_http(app).await;
+		let (url, server) = test_support::spawn_http(app).await;
 
 		let dir = tempfile::tempdir().unwrap();
 		let mut cfg = config::Config::default_in(dir.path());
@@ -259,7 +259,7 @@ mod tests {
 				axum::Json(serde_json::json!({ "embeddings": [[0.1, 0.2, 0.3]] }))
 			}),
 		);
-		let (url, server) = crate::test_support::spawn_http(app).await;
+		let (url, server) = test_support::spawn_http(app).await;
 
 		let client = llm::Client::new_embed_only(&url, "test-model", "");
 		let ids = vec!["a".to_string(), "b".to_string()];
@@ -287,7 +287,7 @@ mod tests {
 				axum::Json(serde_json::json!({ "embeddings": [[0.5, 0.5]] }))
 			}),
 		);
-		let (url, server) = crate::test_support::spawn_http(app).await;
+		let (url, server) = test_support::spawn_http(app).await;
 
 		let dir = tempfile::tempdir().unwrap();
 		let store = std::sync::Arc::new(Store::open(&dir.path().to_string_lossy()).unwrap());

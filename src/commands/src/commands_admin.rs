@@ -9,7 +9,7 @@ use transport::typed::Endpoint;
 
 use util::short_id;
 
-use crate::commands::{
+use crate::{
 	load_graph, save_graph_unguarded, with_graph, ClaimKindAction, Client, GravitonAction,
 	UnnamedAction,
 };
@@ -766,13 +766,13 @@ fn default_root() -> String {
 	config::Config::resolve_root(&cwd).display().to_string()
 }
 
-pub(crate) async fn cmd_hub(action: Option<crate::commands::HubAction>, idle_unload_secs: u64) {
+pub(crate) async fn cmd_hub(action: Option<crate::HubAction>, idle_unload_secs: u64) {
 	use transport::hub_rpc::{HubRpcClient, ResolveReq, UnloadReq};
 	use transport::typed::JsonEnvelopeCodec;
 
 	match action {
 		None => ::hub::run_hub(idle_unload_secs).await,
-		Some(crate::commands::HubAction::Resolve { root }) => {
+		Some(crate::HubAction::Resolve { root }) => {
 			let root = root.unwrap_or_else(default_root);
 			let client = match HubRpcClient::<JsonEnvelopeCodec>::connect_hub().await {
 				Ok(c) => c,
@@ -791,7 +791,7 @@ pub(crate) async fn cmd_hub(action: Option<crate::commands::HubAction>, idle_unl
 				Err(e) => eprintln!("hub resolve: {e}"),
 			}
 		}
-		Some(crate::commands::HubAction::Status) => {
+		Some(crate::HubAction::Status) => {
 			let client = match HubRpcClient::<JsonEnvelopeCodec>::connect_hub().await {
 				Ok(c) => c,
 				Err(e) => {
@@ -817,7 +817,7 @@ pub(crate) async fn cmd_hub(action: Option<crate::commands::HubAction>, idle_unl
 				Err(e) => eprintln!("hub status: {e}"),
 			}
 		}
-		Some(crate::commands::HubAction::Unload { root }) => {
+		Some(crate::HubAction::Unload { root }) => {
 			let root = root.unwrap_or_else(default_root);
 			let client = match HubRpcClient::<JsonEnvelopeCodec>::connect_hub().await {
 				Ok(c) => c,
@@ -833,8 +833,8 @@ pub(crate) async fn cmd_hub(action: Option<crate::commands::HubAction>, idle_unl
 				Err(e) => eprintln!("hub unload: {e}"),
 			}
 		}
-		Some(crate::commands::HubAction::Merge { src, dst }) => cmd_hub_merge(&src, &dst).await,
-		Some(crate::commands::HubAction::Stop) => {
+		Some(crate::HubAction::Merge { src, dst }) => cmd_hub_merge(&src, &dst).await,
+		Some(crate::HubAction::Stop) => {
 			match HubRpcClient::<JsonEnvelopeCodec>::connect_hub().await {
 				Ok(client) => match client.stop().await {
 					Ok(_) => println!("hub stopped (nodes stay up)"),
@@ -1440,7 +1440,7 @@ mod cmd_tests {
 		let (_dir, cfg) = temp_cfg();
 		// An endpoint nothing ever bound: the NoDaemon fallback, pinned so the
 		// test can never reach a daemon the developer happens to be running.
-		let ep = crate::test_support::scratch_endpoint("claim-kind-local");
+		let ep = crate::test_helpers::scratch_endpoint("claim-kind-local");
 		// A custom key, not a default: default keys re-inject on every load, so Rm
 		// would appear to fail on the next load.
 		let key = "custom_test_kind";
@@ -1448,7 +1448,7 @@ mod cmd_tests {
 		claim_kind_at(
 			&cfg,
 			&ep,
-			&crate::test_support::test_caller(),
+			&crate::test_helpers::test_caller(),
 			ClaimKindAction::Add {
 				name: key.into(),
 				description: "a custom kind".into(),
@@ -1466,7 +1466,7 @@ mod cmd_tests {
 		claim_kind_at(
 			&cfg,
 			&ep,
-			&crate::test_support::test_caller(),
+			&crate::test_helpers::test_caller(),
 			ClaimKindAction::Rm { name: key.into() },
 		)
 		.await;
@@ -1485,15 +1485,15 @@ mod cmd_tests {
 	#[tokio::test(flavor = "multi_thread")]
 	async fn a_routed_claim_kind_add_lands_in_the_daemon_and_never_touches_the_store() {
 		let (_dir, cfg) = temp_cfg();
-		let ep = crate::test_support::scratch_endpoint("claim-kind-routed");
-		let srv = crate::test_support::mcp_server();
+		let ep = crate::test_helpers::scratch_endpoint("claim-kind-routed");
+		let srv = crate::test_helpers::mcp_server();
 		let graph = srv.graph.clone();
-		crate::test_support::serving(srv, &ep).await;
+		crate::test_helpers::serving(srv, &ep).await;
 
 		claim_kind_at(
 			&cfg,
 			&ep,
-			&crate::test_support::test_caller(),
+			&crate::test_helpers::test_caller(),
 			ClaimKindAction::Add {
 				name: "custom_test_kind".into(),
 				description: "a custom kind".into(),
@@ -1531,16 +1531,16 @@ mod cmd_tests {
 			graph::accept::add_graviton_with_mass(g, "docs", vec![1.0, 0.0], 1.0)
 		});
 
-		let ep = crate::test_support::scratch_endpoint("graviton-routed");
-		let srv = crate::test_support::mcp_server();
+		let ep = crate::test_helpers::scratch_endpoint("graviton-routed");
+		let srv = crate::test_helpers::mcp_server();
 		let graph = srv.graph.clone();
 		graph::accept::add_graviton_with_mass(&mut graph.write(), "docs", vec![1.0, 0.0], 1.0);
-		crate::test_support::serving(srv, &ep).await;
+		crate::test_helpers::serving(srv, &ep).await;
 
 		graviton_at(
 			&cfg,
 			&ep,
-			&crate::test_support::test_caller(),
+			&crate::test_helpers::test_caller(),
 			GravitonAction::Remove {
 				name: "docs".into(),
 			},
@@ -1696,7 +1696,7 @@ mod hub_merge_tests {
 
 	fn dst_entities(root: &std::path::Path) -> usize {
 		let cfg = config::Config::default_in(root);
-		let g = crate::commands::load_graph(&cfg);
+		let g = crate::load_graph(&cfg);
 		::health::graph_health_stats(&g).entities
 	}
 

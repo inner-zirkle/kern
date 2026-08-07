@@ -103,21 +103,21 @@ pub(crate) fn array_field<'a>(v: &'a serde_json::Value, key: &str) -> &'a [serde
 #[cfg(all(test, unix))]
 mod tests {
 	use super::*;
-	use crate::test_support::{scratch_endpoint, serving, test_caller};
+	use crate::test_helpers::{scratch_endpoint, serving, test_caller};
 
 	fn kern_with_edge() -> ::mcp::Server {
 		use base::base_types::Kern;
 		use graph::reason::add_reason;
-		let srv = crate::test_support::mcp_server();
+		let srv = crate::test_helpers::mcp_server();
 		let mut k = Kern::new("kx", "");
 		k.entities
-			.insert("a".into(), crate::test_support::entity("a"));
+			.insert("a".into(), test_support::entity("a"));
 		k.entities
-			.insert("b".into(), crate::test_support::entity("b"));
-		let mut healthy = crate::test_support::edge("a", "b");
+			.insert("b".into(), test_support::entity("b"));
+		let mut healthy = test_support::edge("a", "b");
 		healthy.score = 1.0;
 		add_reason(&mut k, healthy);
-		add_reason(&mut k, crate::test_support::edge("a", "c"));
+		add_reason(&mut k, test_support::edge("a", "c"));
 		srv.graph.write().kerns.insert("kx".into(), k);
 		srv
 	}
@@ -158,7 +158,7 @@ mod tests {
 		let wrong = transport::kern_rpc::AuthReq::new("scratch-tokex");
 		assert_eq!(
 			wrong.token.len(),
-			crate::test_support::TEST_TOKEN.len(),
+			crate::test_helpers::TEST_TOKEN.len(),
 			"a wrong token of another length never reaches the byte compare"
 		);
 
@@ -339,7 +339,7 @@ mod tests {
 			.entities
 			.insert(
 				"only-in-ram".into(),
-				crate::test_support::entity("only-in-ram"),
+				test_support::entity("only-in-ram"),
 			);
 		serving(srv, &ep).await;
 
@@ -378,7 +378,7 @@ mod tests {
 			.entities
 			.insert(
 				"9f3c8d21b4e07a65".into(),
-				crate::test_support::entity("9f3c8d21b4e07a65"),
+				test_support::entity("9f3c8d21b4e07a65"),
 			);
 		serving(srv, &ep).await;
 

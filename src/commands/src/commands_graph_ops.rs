@@ -8,7 +8,7 @@ use graph::graph::GraphGnn;
 use graph::search::find_entity;
 use util::{explain_relationship_prompt, short_id, truncate};
 
-use crate::commands::{load_graph, with_graph, Client, Endpoint};
+use crate::{load_graph, with_graph, Client, Endpoint};
 use crate::commands_route::{array_field, f64_field, route, str_field, u64_field, Routed};
 
 fn print_kern(kern: &Kern, g: &GraphGnn, depth: usize) {
@@ -315,7 +315,7 @@ fn link_and_persist(
 	// a daemon can commit between our load and our flush. The unguarded path
 	// writes the whole kern map with no epoch check and drops that commit.
 	let g = std::sync::Arc::new(parking_lot::RwLock::new(g));
-	crate::commands::save_graph_guarded(&g, cfg);
+	crate::save_graph_guarded(&g, cfg);
 	Ok(linked)
 }
 
@@ -452,7 +452,7 @@ mod tests {
 			..Default::default()
 		};
 
-		let g = Arc::new(RwLock::new(crate::commands::load_graph(&cfg)));
+		let g = Arc::new(RwLock::new(crate::load_graph(&cfg)));
 		let root_id = g.read().root.id.clone();
 
 		let mut own = Kern::new("link-kern", &root_id);
@@ -462,19 +462,19 @@ mod tests {
 				.insert(id.into(), mk_entity(id, id, 1.0, EntityKind::Claim));
 		}
 		g.write().kerns.insert("link-kern".into(), own);
-		crate::commands::save_graph_guarded(&g, &cfg);
+		crate::save_graph_guarded(&g, &cfg);
 
 		// What `cmd_link` holds: loaded now, flushed only after the daemon commits.
 		// That staleness is the defect — a graph loaded fresh would already carry
 		// the other writer's kern and write it back by accident.
-		let stale = crate::commands::load_graph(&cfg);
-		crate::test_support::commit_extra_kern_via_store(&g, Kern::new("daemon-kern", &root_id));
+		let stale = crate::load_graph(&cfg);
+		crate::test_helpers::commit_extra_kern_via_store(&g, Kern::new("daemon-kern", &root_id));
 		drop(g);
 
 		let linked = link_and_persist(stale, &cfg, "a", "b", "because".into(), None);
 		assert!(linked.is_ok(), "the link itself applies: {linked:?}");
 
-		let disk = crate::commands::load_graph(&cfg);
+		let disk = crate::load_graph(&cfg);
 		assert!(
 			disk.loaded("daemon-kern").is_some(),
 			"the concurrent writer's kern survived the link's flush"

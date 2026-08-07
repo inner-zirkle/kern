@@ -8,7 +8,7 @@ use parking_lot::RwLock;
 use ingest::intake_status::{scan, Report};
 use store_core::FlushOutcome;
 
-use crate::commands::{load_graph, Client, Endpoint, IntakeAction};
+use crate::{load_graph, Client, Endpoint, IntakeAction};
 use crate::commands_route::{route, u64_field, Routed};
 
 const WRITE_RETRIES: u32 = 5;
@@ -189,7 +189,7 @@ fn flush(g: &Arc<RwLock<graph::graph::GraphGnn>>, cfg: &config::Config) {
 			Ok(FlushOutcome::Flushed { .. }) => return,
 			Ok(FlushOutcome::RefusedStale { .. }) if attempt + 1 < WRITE_RETRIES => {
 				let mut w = g.write();
-				let fresh = crate::commands::reload_graph(cfg, &w);
+				let fresh = crate::reload_graph(cfg, &w);
 				*w = fresh;
 			}
 			Ok(FlushOutcome::RefusedStale {

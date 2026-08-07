@@ -9,7 +9,7 @@ use transport::kern_rpc::{AuthReq, CallToolReq, KernRpcClient};
 use transport::typed::{AdapterError, Endpoint, JsonEnvelopeCodec};
 use transport::{McpError, McpServer, ToolResult, ToolSchema};
 
-use crate::commands::load_graph;
+use crate::load_graph;
 
 pub(crate) async fn cmd_mcp(cfg: &config::Config) {
 	// Hub-first: a running hub owns node lifecycle (spawn, adopt, unload) so the
@@ -440,13 +440,13 @@ async fn run_standalone(cfg: &config::Config) {
 		}
 	};
 	let g = Arc::new(StdRwLock::new(load_graph(cfg)));
-	let llm_client = crate::commands::server_llm_client(cfg, cfg.reason_url(), &cfg.reason.model);
+	let llm_client = crate::server_llm_client(cfg, cfg.reason_url(), &cfg.reason.model);
 	// Long-lived writer: same stale-flush guard as the daemon — never overwrite
 	// a graph another process grew on disk with a staler snapshot.
 	let save_g = g.clone();
 	let save_cfg = cfg.clone();
 	let save_fn: Arc<dyn Fn() + Send + Sync> = Arc::new(move || {
-		crate::commands::save_graph_guarded(&save_g, &save_cfg);
+		crate::save_graph_guarded(&save_g, &save_cfg);
 	});
 	let q = Arc::new(tick::tick_queue::Queue::new(512));
 	let defer: ingest::worker::DeferQuestionsFn = {
@@ -620,13 +620,13 @@ mod standalone_tests {
 			panic!("scratch endpoint already bound");
 		};
 		let handler = ::rpc::KernRpcHandler::new(
-			Arc::new(crate::test_support::mcp_server()),
+			Arc::new(crate::test_helpers::mcp_server()),
 			Arc::new(tokio::sync::Notify::new()),
 		);
 		tokio::spawn(::rpc::serve_kern_rpc_loop(
 			listener,
 			handler,
-			crate::test_support::TEST_TOKEN.to_string(),
+			crate::test_helpers::TEST_TOKEN.to_string(),
 		));
 	}
 
@@ -636,7 +636,7 @@ mod standalone_tests {
 		let out = claim_standalone(
 			dir.path().to_str().unwrap(),
 			&scratch_endpoint("free"),
-			&crate::test_support::test_caller(),
+			&crate::test_helpers::test_caller(),
 			1,
 			Duration::ZERO,
 		)
@@ -659,7 +659,7 @@ mod standalone_tests {
 		let out = claim_standalone(
 			d,
 			&scratch_endpoint("held"),
-			&crate::test_support::test_caller(),
+			&crate::test_helpers::test_caller(),
 			1,
 			Duration::ZERO,
 		)
@@ -687,7 +687,7 @@ mod standalone_tests {
 		let out = claim_standalone(
 			d,
 			&ep,
-			&crate::test_support::test_caller(),
+			&crate::test_helpers::test_caller(),
 			5,
 			Duration::from_millis(20),
 		)
@@ -719,26 +719,26 @@ mod proxy_method_tests {
 	// attached to it. The proxy holds no graph — only an RPC client — so
 	// anything it returns about `SEEDED_ID` provably crossed the socket.
 	async fn proxy_on_a_real_daemon(tag: &str) -> ProxyServer {
-		let srv = crate::test_support::mcp_server();
+		let srv = crate::test_helpers::mcp_server();
 		{
 			let mut g = srv.graph.write();
 			let mut k = base::base_types::Kern::new("kx", "");
-			let mut e = crate::test_support::entity(SEEDED_ID);
+			let mut e = test_support::entity(SEEDED_ID);
 			e.set_text(SEEDED_TEXT.to_string());
 			k.entities.insert(SEEDED_ID.into(), e);
 			g.kerns.insert("kx".into(), k);
 		}
-		let ep = crate::test_support::scratch_endpoint(tag);
-		crate::test_support::serving(srv, &ep).await;
+		let ep = crate::test_helpers::scratch_endpoint(tag);
+		crate::test_helpers::serving(srv, &ep).await;
 		let client = KernRpcClient::<JsonEnvelopeCodec>::connect_endpoint(
 			&ep,
-			&crate::test_support::test_caller(),
+			&crate::test_helpers::test_caller(),
 		)
 		.await
 		.expect("attach to scratch daemon");
 		ProxyServer {
 			client: Arc::new(TokioMutex::new(client)),
-			auth: crate::test_support::test_caller(),
+			auth: crate::test_helpers::test_caller(),
 		}
 	}
 
@@ -890,7 +890,7 @@ mod proxy_method_tests {
 	#[tokio::test(flavor = "multi_thread")]
 	async fn the_graphless_methods_are_the_standalone_servers_own() {
 		use transport::McpServer as _;
-		let standalone = crate::test_support::mcp_server();
+		let standalone = crate::test_helpers::mcp_server();
 		let cases = [
 			("resources/list", json!({})),
 			("prompts/list", json!({})),

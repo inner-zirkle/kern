@@ -4,7 +4,7 @@
 use clap::Parser;
 
 use config::Config;
-use kern::commands::{dispatch, run_server, Cli, Commands};
+use commands::{dispatch, run_server, Cli, Commands};
 
 // sysexits(3) EX_CONFIG: distinguishes "your settings are wrong" from a crash.
 const EXIT_CONFIG: i32 = 78;
@@ -59,7 +59,7 @@ fn main() {
 		let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
 		// Before the re-pin: a relative path the caller typed means what it meant
 		// where they typed it, so `launch_dir_join` needs the pre-pin cwd.
-		kern::set_launch_dir(cwd.clone());
+		commands::set_launch_dir(cwd.clone());
 		let root = Config::resolve_root(&cwd);
 		if root != cwd {
 			tracing::info!(

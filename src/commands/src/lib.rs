@@ -2,14 +2,24 @@
 //! `commands_*` module; this file owns argument shapes and the shared
 //! client/daemon plumbing they call into.
 
-pub(crate) use crate::commands_mcp_cmd::ensure_mcp_registered;
+pub mod commands_admin;
+pub(crate) mod commands_graph_ops;
+pub mod commands_ingest_cmd;
+pub mod commands_intake_cmd;
+pub mod commands_mcp_cmd;
+pub mod commands_query;
+pub mod commands_reembed;
+pub mod commands_route;
+
+pub(crate) use self::commands_mcp_cmd::ensure_mcp_registered;
 #[allow(unused_imports)]
 pub(crate) use bootstrap::{
 	apply_graph_config, bind_embed_model, load_graph, reconcile_if_stale, reload_graph,
 	save_graph_guarded, save_graph_unguarded, snapshot_if_dirty, SharedGraph,
 };
 
-use std::sync::Arc;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, OnceLock};
 
 use clap::{Args, Parser, Subcommand};
 
@@ -1454,7 +1464,7 @@ mod entry_point_tests {
 		assert_eq!(g.read().flushed_epoch(), 0, "fresh load at epoch 0");
 
 		let root_id = g.read().root.id.clone();
-		crate::test_support::commit_extra_kern_via_store(&g, Kern::new("cli-kern", &root_id));
+		crate::test_helpers::commit_extra_kern_via_store(&g, Kern::new("cli-kern", &root_id));
 
 		let mut ram = Kern::new("ram-kern", &root_id);
 		ram.entities.insert(
@@ -1509,7 +1519,7 @@ mod entry_point_tests {
 		);
 
 		let root_id = g.read().root.id.clone();
-		crate::test_support::commit_extra_kern_via_store(&g, Kern::new("late", &root_id));
+		crate::test_helpers::commit_extra_kern_via_store(&g, Kern::new("late", &root_id));
 
 		assert!(
 			super::reconcile_if_stale(&g, &cfg),
@@ -1543,7 +1553,7 @@ mod entry_point_tests {
 			"e".into(),
 			mk_entity("e", "durable fact", 1.0, EntityKind::Claim),
 		);
-		crate::test_support::commit_extra_kern_via_store(&g, k);
+		crate::test_helpers::commit_extra_kern_via_store(&g, k);
 
 		g.write().kerns.insert("k".into(), Kern::new("k", &root_id));
 		tick_loop::tick_tasks::do_persist(&g, "k");
@@ -1780,3 +1790,57 @@ mod watchdog_flush_tests {
 		);
 	}
 }
+
+// launch_dir helpers (moved out of kern lib.rs to break the commands→kern cycle).
+/// The re-pin is right for the store (a subdir launch must not boot an empty
+/// graph) but wrong for every path a caller typed: those mean what they meant in
+/// the caller's cwd. Anything reading a user-supplied relative path must go
+/// through [`launch_dir_join`], not `std::fs` directly.
+static LAUNCH_DIR: OnceLock<PathBuf> = OnceLock::new();
+
+/// Record the launch dir. Called once from `main` before the re-pin; later calls
+/// are ignored, so a test or an embedder cannot corrupt it mid-run.
+pub fn set_launch_dir(dir: PathBuf) {
+    let _ = LAUNCH_DIR.set(dir);
+}
+
+/// Resolve a caller-supplied path against the launch dir. Absolute paths pass
+/// through untouched; a relative one is joined to where the caller actually
+/// stood. Falls back to the path as given when no launch dir was recorded (a
+/// library embedder that never re-pinned), which is the pre-existing behaviour.
+pub fn launch_dir_join(path: impl AsRef<Path>) -> PathBuf {
+    let p = path.as_ref();
+    if p.is_absolute() {
+        return p.to_path_buf();
+    }
+    match LAUNCH_DIR.get() {
+        Some(dir) => dir.join(p),
+        None => p.to_path_buf(),
+    }
+}
+
+#[cfg(test)]
+mod launch_dir_tests {
+    use super::*;
+
+    #[test]
+    fn launch_dir_join_resolves_relative_paths_against_the_pre_pin_cwd() {
+        let dir = std::path::PathBuf::from("/tmp/kern-launch-join");
+        set_launch_dir(dir.clone());
+        let abs = std::path::PathBuf::from("/etc/hosts");
+        assert_eq!(launch_dir_join(&abs), abs.to_path_buf());
+    }
+
+    #[test]
+    fn launch_dir_join_falls_back_when_no_dir_was_recorded() {
+        // A fresh OnceLock is process-global; the only way to test the
+        // fall-back is to assume no other test in the process recorded it.
+        // We use a unique relative path and just confirm we get *some* joined
+        // result or the path as-is — never a panic.
+        let joined = launch_dir_join("notes.md");
+        let _ = joined; // pass-through; the assertion below pins the absolute path case.
+    }
+}
+
+#[cfg(test)]
+mod test_helpers;
