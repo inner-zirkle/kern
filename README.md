@@ -238,7 +238,7 @@ recalls with the defaults shown below. To override, create
 `<cwd>/.kern/kern.toml` (project scope) or `<XDG_CONFIG>/kern/kern.toml`
 (user scope).
 
-The two scopes **deep merge per key** (`src/config_io.rs:46`): a project that
+The two scopes **deep merge per key** (`src/config.rs:719`): a project that
 sets one field of a section keeps the user's other fields in that section.
 Arrays and scalars are leaves — the project value replaces, never appends, so
 `gossip.peers` and `watcher.roots` are complete lists rather than accumulators.

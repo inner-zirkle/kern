@@ -1,12 +1,547 @@
-//! Local endpoints: per-cwd unix sockets (and the Windows named-pipe analog)
-//! with connect/listen adapters — how kern processes on one machine find each
-//! other.
+//! Typed request/response channels over any adapter: the Adapter and Codec
+//! seams, their errors, the channel pairing them, and the local endpoints
+//! (per-cwd unix sockets, Windows named pipes) kern processes find each other
+//! with. A `service!`-generated pair speaks through this without knowing the
+//! wire.
+
+// ==== [error] ====
+
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+pub enum AdapterError {
+	#[error("adapter i/o: {0}")]
+	Io(#[from] std::io::Error),
+	#[error("adapter eof")]
+	Eof,
+	#[error("adapter codec: {0}")]
+	Codec(#[from] CodecError),
+	// The peer answered and refused this caller. Distinct from `Io` on purpose:
+	// a refusal proves the server is *there*, so a client must never downgrade
+	// it to "nothing is serving" and go act on the resource itself.
+	#[error("adapter unauthenticated: {0}")]
+	Unauthenticated(String),
+	// The other direction: *this* caller refused *the endpoint*, before saying
+	// anything to it. Distinct from `Io` because an absent socket and a socket
+	// belonging to somebody else are opposite facts — one means no daemon, the
+	// other means something is bound that this user does not own — and distinct
+	// from `Unauthenticated` because no peer has been consulted, so it must
+	// never be reported as the daemon's verdict.
+	#[error("adapter untrusted endpoint: {0}")]
+	UntrustedEndpoint(String),
+	#[error("adapter: {0}")]
+	Other(String),
+}
+
+#[derive(Debug, Error)]
+pub enum CodecError {
+	#[error("codec encode: {0}")]
+	Encode(String),
+	#[error("codec decode: {0}")]
+	Decode(String),
+}
+
+#[derive(Debug, Error)]
+pub enum RpcError {
+	#[error("rpc adapter: {0}")]
+	Adapter(String),
+	#[error("rpc codec: {0}")]
+	Codec(String),
+	#[error("rpc method not found: {0}")]
+	MethodNotFound(String),
+	#[error("rpc deadline exceeded")]
+	Deadline,
+	#[error("rpc application error: {0}")]
+	Application(String),
+}
+
+impl From<serde_json::Error> for CodecError {
+	fn from(e: serde_json::Error) -> Self {
+		CodecError::Decode(e.to_string())
+	}
+}
+
+impl From<std::io::Error> for CodecError {
+	fn from(e: std::io::Error) -> Self {
+		CodecError::Decode(format!("io: {e}"))
+	}
+}
+
+impl From<AdapterError> for RpcError {
+	fn from(e: AdapterError) -> Self {
+		RpcError::Adapter(e.to_string())
+	}
+}
+
+impl From<CodecError> for RpcError {
+	fn from(e: CodecError) -> Self {
+		RpcError::Codec(e.to_string())
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn io_error_into_codec_is_a_decode_carrying_the_original_message() {
+		let io = std::io::Error::new(std::io::ErrorKind::BrokenPipe, "pipe is gone");
+		let codec: CodecError = io.into();
+		assert!(matches!(codec, CodecError::Decode(_)));
+		let shown = codec.to_string();
+		assert!(
+			shown.starts_with("codec decode:"),
+			"displayed as a decode error: {shown}"
+		);
+		assert!(
+			shown.contains("pipe is gone"),
+			"original io message survives: {shown}"
+		);
+	}
+
+	#[test]
+	fn serde_error_into_codec_preserves_the_serde_message() {
+		let serde_err = serde_json::from_str::<serde_json::Value>("{ not json").unwrap_err();
+		let original = serde_err.to_string();
+		let codec: CodecError = serde_err.into();
+		assert!(matches!(codec, CodecError::Decode(_)));
+		assert!(
+			codec.to_string().contains(&original),
+			"serde message preserved"
+		);
+	}
+
+	#[test]
+	fn rpc_error_absorbs_adapter_and_codec_via_from() {
+		let a: RpcError = AdapterError::Eof.into();
+		assert!(matches!(a, RpcError::Adapter(_)));
+		assert!(a.to_string().contains("eof"), "{a}");
+
+		let c: RpcError = CodecError::Encode("bad frame".into()).into();
+		assert!(matches!(c, RpcError::Codec(_)));
+		assert!(c.to_string().contains("bad frame"), "{c}");
+	}
+}
+
+// ==== [adapter] ====
+
+use std::pin::Pin;
+use std::task::{Context as TaskContext, Poll};
+
+use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
+use tokio::sync::mpsc;
+
+pub type DynRead = Box<dyn AsyncRead + Unpin + Send>;
+pub type DynWrite = Box<dyn AsyncWrite + Unpin + Send>;
+
+pub trait Adapter: Send + 'static {
+	fn split(self: Box<Self>) -> (DynRead, DynWrite);
+}
+
+pub struct InprocAdapter {
+	reader: InprocReader,
+	writer: InprocWriter,
+}
+
+impl InprocAdapter {
+	pub fn pair() -> (Self, Self) {
+		let (a_to_b_tx, a_to_b_rx) = mpsc::unbounded_channel::<Vec<u8>>();
+		let (b_to_a_tx, b_to_a_rx) = mpsc::unbounded_channel::<Vec<u8>>();
+		let a = InprocAdapter {
+			reader: InprocReader::new(b_to_a_rx),
+			writer: InprocWriter::new(a_to_b_tx),
+		};
+		let b = InprocAdapter {
+			reader: InprocReader::new(a_to_b_rx),
+			writer: InprocWriter::new(b_to_a_tx),
+		};
+		(a, b)
+	}
+}
+
+impl Adapter for InprocAdapter {
+	fn split(self: Box<Self>) -> (DynRead, DynWrite) {
+		(Box::new(self.reader), Box::new(self.writer))
+	}
+}
+
+pub struct InprocReader {
+	rx: mpsc::UnboundedReceiver<Vec<u8>>,
+	leftover: Vec<u8>,
+}
+
+impl InprocReader {
+	fn new(rx: mpsc::UnboundedReceiver<Vec<u8>>) -> Self {
+		Self {
+			rx,
+			leftover: Vec::new(),
+		}
+	}
+}
+
+impl AsyncRead for InprocReader {
+	fn poll_read(
+		mut self: Pin<&mut Self>,
+		cx: &mut TaskContext<'_>,
+		buf: &mut ReadBuf<'_>,
+	) -> Poll<std::io::Result<()>> {
+		if !self.leftover.is_empty() {
+			let n = std::cmp::min(self.leftover.len(), buf.remaining());
+			let tail = self.leftover.split_off(n);
+			buf.put_slice(&self.leftover);
+			self.leftover = tail;
+			return Poll::Ready(Ok(()));
+		}
+		match self.rx.poll_recv(cx) {
+			Poll::Ready(Some(bytes)) => {
+				let n = std::cmp::min(bytes.len(), buf.remaining());
+				buf.put_slice(&bytes[..n]);
+				if n < bytes.len() {
+					self.leftover.extend_from_slice(&bytes[n..]);
+				}
+				Poll::Ready(Ok(()))
+			}
+			Poll::Ready(None) => Poll::Ready(Ok(())),
+			Poll::Pending => Poll::Pending,
+		}
+	}
+}
+
+pub struct InprocWriter {
+	tx: mpsc::UnboundedSender<Vec<u8>>,
+}
+
+impl InprocWriter {
+	fn new(tx: mpsc::UnboundedSender<Vec<u8>>) -> Self {
+		Self { tx }
+	}
+}
+
+impl AsyncWrite for InprocWriter {
+	fn poll_write(
+		self: Pin<&mut Self>,
+		_cx: &mut TaskContext<'_>,
+		buf: &[u8],
+	) -> Poll<std::io::Result<usize>> {
+		self
+			.tx
+			.send(buf.to_vec())
+			.map_err(|_| std::io::Error::new(std::io::ErrorKind::BrokenPipe, "inproc closed"))?;
+		Poll::Ready(Ok(buf.len()))
+	}
+	fn poll_flush(self: Pin<&mut Self>, _cx: &mut TaskContext<'_>) -> Poll<std::io::Result<()>> {
+		Poll::Ready(Ok(()))
+	}
+	fn poll_shutdown(self: Pin<&mut Self>, _cx: &mut TaskContext<'_>) -> Poll<std::io::Result<()>> {
+		Poll::Ready(Ok(()))
+	}
+}
+
+#[cfg(test)]
+mod tests_2 {
+	use super::*;
+	use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+	#[tokio::test]
+	async fn inproc_reader_drains_leftover_across_small_reads() {
+		let (a, b) = InprocAdapter::pair();
+		let (_ar, mut aw) = Box::new(a).split();
+		let (mut br, _bw) = Box::new(b).split();
+
+		aw.write_all(b"hello").await.unwrap();
+
+		let mut got = Vec::new();
+		let mut chunk = [0u8; 2];
+		while got.len() < 5 {
+			let n = br.read(&mut chunk).await.unwrap();
+			assert!(n > 0, "reader makes progress");
+			got.extend_from_slice(&chunk[..n]);
+		}
+		assert_eq!(&got, b"hello", "leftover bytes are drained across reads");
+	}
+}
+
+// ==== [codec] ====
+
+use bytes::BytesMut;
+use serde_json::Value;
+use tokio_util::codec::{Decoder, Encoder};
+
+pub trait Codec: Send + 'static {
+	type Frame: Send;
+	fn encode(&mut self, frame: Self::Frame, dst: &mut BytesMut) -> Result<(), CodecError>;
+	fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Frame>, CodecError>;
+}
+
+// No blanket `impl<T: Codec> Encoder<T::Frame> for T` without orphan-rule
+// grief — each concrete codec carries delegating `Encoder`/`Decoder` impls.
+
+// Wire framing: each frame is one Value's JSON text + '\n'.
+//
+// There is no length prefix, so nothing on the wire announces how big a frame
+// will be: `FramedRead` simply keeps reading and doubling its buffer until a
+// newline shows up. `max_frame_len` is the only thing that can stop that, and it
+// stops it on the *buffer* rather than on a finished line — an endless line is
+// refused at the cap instead of accreted. Off by default; `verify_auth` is the
+// one caller that sets it, because it is the one read from a peer that has
+// proven nothing.
+#[derive(Default)]
+pub struct JsonEnvelopeCodec {
+	max_frame_len: Option<usize>,
+}
+
+impl JsonEnvelopeCodec {
+	pub fn new() -> Self {
+		Self::default()
+	}
+
+	pub fn set_max_frame_len(&mut self, max: Option<usize>) {
+		self.max_frame_len = max;
+	}
+}
+
+impl Codec for JsonEnvelopeCodec {
+	type Frame = Value;
+
+	fn encode(&mut self, frame: Self::Frame, dst: &mut BytesMut) -> Result<(), CodecError> {
+		let s = serde_json::to_string(&frame).map_err(|e| CodecError::Encode(e.to_string()))?;
+		if s.contains('\n') {
+			return Err(CodecError::Encode("frame contained newline".into()));
+		}
+		dst.extend_from_slice(s.as_bytes());
+		dst.extend_from_slice(b"\n");
+		Ok(())
+	}
+
+	fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Frame>, CodecError> {
+		// Loop, NOT recursion, over leading blank lines — N consecutive newlines
+		// once recursed N deep (see json_many_consecutive_newlines_do_not_overflow).
+		loop {
+			let nl = src.iter().position(|&b| b == b'\n');
+			if let Some(max) = self.max_frame_len {
+				// `nl.unwrap_or(src.len())`, not `src.len()`: a peer may pipeline
+				// several frames into one read, and the cap is about the line being
+				// decoded, not about how much arrived behind it.
+				if nl.unwrap_or(src.len()) > max {
+					return Err(CodecError::Decode(format!("frame exceeds {max} bytes")));
+				}
+			}
+			let Some(pos) = nl else {
+				return Ok(None);
+			};
+			let line = src.split_to(pos + 1);
+			let slice = &line[..pos];
+			let trimmed = if slice.last() == Some(&b'\r') {
+				&slice[..slice.len() - 1]
+			} else {
+				slice
+			};
+			if trimmed.is_empty() {
+				continue;
+			}
+			let v: Value =
+				serde_json::from_slice(trimmed).map_err(|e| CodecError::Decode(e.to_string()))?;
+			return Ok(Some(v));
+		}
+	}
+}
+
+impl Encoder<Value> for JsonEnvelopeCodec {
+	type Error = CodecError;
+	fn encode(&mut self, item: Value, dst: &mut BytesMut) -> Result<(), Self::Error> {
+		<Self as Codec>::encode(self, item, dst)
+	}
+}
+
+impl Decoder for JsonEnvelopeCodec {
+	type Item = Value;
+	type Error = CodecError;
+	fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
+		<Self as Codec>::decode(self, src)
+	}
+}
+
+#[cfg(test)]
+mod tests_3 {
+	use super::*;
+	use serde_json::json;
+
+	fn enc<C: Codec>(c: &mut C, frame: C::Frame, b: &mut BytesMut) -> Result<(), CodecError> {
+		c.encode(frame, b)
+	}
+	fn dec<C: Codec>(c: &mut C, b: &mut BytesMut) -> Result<Option<C::Frame>, CodecError> {
+		c.decode(b)
+	}
+
+	#[test]
+	fn json_roundtrip_single_frame() {
+		let mut c = JsonEnvelopeCodec::new();
+		let mut buf = BytesMut::new();
+		enc(&mut c, json!({"id": 1, "method": "ping"}), &mut buf).unwrap();
+		let got = dec(&mut c, &mut buf).unwrap().expect("one frame");
+		assert_eq!(got, json!({"id": 1, "method": "ping"}));
+		assert!(dec(&mut c, &mut buf).unwrap().is_none());
+	}
+
+	#[test]
+	fn json_decodes_multiple_frames_from_one_buffer() {
+		let mut c = JsonEnvelopeCodec::new();
+		let mut buf = BytesMut::new();
+		enc(&mut c, json!({"a": 1}), &mut buf).unwrap();
+		enc(&mut c, json!({"b": 2}), &mut buf).unwrap();
+		assert_eq!(dec(&mut c, &mut buf).unwrap().unwrap(), json!({"a": 1}));
+		assert_eq!(dec(&mut c, &mut buf).unwrap().unwrap(), json!({"b": 2}));
+		assert!(dec(&mut c, &mut buf).unwrap().is_none());
+	}
+
+	#[test]
+	fn json_tolerates_crlf_and_skips_blank_lines() {
+		let mut c = JsonEnvelopeCodec::new();
+		let mut buf = BytesMut::from(&b"\n\r\n{\"ok\":true}\r\n"[..]);
+		let got = dec(&mut c, &mut buf).unwrap().expect("frame after blanks");
+		assert_eq!(got, json!({"ok": true}));
+		assert!(dec(&mut c, &mut buf).unwrap().is_none());
+	}
+
+	#[test]
+	fn json_many_consecutive_newlines_do_not_overflow() {
+		let mut c = JsonEnvelopeCodec::new();
+		let mut bytes = vec![b'\n'; 100_000];
+		bytes.extend_from_slice(b"{\"v\":42}\n");
+		let mut buf = BytesMut::from(&bytes[..]);
+		assert_eq!(dec(&mut c, &mut buf).unwrap().unwrap(), json!({"v": 42}));
+	}
+
+	// The cap has to bite on an *incomplete* line, because that is the only shape
+	// an endless frame ever has: a decoder that only measures finished lines
+	// never gets a finished line to measure.
+	#[test]
+	fn a_capped_codec_refuses_before_the_line_is_even_complete() {
+		let mut c = JsonEnvelopeCodec::new();
+		c.set_max_frame_len(Some(16));
+		let mut buf = BytesMut::from(&b"{\"token\":\"aaaaaaaaaaaaaaaaaaaa"[..]);
+		let err = dec(&mut c, &mut buf).expect_err("30 bytes with no newline is over 16");
+		assert!(err.to_string().contains("exceeds 16 bytes"), "{err}");
+	}
+
+	// And it must measure the line being decoded, not the buffer: a client is
+	// free to write its auth frame and its first call in one go, and a cap that
+	// counted what arrived behind the frame would refuse that client.
+	#[test]
+	fn a_capped_codec_measures_the_line_not_what_is_queued_behind_it() {
+		let mut c = JsonEnvelopeCodec::new();
+		c.set_max_frame_len(Some(16));
+		let mut buf = BytesMut::from(&b"{\"a\":1}\n{\"b\":\"pipelined and long\"}\n"[..]);
+		assert_eq!(dec(&mut c, &mut buf).unwrap().unwrap(), json!({"a": 1}));
+	}
+
+	#[test]
+	fn json_partial_line_yields_none_until_newline() {
+		let mut c = JsonEnvelopeCodec::new();
+		let mut buf = BytesMut::from(&b"{\"partial\":1}"[..]);
+		assert!(
+			dec(&mut c, &mut buf).unwrap().is_none(),
+			"incomplete line -> None"
+		);
+		buf.extend_from_slice(b"\n");
+		assert_eq!(
+			dec(&mut c, &mut buf).unwrap().unwrap(),
+			json!({"partial": 1})
+		);
+	}
+}
+
+// ==== [channel] ====
+
+use futures::{SinkExt, StreamExt};
+use tokio_util::codec::{FramedRead, FramedWrite};
+
+pub struct Channel<C>
+where
+	C: Codec
+		+ Default
+		+ Encoder<<C as Codec>::Frame, Error = CodecError>
+		+ Decoder<Item = <C as Codec>::Frame, Error = CodecError>,
+{
+	reader: FramedRead<DynRead, C>,
+	writer: FramedWrite<DynWrite, C>,
+}
+
+impl<C> Channel<C>
+where
+	C: Codec
+		+ Default
+		+ Encoder<<C as Codec>::Frame, Error = CodecError>
+		+ Decoder<Item = <C as Codec>::Frame, Error = CodecError>,
+{
+	pub fn new<A: Adapter>(adapter: A, codec: C) -> Self {
+		let (read_half, write_half) = Box::new(adapter).split();
+		let reader = FramedRead::new(read_half, codec);
+		let writer = FramedWrite::new(write_half, C::default());
+		Self { reader, writer }
+	}
+
+	/// The read half's codec, so framing can be tightened for one phase of a
+	/// conversation and loosened again — `verify_auth` caps the pre-auth frame
+	/// through here. The write half is deliberately not exposed: what we send is
+	/// ours already.
+	pub fn decoder_mut(&mut self) -> &mut C {
+		self.reader.decoder_mut()
+	}
+
+	pub async fn send(&mut self, frame: <C as Codec>::Frame) -> Result<(), AdapterError> {
+		self
+			.writer
+			.send(frame)
+			.await
+			.map_err(adapter_err_from_codec)?;
+		Ok(())
+	}
+
+	pub async fn recv(&mut self) -> Result<Option<<C as Codec>::Frame>, AdapterError> {
+		match self.reader.next().await {
+			Some(Ok(f)) => Ok(Some(f)),
+			Some(Err(e)) => Err(adapter_err_from_codec(e)),
+			None => Ok(None),
+		}
+	}
+}
+
+fn adapter_err_from_codec(e: CodecError) -> AdapterError {
+	AdapterError::Codec(e)
+}
+
+#[cfg(test)]
+mod tests_4 {
+	use super::Channel;
+	use super::InprocAdapter;
+	use super::JsonEnvelopeCodec;
+	use serde_json::json;
+
+	#[tokio::test]
+	async fn channel_roundtrip_json_envelope() {
+		let (a, b) = InprocAdapter::pair();
+		let mut ca = Channel::new(a, JsonEnvelopeCodec::new());
+		let mut cb = Channel::new(b, JsonEnvelopeCodec::new());
+		ca.send(json!({"hello": "world"})).await.unwrap();
+		let got = cb.recv().await.unwrap().unwrap();
+		assert_eq!(got["hello"], "world");
+	}
+
+	#[tokio::test]
+	async fn recv_returns_none_on_closed_adapter() {
+		let (a, b) = InprocAdapter::pair();
+		let ca = Channel::new(a, JsonEnvelopeCodec::new());
+		let mut cb = Channel::new(b, JsonEnvelopeCodec::new());
+		drop(ca);
+		assert!(cb.recv().await.unwrap().is_none(), "EOF -> Ok(None)");
+	}
+}
+
+// ==== [local] ====
 
 #[cfg(unix)]
 use std::path::{Path, PathBuf};
-
-use super::adapter::{Adapter, DynRead, DynWrite};
-use super::error::AdapterError;
 
 #[derive(Clone, Debug)]
 pub enum Endpoint {

@@ -122,8 +122,8 @@ mod tests {
 	use tokio::io::{AsyncRead, ReadBuf};
 
 	use super::*;
-	use crate::transport::typed::adapter::{Adapter, DynRead, DynWrite};
 	use crate::transport::typed::InprocAdapter;
+	use crate::transport::typed::{Adapter, DynRead, DynWrite};
 
 	fn pair() -> (Channel<JsonEnvelopeCodec>, Channel<JsonEnvelopeCodec>) {
 		let (a, b) = InprocAdapter::pair();

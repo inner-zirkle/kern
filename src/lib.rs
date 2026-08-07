@@ -9,7 +9,7 @@
 //! with the CLI in [`commands`].
 //!
 //! Alpha: persisted formats are versioned, never migrated — see `FORMAT_VERSION`
-//! in [`base_store`] and `WEIGHT_FILE_VERSION` in [`gnn_persist`].
+//! in [`base_store`] and `WEIGHT_FILE_VERSION` in [`gnn`].
 
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
