@@ -7,8 +7,8 @@ use std::sync::Arc;
 
 use parking_lot::RwLock;
 
-use crate::gnn::graph::Graph;
-use crate::gnn::propagate::{self, GnnConfig, GnnSnapshot};
+use gnn::gnn::graph::Graph;
+use gnn::gnn::propagate::{self, GnnConfig, GnnSnapshot};
 use base::base_types::{Embedding, EntityStatus, Kern};
 use graph::graph::GraphGnn;
 

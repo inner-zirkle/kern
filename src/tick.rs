@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 
 use parking_lot::RwLock;
 
-use crate::gnn::propagate::GnnConfig;
+use gnn::gnn::propagate::GnnConfig;
 use base::base_constants::{KERN_COHESION_THRESHOLD, KERN_MIN_CLUSTER_SIZE};
 use config::HeatConfig;
 use config::TickConfig;

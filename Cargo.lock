@@ -848,6 +848,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "gnn"
+version = "1.3.0"
+dependencies = [
+ "bincode 2.0.1",
+ "config",
+ "rand 0.10.2",
+ "rayon",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror",
+ "tracing",
+]
+
+[[package]]
 name = "graph"
 version = "1.3.0"
 dependencies = [
@@ -1306,6 +1321,7 @@ dependencies = [
  "futures",
  "futures-core",
  "futures-util",
+ "gnn",
  "graph",
  "heed",
  "ignore",

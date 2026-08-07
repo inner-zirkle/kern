@@ -19,7 +19,7 @@ use config::HeatConfig;
 use config::TickConfig;
 use graph::graph::GraphGnn;
 use graph::reason::add_reason;
-use kern::gnn::propagate::GnnConfig;
+use gnn::gnn::propagate::GnnConfig;
 use kern::tick_gnn_propagate::do_gnn_propagate;
 use kern::tick_queue::{task, task_commit_access, Queue, TaskKind};
 
@@ -160,7 +160,7 @@ fn gnn_cost_breakdown() {
 	for n in [1024usize, 2048, 4096] {
 		let k = kern_with(n, 2);
 		let snap = kern::tick_gnn_propagate::build_gnn_snapshot(&k, &cfg).expect("snapshot builds");
-		let narrow = kern::gnn::tensor::Tensor::zeros(n, hidden);
+		let narrow = gnn::gnn::tensor::Tensor::zeros(n, hidden);
 
 		let t = Instant::now();
 		let dense = snap.graph.normalized_adjacency();
@@ -189,7 +189,7 @@ fn gnn_cost_breakdown() {
 		let s_total = s_build * builds + s_mm * matmuls + s_tr * transposes;
 
 		let t = Instant::now();
-		let full = kern::gnn::propagate::run_learned_propagation(&snap, &cfg).expect("propagation");
+		let full = gnn::gnn::propagate::run_learned_propagation(&snap, &cfg).expect("propagation");
 		let full_ms = t.elapsed().as_secs_f64() * 1000.0;
 		assert!(!full.updates.is_empty());
 
