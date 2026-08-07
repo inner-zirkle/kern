@@ -44,8 +44,7 @@ pub fn gnn_train_refused() -> u64 {
 // a sync guard held over that is `clippy::await_holding_lock`. Sync callers take
 // `blocking_lock()`, which is sound here only because every one of them is a
 // plain `#[test]` with no runtime under it.
-#[cfg(test)]
-pub(crate) static REFUSAL_COUNTER: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+pub static REFUSAL_COUNTER: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Submit {

@@ -4,7 +4,7 @@
 //! `test_support` crate and are re-exported here so existing `crate::test_support`
 //! call sites keep working.
 
-pub(crate) use test_support::{alloc_probe, edge, entity, entity_vec, hanging_embed_app, spawn_http, tool_text};
+pub(crate) use test_support::{alloc_probe, edge, entity, hanging_embed_app, spawn_http, tool_text};
 
 // A dead port: nothing in the default rig should reach an embedder.
 pub(crate) fn mcp_server() -> crate::mcp::Server {

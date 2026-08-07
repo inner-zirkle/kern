@@ -12,7 +12,7 @@ use std::time::Instant;
 
 use ingest::Worker;
 use tick::tick_queue::Queue;
-use crate::tick_tasks::{BroadcastQuestionFunc, EmbedFunc, LlmFunc as TickLlmFunc};
+use tick_loop::tick_tasks::{BroadcastQuestionFunc, EmbedFunc, LlmFunc as TickLlmFunc};
 use config::Config;
 use graph::graph::GraphGnn;
 use llm::Client as LlmClient;
@@ -124,10 +124,10 @@ impl Registry {
 			Some(save_fn.clone()),
 		));
 
-		let tick_handle = crate::tick::start(
+		let tick_handle = tick_loop::start(
 			tick_q.clone(),
 			graph.clone(),
-			crate::tick::TickContext {
+			tick_loop::TickContext {
 				llm: tick_llm,
 				embed: tick_embed,
 				broadcast_q,
@@ -137,7 +137,7 @@ impl Registry {
 			},
 		);
 
-		crate::tick::enqueue_all(&tick_q, &graph);
+		tick_loop::enqueue_all(&tick_q, &graph);
 
 		let entry = Arc::new(StoreEntry {
 			key: key.clone(),

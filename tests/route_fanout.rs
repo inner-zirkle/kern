@@ -306,7 +306,7 @@ fn root_width_growth() {
 			for _ in 0..2 {
 				let ids: Vec<String> = g.read().kerns.keys().cloned().collect();
 				for id in ids {
-					kern::tick::tick_sync(&g, &id, Some(&llm), Some(&embed), None);
+					tick_loop::tick_sync(&g, &id, Some(&llm), Some(&embed), None);
 				}
 			}
 		}

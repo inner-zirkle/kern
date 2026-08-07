@@ -521,7 +521,7 @@ mod tests {
 	// still reports a healthy daemon.
 	#[tokio::test]
 	async fn a_refused_gnn_training_reaches_the_rpc_health_surface() {
-		use crate::tick_trainer::{gnn_train_refused, Submit, Trainer, REFUSAL_COUNTER};
+		use tick_loop::tick_trainer::{gnn_train_refused, Submit, Trainer, REFUSAL_COUNTER};
 
 		// Held first, so it outlives the trainer: this test fills a queue and so
 		// refuses a whole cap's worth, and `TRAIN_REFUSED` is one global for the

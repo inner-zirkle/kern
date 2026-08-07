@@ -20,7 +20,7 @@ use config::TickConfig;
 use graph::graph::GraphGnn;
 use graph::reason::add_reason;
 use gnn::gnn::propagate::GnnConfig;
-use kern::tick_gnn_propagate::do_gnn_propagate;
+use tick_loop::tick_gnn_propagate::do_gnn_propagate;
 use tick::tick_queue::{task, task_commit_access, Queue, TaskKind};
 
 const DIM: usize = 384;
@@ -124,7 +124,7 @@ fn gnn_train_scale() {
 			.unwrap_or(0);
 		let adj_mb = {
 			let k = &g.read().kerns["kx"];
-			let snap = kern::tick_gnn_propagate::build_gnn_snapshot(k, &cfg);
+			let snap = tick_loop::tick_gnn_propagate::build_gnn_snapshot(k, &cfg);
 			snap
 				.map(|s| s.graph.normalized_adjacency_sparse().nnz())
 				.unwrap_or(0) as f64
@@ -159,7 +159,7 @@ fn gnn_cost_breakdown() {
 
 	for n in [1024usize, 2048, 4096] {
 		let k = kern_with(n, 2);
-		let snap = kern::tick_gnn_propagate::build_gnn_snapshot(&k, &cfg).expect("snapshot builds");
+		let snap = tick_loop::tick_gnn_propagate::build_gnn_snapshot(&k, &cfg).expect("snapshot builds");
 		let narrow = gnn::gnn::tensor::Tensor::zeros(n, hidden);
 
 		let t = Instant::now();
@@ -225,11 +225,11 @@ fn other_tick_tasks_scale() {
 		let ids: Vec<String> = g.read().kerns["kx"].entities.keys().cloned().collect();
 		let commit = task_commit_access(&ids[..1.min(ids.len())]);
 		let t = Instant::now();
-		kern::tick_tasks::do_commit_access(&g, &commit.extra, &HeatConfig::default());
+		tick_loop::tick_tasks::do_commit_access(&g, &commit.extra, &HeatConfig::default());
 		let commit_ms = t.elapsed().as_secs_f64() * 1000.0;
 
 		let t = Instant::now();
-		kern::tick_idle::run_idle_sweep(&g, Duration::from_secs(3600));
+		tick_loop::tick_idle::run_idle_sweep(&g, Duration::from_secs(3600));
 		let idle_ms = t.elapsed().as_secs_f64() * 1000.0;
 
 		let _ = &q;
@@ -240,7 +240,7 @@ fn other_tick_tasks_scale() {
 	}
 }
 
-// The head-of-line claim itself, on the REAL loop (`kern::tick::start`), not a
+// The head-of-line claim itself, on the REAL loop (`tick_loop::start`), not a
 // hand-rolled drain: a `GnnPropagate` for a large kern is enqueued first and a
 // `CommitAccess` — the recall path's heat write-back, `src/mcp/tools_query.rs:196`
 // — immediately behind it. The delay is wall time from enqueue to the access
@@ -253,7 +253,7 @@ fn tick_head_of_line_delay() {
 		for with_gnn in [false, true] {
 			let g = graph_with(n, 2);
 			let q = Arc::new(Queue::new(512));
-			let ctx = kern::tick::TickContext {
+			let ctx = tick_loop::TickContext {
 				llm: None,
 				embed: None,
 				broadcast_q: None,
@@ -262,7 +262,7 @@ fn tick_head_of_line_delay() {
 				heat_cfg: HeatConfig::default(),
 			};
 			let _guard = rt.enter();
-			let handle = kern::tick::start(q.clone(), g.clone(), ctx);
+			let handle = tick_loop::start(q.clone(), g.clone(), ctx);
 
 			let probe = "e0000000".to_string();
 			let t = Instant::now();

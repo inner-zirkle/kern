@@ -758,18 +758,18 @@ pub(crate) async fn bootstrap(cli: &Cli, cfg: &config::Config) -> EngineHandle {
 
 	// Gate like `llm_fn`: an ungated Some with no reason endpoint means infinite
 	// no-op Name re-enqueue churn (do_cluster gates on `llm.is_some()`).
-	let tick_llm: Option<crate::tick_tasks::LlmFunc> = if reason_url.is_empty() {
+	let tick_llm: Option<tick_loop::tick_tasks::LlmFunc> = if reason_url.is_empty() {
 		None
 	} else {
 		Some(Arc::new(llm_client.complete_func()))
 	};
-	let tick_embed: crate::tick_tasks::EmbedFunc = embed_fn(&llm_client);
+	let tick_embed: tick_loop::tick_tasks::EmbedFunc = embed_fn(&llm_client);
 
 	let registry = Arc::new(crate::store::Registry::new());
-	let shared_bq: Arc<parking_lot::RwLock<Option<crate::tick_tasks::BroadcastQuestionFunc>>> =
+	let shared_bq: Arc<parking_lot::RwLock<Option<tick_loop::tick_tasks::BroadcastQuestionFunc>>> =
 		Arc::new(parking_lot::RwLock::new(None));
 	let bq_slot = shared_bq.clone();
-	let broadcast_q_wrapper: crate::tick_tasks::BroadcastQuestionFunc =
+	let broadcast_q_wrapper: tick_loop::tick_tasks::BroadcastQuestionFunc =
 		Arc::new(move |rid, vec, text| {
 			if let Some(f) = bq_slot.read().as_ref() {
 				f(rid, vec, text);
@@ -1205,7 +1205,7 @@ async fn start_gossip(
 	save_fn: &Arc<dyn Fn() + Send + Sync>,
 ) -> (
 	Option<BroadcastPulseFn>,
-	Option<crate::tick_tasks::BroadcastQuestionFunc>,
+	Option<tick_loop::tick_tasks::BroadcastQuestionFunc>,
 ) {
 	if !cfg.gossip.enabled {
 		return (None, None);
@@ -1340,7 +1340,7 @@ async fn start_gossip(
 				pulse_node.broadcast(msg);
 			});
 			let q_node = node.clone();
-			let broadcast_q: crate::tick_tasks::BroadcastQuestionFunc =
+			let broadcast_q: tick_loop::tick_tasks::BroadcastQuestionFunc =
 				Arc::new(move |rid: &str, rvec: &[f32], rtext: &str| {
 					let stamp = util::now_nanos();
 					let msg = gossip::gossip_types::GossipMessage {
@@ -1397,7 +1397,7 @@ fn spawn_maintenance_tick(
 			if let Some(broadcast) = &broadcast_pulse {
 				broadcast(&root_id, 1.0);
 			}
-			crate::tick::enqueue_all(&q_tick, &g_tick);
+			tick_loop::enqueue_all(&q_tick, &g_tick);
 			// Bound the crash-loss window for mutations whose event-driven save
 			// never ran (crash pre-Persist, SIGTERM pre-flush) to one interval.
 			snapshot_if_dirty(&g_tick, &cfg_tick, &mut last_snap_epoch);
@@ -1704,7 +1704,7 @@ mod entry_point_tests {
 		crate::test_support::commit_extra_kern_via_store(&g, k);
 
 		g.write().kerns.insert("k".into(), Kern::new("k", &root_id));
-		crate::tick_tasks::do_persist(&g, "k");
+		tick_loop::tick_tasks::do_persist(&g, "k");
 
 		// Read disk back through the same store handle.
 		let on_disk = g
@@ -1807,7 +1807,7 @@ mod entry_point_tests {
 			g.write().register(k);
 			super::save_graph_guarded(&g, &cfg);
 
-			crate::tick::tick_sync(&g, "k", None, None, None);
+			tick_loop::tick_sync(&g, "k", None, None, None);
 			let child_exists = {
 				let gg = g.read();
 				let parent = gg.loaded("k").expect("parent kern still loaded");

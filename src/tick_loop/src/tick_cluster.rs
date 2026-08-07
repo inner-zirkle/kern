@@ -166,7 +166,7 @@ pub fn graviton_prompt(c: &Cluster) -> String {
 mod tests {
 	use super::*;
 
-	use crate::test_support::entity_vec as ent;
+	use test_support::entity_vec as ent;
 
 	#[test]
 	fn graviton_prompt_keeps_header_then_one_bullet_per_member() {

@@ -207,7 +207,7 @@ impl Server {
 			// This server's own worker, read directly: a gauge on the live channel,
 			// not a process static like the counters `h` carries.
 			"ingest_queue_depth": self.worker.queue_depth(),
-			"gnn_train_refused": crate::tick_trainer::gnn_train_refused(),
+			"gnn_train_refused": tick_loop::tick_trainer::gnn_train_refused(),
 			// Read straight from the client, like `gnn_train_refused` above: it is a
 			// property of this process's LLM leg, not of the graph `h` describes.
 			"llm_complete_failed": llm::complete_failed(),

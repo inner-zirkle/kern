@@ -478,8 +478,8 @@ async fn run_standalone(cfg: &config::Config) {
 		Some(save_fn.clone()),
 	));
 
-	let tick_llm: crate::tick_tasks::LlmFunc = Arc::new(llm_client.complete_func());
-	let tick_embed: crate::tick_tasks::EmbedFunc = {
+	let tick_llm: tick_loop::tick_tasks::LlmFunc = Arc::new(llm_client.complete_func());
+	let tick_embed: tick_loop::tick_tasks::EmbedFunc = {
 		let c = llm_client.clone();
 		Arc::new(move |text: &str| -> Result<Vec<f32>, String> {
 			let c = c.clone();
@@ -493,10 +493,10 @@ async fn run_standalone(cfg: &config::Config) {
 			}
 		})
 	};
-	crate::tick::start(
+	tick_loop::start(
 		q.clone(),
 		g.clone(),
-		crate::tick::TickContext {
+		tick_loop::TickContext {
 			llm: Some(tick_llm),
 			embed: Some(tick_embed),
 			broadcast_q: None,
