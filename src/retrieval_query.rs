@@ -8,10 +8,12 @@ use crate::config::RetrievalConfig;
 use crate::graph::GraphGnn;
 use crate::heat::HeatConfig;
 use crate::profile::Profiler;
-use crate::retrieval::expand::{self, PathChain, ScoredEntity, ScoredRef};
-use crate::retrieval::score::{self, QueryOptions};
-use crate::retrieval::seed::{self, Mode, Weights};
-use crate::retrieval::{diversify, fuse, gravity, merge, pagerank};
+use crate::retrieval::expand::{
+	self, find_entity_ref_in_graph, PathChain, Scored, ScoredEntity, ScoredRef,
+};
+use crate::retrieval::score::QueryOptions;
+use crate::retrieval::seed::{Mode, Weights};
+use crate::retrieval::{diversify, pagerank, score, seed};
 use crate::search::{find_entity, find_reason};
 use crate::util;
 
@@ -113,10 +115,10 @@ fn fuse_hybrid_seeds(
 		lists.push(&pr_hits);
 		weights.push(gw);
 	}
-	let mut fused = fuse::rrf(&lists, &weights, cfg.rrf_k, cfg.seed_k.max(1) * 2);
+	let mut fused = rrf(&lists, &weights, cfg.rrf_k, cfg.seed_k.max(1) * 2);
 	// RRF decides WHICH entities seed; it must not decide how much they score.
 	// Its reciprocal-rank scores live on a ~1/rrf_k scale while expand() scores
-	// neighbours on the cosine scale — pooled in merge(), any expanded neighbour
+	// neighbours on the cosine scale — pooled in merge_results(), any expanded neighbour
 	// outscored every seed and ranking inverted. Rescore the fused survivors by
 	// query cosine so seeds re-enter the pipeline on the one scale it speaks.
 	for h in &mut fused {
@@ -185,12 +187,12 @@ pub fn retrieve_profiled(
 
 	let expanded = expand::expand(g, cfg, qvec, &seeds, w);
 	prof.checkpoint("expand");
-	let mut results = merge::merge(g, &seeds, expanded.scored);
+	let mut results = merge_results(g, &seeds, expanded.scored);
 	let mut chains = expanded.chains;
 	prof.checkpoint("merge");
 
 	score::apply_boosts(g, cfg, &mut results);
-	gravity::apply_gravity(g, cfg, &mut results);
+	apply_gravity(g, cfg, &mut results);
 	score::apply_remote_trust(g, cfg, &mut results);
 	// An active filter must run BEFORE filter_delivery's pool truncation, or expansion's non-matching neighbours crowd matching entities out of the cap.
 	if let Some(o) = opts {
@@ -313,6 +315,118 @@ pub fn format_chains(g: &GraphGnn, chains: &[PathChain]) -> String {
 		}
 	}
 	out
+}
+
+// ==== [fuse] ====
+
+use crate::search::EntityHit;
+use std::collections::HashMap;
+
+pub fn rrf(lists: &[&[EntityHit]], weights: &[f64], k_rrf: f64, top_k: usize) -> Vec<EntityHit> {
+	let mut agg: HashMap<String, f64> = HashMap::new();
+	for (li, list) in lists.iter().enumerate() {
+		let w = weights.get(li).copied().unwrap_or(1.0);
+		for (i, hit) in list.iter().enumerate() {
+			let rank = (i + 1) as f64;
+			let contrib = w / (k_rrf + rank);
+			*agg.entry(hit.entity_id.clone()).or_insert(0.0) += contrib;
+		}
+	}
+	if top_k == 0 {
+		return Vec::new();
+	}
+	let mut out: Vec<EntityHit> = agg.into_iter().map(EntityHit::from).collect();
+	// Unique ids make this a STRICT total order, so the top_k partition + sorting only the survivors equals a full sort + truncate.
+	let cmp = |a: &EntityHit, b: &EntityHit| {
+		crate::util::cmp_rank(a.score, &a.entity_id, b.score, &b.entity_id)
+	};
+	if top_k < out.len() {
+		out.select_nth_unstable_by(top_k - 1, &cmp);
+		out.truncate(top_k);
+	}
+	out.sort_by(&cmp);
+	out
+}
+
+// ==== [merge] ====
+
+use crate::math::OnlineSoftmax;
+
+// Log-sum-exp score pool: an entity in both sources earns +ln(count). Result is a magnitude, not a probability — may exceed 1.0.
+pub fn merge_results<'a>(
+	g: &'a GraphGnn,
+	seeds: &[EntityHit],
+	beam: Vec<ScoredRef<'a>>,
+) -> Vec<ScoredRef<'a>> {
+	let mut scores: HashMap<&str, OnlineSoftmax> = HashMap::new();
+	let mut thoughts: HashMap<&str, ScoredRef<'a>> = HashMap::new();
+
+	for st in beam {
+		scores.entry(&st.entity.id).or_default().update(st.score);
+		thoughts.entry(&st.entity.id).or_insert(st);
+	}
+
+	for s in seeds {
+		if let Some(t) = thoughts.get(s.entity_id.as_str()) {
+			scores.entry(&t.entity.id).or_default().update(s.score);
+		} else if let Some(t) = find_entity_ref_in_graph(g, &s.entity_id) {
+			scores.entry(&t.id).or_default().update(s.score);
+			thoughts.insert(
+				&t.id,
+				ScoredRef {
+					entity: t,
+					score: s.score,
+				},
+			);
+		}
+	}
+
+	let mut results: Vec<ScoredRef<'a>> = thoughts
+		.into_iter()
+		.filter_map(|(id, mut st)| {
+			let merged = scores.get(id)?.finalize();
+			st.score = merged;
+			Some(st)
+		})
+		.collect();
+
+	// Score desc, id asc — the id tie-break is required for determinism (HashMap order varies per process).
+	results.sort_by(|a, b| crate::util::cmp_rank(a.score, &a.entity.id, b.score, &b.entity.id));
+	results
+}
+
+// ==== [gravity] ====
+
+use crate::accept::root_graviton_ids;
+use crate::base_types::Kern;
+use crate::math::cosine;
+
+// Max over gravitons, not sum — overlapping gravitons must not double-count.
+pub fn apply_gravity<T: Scored>(g: &GraphGnn, cfg: &RetrievalConfig, results: &mut [T]) {
+	if cfg.gravity_weight == 0.0 {
+		return;
+	}
+	let gravitons: Vec<&Kern> = root_graviton_ids(g)
+		.into_iter()
+		.filter_map(|id| g.loaded(&id))
+		.filter(|k| !k.graviton_vec.is_empty())
+		.collect();
+	if gravitons.is_empty() {
+		return;
+	}
+	for r in results.iter_mut() {
+		let vec = &r.entity().vector;
+		if vec.is_empty() {
+			continue;
+		}
+		let pull = gravitons
+			.iter()
+			.map(|k| k.mass * cosine(&k.graviton_vec, vec).max(0.0))
+			.fold(0.0_f64, f64::max);
+		if pull > 0.0 {
+			r.set_score(r.score() + cfg.gravity_weight * pull);
+		}
+	}
 }
 
 #[cfg(test)]
@@ -848,6 +962,234 @@ mod tests {
 			!out.chain_text.contains("vault code"),
 			"and from the chains, which render text and answer to no result filter: {:?}",
 			out.chain_text
+		);
+	}
+}
+
+#[cfg(test)]
+mod fuse_tests {
+	use super::*;
+
+	fn hit(id: &str) -> EntityHit {
+		EntityHit {
+			entity_id: id.into(),
+			score: 0.0,
+		}
+	}
+
+	#[test]
+	fn empty_weights_recovers_unweighted_rrf() {
+		let a = [hit("x"), hit("y")];
+		let b = [hit("y"), hit("z")];
+		let lists: Vec<&[EntityHit]> = vec![&a, &b];
+		let out = rrf(&lists, &[], 60.0, 10);
+		assert_eq!(out[0].entity_id, "y", "y in both lists sorts first");
+	}
+
+	#[test]
+	fn global_list_downweight_sinks_popular_irrelevant_entity() {
+		let dense = [hit("rel")];
+		let global = [hit("pop")];
+		let lists: Vec<&[EntityHit]> = vec![&dense, &global];
+
+		let unweighted = rrf(&lists, &[1.0, 1.0], 60.0, 10);
+		assert_eq!(unweighted[0].entity_id, "pop", "equal weights: id tiebreak");
+
+		let weighted = rrf(&lists, &[1.0, 0.5], 60.0, 10);
+		assert_eq!(weighted[0].entity_id, "rel", "down-weighted global sinks");
+		assert!(
+			weighted[0].score > weighted[1].score,
+			"rel strictly above pop"
+		);
+	}
+
+	#[test]
+	fn missing_weight_defaults_to_one() {
+		let a = [hit("x")];
+		let b = [hit("x")];
+		let lists: Vec<&[EntityHit]> = vec![&a, &b];
+		let out = rrf(&lists, &[1.0], 60.0, 10);
+		let both = rrf(&lists, &[1.0, 1.0], 60.0, 10);
+		assert_eq!(out[0].score, both[0].score, "missing weight == 1.0");
+	}
+
+	#[test]
+	fn equal_score_tie_broken_by_id_ascending_under_top_k() {
+		let la = [hit("b")];
+		let lb = [hit("a")];
+		let lists: Vec<&[EntityHit]> = vec![&la, &lb];
+		let out = rrf(&lists, &[1.0, 1.0], 60.0, 1);
+		assert_eq!(out.len(), 1, "top_k=1 keeps a single hit");
+		assert_eq!(
+			out[0].entity_id, "a",
+			"tie resolved to id-ascending winner under truncation"
+		);
+	}
+
+	#[test]
+	fn top_k_truncates_and_zero_is_empty_without_panicking() {
+		let a = [hit("x"), hit("y"), hit("z")];
+		let lists: Vec<&[EntityHit]> = vec![&a];
+
+		assert!(rrf(&lists, &[], 60.0, 0).is_empty(), "top_k=0 is empty");
+		assert_eq!(rrf(&lists, &[], 60.0, 2).len(), 2, "truncates to top_k");
+		assert_eq!(
+			rrf(&lists, &[], 60.0, 99).len(),
+			3,
+			"top_k over count returns all"
+		);
+	}
+}
+
+#[cfg(test)]
+mod merge_tests {
+	use super::*;
+	use crate::base_types::Kern;
+
+	use crate::base_types::Entity;
+	use crate::test_support::entity as ent;
+	fn hit(id: &str, score: f64) -> EntityHit {
+		EntityHit {
+			entity_id: id.into(),
+			score,
+		}
+	}
+	fn scored(entity: &Entity, score: f64) -> ScoredRef<'_> {
+		ScoredRef { entity, score }
+	}
+	fn find<'a, 'g>(rs: &'a [ScoredRef<'g>], id: &str) -> Option<&'a ScoredRef<'g>> {
+		rs.iter().find(|s| s.entity.id == id)
+	}
+
+	#[test]
+	fn entity_seen_in_both_sources_outranks_one_seen_once() {
+		let g = GraphGnn::new();
+		let (ea, eb) = (ent("a"), ent("b"));
+		let beam = vec![scored(&ea, 0.5), scored(&eb, 0.5)];
+		let seeds = [hit("a", 0.5)];
+		let out = merge_results(&g, &seeds, beam);
+
+		let a = find(&out, "a").expect("a present");
+		let b = find(&out, "b").expect("b present");
+		assert!(
+			a.score > b.score,
+			"corroborated a ({}) > lone b ({})",
+			a.score,
+			b.score
+		);
+		assert!((a.score - (0.5 + std::f64::consts::LN_2)).abs() < 1e-9);
+		assert!((b.score - 0.5).abs() < 1e-9);
+		assert_eq!(out[0].entity.id, "a", "higher score sorts first");
+	}
+
+	#[test]
+	fn seed_absent_from_graph_and_beam_is_silently_skipped() {
+		let g = GraphGnn::new();
+		let eb = ent("b");
+		let beam = vec![scored(&eb, 0.5)];
+		let seeds = [hit("ghost", 0.9)];
+		let out = merge_results(&g, &seeds, beam);
+
+		assert!(find(&out, "ghost").is_none(), "unresolvable seed dropped");
+		assert_eq!(out.len(), 1, "only the beam entity survives");
+		assert_eq!(out[0].entity.id, "b");
+	}
+
+	#[test]
+	fn seed_only_entity_is_pulled_from_the_graph() {
+		let mut g = GraphGnn::new();
+		let mut k = Kern::new("kx", "");
+		k.entities.insert("c".into(), ent("c"));
+		g.kerns.insert("kx".into(), k);
+
+		let out = merge_results(&g, &[hit("c", 0.7)], Vec::new());
+		let c = find(&out, "c").expect("seed resolved from graph");
+		assert!((c.score - 0.7).abs() < 1e-9, "single observation unchanged");
+	}
+}
+
+#[cfg(test)]
+mod gravity_tests {
+	use super::*;
+	use crate::accept::add_graviton_with_mass;
+	use crate::base_types::{mk_entity, EntityKind};
+	use crate::retrieval::expand::ScoredEntity;
+
+	fn scored(id: &str, vector: Vec<f32>, score: f64) -> ScoredEntity {
+		let mut entity = mk_entity(id, "t", 0.5, EntityKind::Claim);
+		entity.vector = vector.into();
+		ScoredEntity { entity, score }
+	}
+
+	fn graph_with_graviton(mass: f64) -> GraphGnn {
+		let mut g = GraphGnn::new();
+		add_graviton_with_mass(&mut g, "work", vec![1.0, 0.0, 0.0], 1.0);
+		let id = root_graviton_ids(&g).pop().unwrap();
+		g.get_mut(&id).unwrap().mass = mass;
+		g
+	}
+
+	#[test]
+	fn graviton_near_entity_outranks_graviton_far_at_equal_base_score() {
+		let g = graph_with_graviton(1.0);
+		let cfg = RetrievalConfig::default();
+		let mut results = vec![
+			scored("far", vec![0.0, 1.0, 0.0], 1.0),
+			scored("near", vec![1.0, 0.0, 0.0], 1.0),
+			scored("novec", Vec::new(), 1.0),
+		];
+		apply_gravity(&g, &cfg, &mut results);
+		let get = |id: &str| results.iter().find(|r| r.entity.id == id).unwrap().score;
+		assert!(
+			get("near") > get("far"),
+			"near {} must outrank far {}",
+			get("near"),
+			get("far")
+		);
+		assert_eq!(get("far"), 1.0, "orthogonal cosine -> no boost");
+		assert_eq!(get("novec"), 1.0, "empty entity vector is skipped");
+	}
+
+	#[test]
+	fn mass_two_pulls_harder_than_mass_one() {
+		let cfg = RetrievalConfig::default();
+		let boost = |mass: f64| {
+			let g = graph_with_graviton(mass);
+			let mut results = vec![scored("e", vec![1.0, 0.0, 0.0], 1.0)];
+			apply_gravity(&g, &cfg, &mut results);
+			results[0].score - 1.0
+		};
+		let (b1, b2) = (boost(1.0), boost(2.0));
+		assert!(b1 > 0.0, "mass 1 boosts at all: {b1}");
+		assert!(
+			(b2 - 2.0 * b1).abs() < 1e-9,
+			"mass scales the pull linearly: {b2} vs 2*{b1}"
+		);
+	}
+
+	#[test]
+	fn gravity_weight_zero_changes_nothing() {
+		let g = graph_with_graviton(1.0);
+		let cfg = RetrievalConfig {
+			gravity_weight: 0.0,
+			..Default::default()
+		};
+		let mut results = vec![scored("near", vec![1.0, 0.0, 0.0], 1.0)];
+		apply_gravity(&g, &cfg, &mut results);
+		assert_eq!(results[0].score, 1.0);
+	}
+
+	#[test]
+	fn overlapping_gravitons_take_the_max_not_the_sum() {
+		let mut g = graph_with_graviton(1.0);
+		add_graviton_with_mass(&mut g, "also-work", vec![1.0, 0.0, 0.0], 1.0);
+		let cfg = RetrievalConfig::default();
+		let mut results = vec![scored("e", vec![1.0, 0.0, 0.0], 1.0)];
+		apply_gravity(&g, &cfg, &mut results);
+		let boost = results[0].score - 1.0;
+		assert!(
+			(boost - cfg.gravity_weight).abs() < 1e-6,
+			"two identical unit gravitons boost once, got {boost}"
 		);
 	}
 }
