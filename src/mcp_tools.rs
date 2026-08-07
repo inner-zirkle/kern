@@ -6,7 +6,6 @@ pub fn tool_definitions() -> Vec<serde_json::Value> {
 	defs.extend(crate::mcp_tools_events::tool_schemas());
 	defs.extend(crate::mcp_tools_mutate::tool_schemas());
 	defs.extend(crate::mcp_tools_admin::tool_schemas());
-	defs.extend(crate::mcp_tools_intake::tool_schemas());
 	defs.extend(crate::mcp_tools_setup::tool_schemas());
 	defs.extend(crate::mcp_tools_delegate::tool_schemas());
 	defs

@@ -954,7 +954,7 @@ pub async fn run_server(cli: &Cli, cfg: &crate::config::Config) {
 		if !mcp_addr.is_empty() {
 			let mcp_s = mcp_server.clone();
 			tokio::spawn(async move {
-				if let Err(e) = crate::mcp::sse::run_sse(mcp_s, &mcp_addr).await {
+				if let Err(e) = crate::mcp::run_sse(mcp_s, &mcp_addr).await {
 					tracing::error!(target: "kern.mcp_sse", error = %e, "MCP-over-HTTP server exited");
 				}
 			});
