@@ -337,9 +337,9 @@ impl KernRpc for KernRpcHandler {
 					.get("embed_mismatch")
 					.and_then(|v| v.as_bool())
 					.unwrap_or(false),
-				build_id: crate::identity::build_id(),
-				config_id: crate::identity::config_id(&kern.cfg),
-				uptime_ms: crate::identity::uptime_ms(),
+				build_id: gossip::identity::build_id(),
+				config_id: gossip::identity::config_id(&kern.cfg),
+				uptime_ms: gossip::identity::uptime_ms(),
 			}
 		}
 	}

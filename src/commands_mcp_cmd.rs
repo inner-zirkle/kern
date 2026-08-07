@@ -88,7 +88,7 @@ async fn replace_if_stale(
 	log_dir: &std::path::Path,
 	via_hub: bool,
 ) -> KernRpcClient<JsonEnvelopeCodec> {
-	use crate::identity;
+	use gossip::identity;
 
 	let caller = crate::rpc::caller_of(cfg);
 

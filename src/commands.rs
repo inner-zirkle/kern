@@ -692,12 +692,12 @@ pub(crate) struct EngineHandle {
 pub(crate) async fn bootstrap(cli: &Cli, cfg: &config::Config) -> EngineHandle {
 	// Stamps uptime for the staleness handshake. Before any await so a health
 	// probe on a slow cold boot cannot read 0 and be mistaken for unknown.
-	crate::identity::mark_start();
+	gossip::identity::mark_start();
 	// Must run BEFORE any env opens: the compaction swaps data.mdb, and only
 	// here — post kern.sock win, pre env open — is the dir held exclusively.
 	// Skipped on takeover: the predecessor holds the env for a few more ms and
 	// just flushed cleanly, so there is nothing to heal and no exclusivity.
-	if !crate::identity::is_takeover_boot() {
+	if !gossip::identity::is_takeover_boot() {
 		maybe_self_heal_store(cfg);
 	}
 
@@ -886,7 +886,7 @@ pub async fn run_server(cli: &Cli, cfg: &config::Config) {
 		let handler = crate::rpc::KernRpcHandler::new(mcp_server.clone(), shutdown.clone());
 		let endpoint = crate::transport::typed::Endpoint::kern();
 		#[cfg(unix)]
-		let bound = if crate::identity::is_takeover_boot() {
+		let bound = if gossip::identity::is_takeover_boot() {
 			match crate::transport::typed::adopt_kern_listener(&endpoint) {
 				Ok(listener) => {
 					tracing::info!(
@@ -963,7 +963,7 @@ pub async fn run_server(cli: &Cli, cfg: &config::Config) {
 		let takeover = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
 		#[cfg(unix)]
 		if cfg.reload.enabled {
-			crate::identity::spawn_self_watch(shutdown.clone(), takeover.clone(), cfg.reload.poll_secs);
+			gossip::identity::spawn_self_watch(shutdown.clone(), takeover.clone(), cfg.reload.poll_secs);
 		}
 
 		println!("kern running in daemon mode (ctrl-c to stop)");
@@ -977,7 +977,7 @@ pub async fn run_server(cli: &Cli, cfg: &config::Config) {
 
 		#[cfg(unix)]
 		if takeover.load(std::sync::atomic::Ordering::SeqCst) {
-			match handover_fd.take().map(crate::identity::spawn_successor) {
+			match handover_fd.take().map(gossip::identity::spawn_successor) {
 				Some(Ok(())) => {
 					eprintln!("handing over to new binary");
 					// exit() on purpose: a normal return runs LocalListener's
@@ -1227,7 +1227,7 @@ async fn start_gossip(
 	} else {
 		std::path::PathBuf::from(cfg.gossip.identity_path.trim())
 	};
-	let identity = match crate::gossip_identity::PeerIdentity::load_or_mint(&key_path) {
+	let identity = match gossip::gossip_identity::PeerIdentity::load_or_mint(&key_path) {
 		Ok(id) => std::sync::Arc::new(id),
 		Err(e) => {
 			tracing::warn!(
@@ -1236,26 +1236,26 @@ async fn start_gossip(
 				error = %e,
 				"peer key unavailable; running with an ephemeral identity for this process"
 			);
-			std::sync::Arc::new(crate::gossip_identity::PeerIdentity::generate())
+			std::sync::Arc::new(gossip::gossip_identity::PeerIdentity::generate())
 		}
 	};
 	let node =
-		crate::gossip_node::Node::new_with_identity(&cfg.gossip.addr, &network_id, bootstrap, identity);
+		gossip::gossip_node::Node::new_with_identity(&cfg.gossip.addr, &network_id, bootstrap, identity);
 	node.ledger.set_max_entries(cfg.graph.max_ledger_entries);
 	// Contracts this node hosts: each `[[gossip.contracts]]` table whose keys
 	// parse. A table that fails to parse is refused loudly — hosting it with a
 	// silently weakened policy would betray every subscriber.
 	let contracts: std::collections::HashMap<
-		crate::gossip_contract::ContractId,
-		Arc<crate::gossip_handler::ContractHost>,
+		gossip::gossip_contract::ContractId,
+		Arc<gossip::gossip_handler::ContractHost>,
 	> = cfg
 		.gossip
 		.contracts
 		.iter()
-		.filter_map(|c| match crate::gossip_contract::params_from_config(c) {
+		.filter_map(|c| match gossip::gossip_contract::params_from_config(c) {
 			Some(params) => {
 				let cid =
-					crate::gossip_contract::contract_id(crate::gossip_contract::SIGNED_CRDT_V0_TAG, &params);
+					gossip::gossip_contract::contract_id(gossip::gossip_contract::SIGNED_CRDT_V0_TAG, &params);
 				tracing::info!(
 					target: "kern.gossip",
 					contract = %util::hex::encode(cid),
@@ -1263,7 +1263,7 @@ async fn start_gossip(
 				);
 				Some((
 					cid,
-					Arc::new(crate::gossip_handler::ContractHost {
+					Arc::new(gossip::gossip_handler::ContractHost {
 						params,
 						state: parking_lot::RwLock::new(Default::default()),
 					}),
@@ -1279,15 +1279,15 @@ async fn start_gossip(
 			}
 		})
 		.collect();
-	let deps = Arc::new(crate::gossip_handler::Deps {
+	let deps = Arc::new(gossip::gossip_handler::Deps {
 		graph: g.clone(),
 		node: node.clone(),
 		queue: Some(q.clone()),
 		save: Some(save_fn.clone()),
 		contracts: Arc::new(parking_lot::RwLock::new(contracts)),
-		subs: Arc::new(crate::gossip_subs::SubTable::new()),
+		subs: Arc::new(gossip::gossip_subs::SubTable::new()),
 	});
-	node.set_handler(crate::gossip_handler::new_handler(deps.clone()));
+	node.set_handler(gossip::gossip_handler::new_handler(deps.clone()));
 	if cfg.gossip.ring {
 		node.enable_ring();
 	}
@@ -1302,16 +1302,16 @@ async fn start_gossip(
 				});
 			}
 			node.start_heartbeat();
-			crate::gossip_handler::start_announce(node.clone(), g.clone());
-			crate::gossip_handler::start_entity_sync(node.clone(), g.clone());
-			crate::gossip_handler::wire_fetch(node.clone(), g.clone());
-			crate::gossip_handler::start_delta_flush(node.clone(), g.clone());
+			gossip::gossip_handler::start_announce(node.clone(), g.clone());
+			gossip::gossip_handler::start_entity_sync(node.clone(), g.clone());
+			gossip::gossip_handler::wire_fetch(node.clone(), g.clone());
+			gossip::gossip_handler::start_delta_flush(node.clone(), g.clone());
 			// Anti-entropy for hosted contracts + boot subscriptions (§4). The
 			// first sync pass also dials tree parents for rootless contracts.
 			if !deps.contracts.read().is_empty() || !cfg.gossip.subscriptions.is_empty() {
 				for s in &cfg.gossip.subscriptions {
-					match crate::gossip_contract::parse_key_hex(s) {
-						Some(cid) => crate::gossip_handler::subscribe_upstream(&deps, &cid),
+					match gossip::gossip_contract::parse_key_hex(s) {
+						Some(cid) => gossip::gossip_handler::subscribe_upstream(&deps, &cid),
 						None => tracing::warn!(
 							target: "kern.gossip",
 							id = %s,
@@ -1319,20 +1319,20 @@ async fn start_gossip(
 						),
 					}
 				}
-				crate::gossip_handler::start_contract_sync(deps.clone(), cfg.gossip.sync_interval_secs);
+				gossip::gossip_handler::start_contract_sync(deps.clone(), cfg.gossip.sync_interval_secs);
 			}
 			if cfg.gossip.discovery {
-				crate::gossip_node::start_broadcast(&node, cfg.gossip.discovery_port);
-				crate::gossip_node::start_listen(&node, cfg.gossip.discovery_port);
+				gossip::gossip_node::start_broadcast(&node, cfg.gossip.discovery_port);
+				gossip::gossip_node::start_listen(&node, cfg.gossip.discovery_port);
 			}
 			let pulse_node = node.clone();
 			let broadcast_pulse: BroadcastPulseFn = Arc::new(move |kern_id: &str, strength: f64| {
 				let stamp = util::now_nanos();
-				let msg = crate::gossip_types::GossipMessage {
-					kind: crate::gossip_types::GossipKind::Pulse,
+				let msg = gossip::gossip_types::GossipMessage {
+					kind: gossip::gossip_types::GossipKind::Pulse,
 					id: format!("pulse-{}-{}", pulse_node.addr(), stamp),
 					origin: pulse_node.addr(),
-					payload: crate::gossip_types::GossipPayload::Pulse(crate::gossip_types::PulsePayload {
+					payload: gossip::gossip_types::GossipPayload::Pulse(gossip::gossip_types::PulsePayload {
 						kern_id: kern_id.to_string(),
 						strength,
 					}),
@@ -1343,12 +1343,12 @@ async fn start_gossip(
 			let broadcast_q: crate::tick_tasks::BroadcastQuestionFunc =
 				Arc::new(move |rid: &str, rvec: &[f32], rtext: &str| {
 					let stamp = util::now_nanos();
-					let msg = crate::gossip_types::GossipMessage {
-						kind: crate::gossip_types::GossipKind::Question,
+					let msg = gossip::gossip_types::GossipMessage {
+						kind: gossip::gossip_types::GossipKind::Question,
 						id: format!("q-{}-{}", q_node.addr(), stamp),
 						origin: q_node.addr(),
-						payload: crate::gossip_types::GossipPayload::Question(
-							crate::gossip_types::QuestionPayload {
+						payload: gossip::gossip_types::GossipPayload::Question(
+							gossip::gossip_types::QuestionPayload {
 								reason_id: rid.to_string(),
 								reason_vec: rvec.to_vec(),
 								question_text: rtext.to_string(),

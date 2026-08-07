@@ -9,7 +9,7 @@ use std::time::Duration;
 use crate::transport::kern_rpc::KernRpcClient;
 use crate::transport::typed::{Endpoint, JsonEnvelopeCodec};
 
-use crate::identity::strip_deleted_marker;
+use gossip::identity::strip_deleted_marker;
 
 // Bootstrap loads the whole graph before binding kern.sock, so a big store
 // needs a generous ready window.

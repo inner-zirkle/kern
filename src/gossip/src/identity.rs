@@ -10,7 +10,7 @@ use util::{content_hash, now_ms};
 
 // A rebuild unlinks the running binary; /proc/self/exe then reads
 // "<path> (deleted)". hub::node strips the same marker for the same reason.
-pub(crate) fn strip_deleted_marker(s: &str) -> &str {
+pub fn strip_deleted_marker(s: &str) -> &str {
 	s.strip_suffix(" (deleted)").unwrap_or(s)
 }
 
