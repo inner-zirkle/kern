@@ -207,7 +207,7 @@ mod tests {
 
 	#[test]
 	fn store_signals_surface_evictions_and_the_embed_stamp() {
-		use crate::base_types::{mk_entity, EntityKind};
+		use base::base_types::{mk_entity, EntityKind};
 
 		let d = tempfile::tempdir().unwrap();
 		let store = Store::open(&d.path().to_string_lossy()).unwrap();
@@ -273,8 +273,8 @@ mod tests {
 
 	#[test]
 	fn graph_health_stats_skewed_access_gini_above_half() {
-		use crate::base_types::{mk_entity, EntityKind};
-		use crate::crdt::GCounter;
+		use base::base_types::{mk_entity, EntityKind};
+		use base::crdt::GCounter;
 
 		let mut g = GraphGnn::new();
 		// One heavily-accessed entity, several untouched. Insert via
@@ -304,7 +304,7 @@ mod tests {
 
 	#[test]
 	fn graph_health_stats_reports_max_kerns() {
-		use crate::base_constants::KERN_CAP_DISABLED;
+		use base::base_constants::KERN_CAP_DISABLED;
 
 		// Default graph: uncapped.
 		let h = graph_health_stats(&GraphGnn::new());
@@ -322,7 +322,7 @@ mod tests {
 
 	#[test]
 	fn graph_health_stats_reports_largest_kern_entities() {
-		use crate::base_types::{mk_entity, EntityKind, Kern};
+		use base::base_types::{mk_entity, EntityKind, Kern};
 
 		// Empty graph -> 0.
 		assert_eq!(
@@ -371,7 +371,7 @@ mod tests {
 
 	#[test]
 	fn graph_health_stats_reports_gini_kern_sizes() {
-		use crate::base_types::{mk_entity, EntityKind, Kern};
+		use base::base_types::{mk_entity, EntityKind, Kern};
 
 		// Empty graph -> 0.0 (one root kern, no entities -> uniform zero-sum).
 		assert!(

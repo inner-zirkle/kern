@@ -499,7 +499,7 @@ mod tests {
 			.expect("review_policy is not preset-managed");
 		assert_eq!(
 			cfg.ingest.review_policy.get("inline"),
-			Some(&crate::base_types::ReviewState::Pending),
+			Some(&base::base_types::ReviewState::Pending),
 			"the policy a real file set has to reach the struct the ingest gate reads"
 		);
 
@@ -1304,7 +1304,7 @@ mod reason_tests {
 
 // ==== [graph] ====
 
-use crate::base_constants::KERN_CAP_DISABLED;
+use base::base_constants::KERN_CAP_DISABLED;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(default)]
@@ -1382,9 +1382,9 @@ impl Default for HubConfig {
 
 // ==== [ingest] ====
 
-use crate::base_constants::INGEST_DEDUP_THRESHOLD;
-use crate::base_types::{EntityKind, Source};
 use crate::ingest::ReviewPolicy;
+use base::base_constants::INGEST_DEDUP_THRESHOLD;
+use base::base_types::{EntityKind, Source};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
@@ -1442,7 +1442,7 @@ impl IngestConfig {
 #[cfg(test)]
 mod graph_tests {
 	use super::*;
-	use crate::base_types::ReviewState;
+	use base::base_types::ReviewState;
 
 	#[test]
 	fn default_validates_and_bad_knobs_are_rejected() {
@@ -1609,7 +1609,7 @@ impl Default for ReloadConfig {
 
 use std::collections::BTreeMap;
 
-use crate::base_constants as constants;
+use base::base_constants as constants;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(default)]
@@ -2193,7 +2193,7 @@ mod intake_tests {
 
 // ==== [tick] ====
 
-use crate::base_constants::{
+use base::base_constants::{
 	KERN_IDLE_TIMEOUT, TICK_INTERVAL_SECS, TICK_MAX_CLUSTER_SAMPLE, TICK_QUEUE_CAPACITY,
 };
 
@@ -2315,7 +2315,7 @@ mod reload_tests {
 
 // ==== [gossip] ====
 
-use crate::base_constants::{GOSSIP_MAX_PEERS, GOSSIP_SEED_ADDR};
+use base::base_constants::{GOSSIP_MAX_PEERS, GOSSIP_SEED_ADDR};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
@@ -2363,7 +2363,7 @@ impl Default for ContractConfig {
 			writers: "owners-only".into(),
 			writer_keys: Vec::new(),
 			kinds: Vec::new(),
-			max_entities: crate::base_constants::GOSSIP_REMOTE_KERN_ENTITY_CAP as u32,
+			max_entities: base::base_constants::GOSSIP_REMOTE_KERN_ENTITY_CAP as u32,
 			retention_secs: None,
 		}
 	}

@@ -7,9 +7,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use super::graph::GraphGnn;
 use super::hnsw::HnswHit;
-use super::util::cmp_rank;
-use super::util::LogThrottle;
-use crate::base_types::{Entity, Reason};
+use base::base_types::{Entity, Reason};
+use util::cmp_rank;
+use util::LogThrottle;
 
 const DIM_WARN_SECS: u64 = 60;
 static DIM_REJECTED: AtomicU64 = AtomicU64::new(0);
@@ -228,7 +228,7 @@ mod tests {
 	// Entities live in a kern (not just the index) so the graph can report an
 	// indexed dimension — that is what the guard compares against.
 	fn indexed(dim: usize) -> GraphGnn {
-		use crate::base_types::{Entity, Kern};
+		use base::base_types::{Entity, Kern};
 		let mut g = GraphGnn::new();
 		let root = g.root.id.clone();
 		let mut k = Kern::new("k1", &root);
@@ -352,7 +352,7 @@ mod tests {
 
 	#[test]
 	fn find_entity_resolves_through_the_ref_indirection_path() {
-		use crate::base_types::{Entity, EntityRef, Kern};
+		use base::base_types::{Entity, EntityRef, Kern};
 		// "alias" exists only as a ref in ka pointing at "real" in kb, so lookup
 		// must miss the direct paths and resolve via kern.refs -> ref_kern.entities.
 		let mut g = GraphGnn::new();
@@ -386,7 +386,7 @@ mod tests {
 
 	#[test]
 	fn find_entity_by_prefix_resolves_a_unique_prefix() {
-		use crate::base_types::{Entity, Kern};
+		use base::base_types::{Entity, Kern};
 		let mut g = GraphGnn::new();
 		let mut k = Kern::new("kx", "");
 		k.entities.insert(

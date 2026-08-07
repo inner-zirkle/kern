@@ -3,16 +3,16 @@
 //! (scopes, retention, review state) stamped on before placement.
 
 use crate::accept;
-use crate::base_types::*;
-use crate::crdt::GCounter;
 use crate::graph::GraphGnn;
 use crate::ingest::Job;
 use crate::ingest_dedup::{find_duplicate, update_existing_entity};
 use crate::ingest_worker::embed_with_retry;
 use crate::ingest_worker::FailureReport;
 use crate::llm::Client as LlmClient;
-use crate::util;
+use base::base_types::*;
+use base::crdt::GCounter;
 use std::sync::Arc;
+use util;
 
 use parking_lot::RwLock;
 use std::time::SystemTime;

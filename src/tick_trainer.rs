@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 use parking_lot::Mutex;
 
-use crate::util::LogThrottle;
+use util::LogThrottle;
 
 use crate::tick_queue::{task, Queue, TaskKind};
 

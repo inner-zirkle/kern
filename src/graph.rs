@@ -10,12 +10,12 @@ use std::sync::Arc;
 use std::time::SystemTime;
 
 use super::lexical::LexicalIndex;
-use super::util;
 use super::vector_backend::VectorBackend;
-use crate::base_constants::KERN_CAP_DISABLED;
 use crate::base_store::{Store, StoreError};
-use crate::base_types::{EntityStatus, Kern};
 use crate::quant::QuantizationMode;
+use base::base_constants::KERN_CAP_DISABLED;
+use base::base_types::{EntityStatus, Kern};
+use util;
 
 #[allow(clippy::too_many_arguments)]
 fn index_kern_into(
@@ -751,7 +751,7 @@ impl GraphGnn {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::base_types::{Entity, Reason};
+	use base::base_types::{Entity, Reason};
 
 	fn empty_unnamed(id: &str, parent: &str, children: &[&str]) -> Kern {
 		let mut k = Kern::new(id, parent);
@@ -761,7 +761,7 @@ mod tests {
 
 	#[test]
 	fn adjacency_ignores_edges_a_peer_farmed_inside_its_own_phantom_kern() {
-		use crate::base_types::Reason;
+		use base::base_types::Reason;
 
 		let edge = |id: &str, from: &str, to: &str| Reason {
 			id: id.into(),
@@ -910,7 +910,7 @@ mod tests {
 
 	#[test]
 	fn rebuild_index_is_deterministic_across_instances() {
-		use crate::base_types::Reason;
+		use base::base_types::Reason;
 		let vec_of = |i: usize, off: f64| -> Vec<f32> {
 			(0..8)
 				.map(|j| ((i as f64) * (0.11 + 0.05 * j as f64) + off).sin() as f32)

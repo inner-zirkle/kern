@@ -484,16 +484,16 @@ mod tests {
 			.worker
 			.enqueue(
 				format!("filler {offered}"),
-				crate::base_types::Source::Inline {
+				base::base_types::Source::Inline {
 					hash: String::new(),
 					section: String::new(),
 				},
-				crate::base_types::EntityKind::Claim,
+				base::base_types::EntityKind::Claim,
 				String::new(),
 				1.0,
 				"inline",
 				crate::ingest::Config::default(),
-				crate::base_types::Scoping::default(),
+				base::base_types::Scoping::default(),
 			)
 			.is_some()
 		{

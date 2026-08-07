@@ -6,9 +6,9 @@ use std::collections::HashSet;
 
 use super::diskann::DiskIndex;
 use super::hnsw::{HnswHit, HnswIndex};
-use super::util::cmp_rank;
-use crate::base_types::Embedding;
 use crate::quant::QuantizationMode;
+use base::base_types::Embedding;
+use util::cmp_rank;
 
 pub enum VectorBackend {
 	Resident(HnswIndex),

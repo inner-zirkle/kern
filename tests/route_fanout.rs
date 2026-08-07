@@ -11,9 +11,9 @@
 //
 // Ignored by default: the widest configuration accepts into a 20k-entity graph
 // and takes minutes in release, unbounded in debug.
+use base::base_constants::{KERN_INNER_RADIUS, KERN_OUTER_RADIUS};
+use base::base_types::{ChunkPart, ChunkPartKind, Entity, EntityKind, Kern};
 use kern::accept::accept_with_dedup;
-use kern::base_constants::{KERN_INNER_RADIUS, KERN_OUTER_RADIUS};
-use kern::base_types::{ChunkPart, ChunkPartKind, Entity, EntityKind, Kern};
 use kern::graph::GraphGnn;
 use std::time::Instant;
 

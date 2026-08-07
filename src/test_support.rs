@@ -2,7 +2,7 @@
 //! graph builders — test-only, compiled into the lib for reuse by integration
 //! tests.
 
-use crate::base_types::{Entity, Reason};
+use base::base_types::{Entity, Reason};
 use tokio::task::JoinHandle;
 
 // Lets a test assert on the allocation a call makes. A buffer removal cannot be
@@ -123,7 +123,7 @@ pub(crate) fn mcp_server_with_embed_url(url: &str) -> crate::mcp::Server {
 		task_q: None,
 		cfg: Arc::new(crate::config::Config::default()),
 		broadcast_pulse: None,
-		last_activity: Arc::new(std::sync::atomic::AtomicU64::new(crate::util::now_ms())),
+		last_activity: Arc::new(std::sync::atomic::AtomicU64::new(util::now_ms())),
 	}
 }
 
@@ -140,7 +140,7 @@ pub(crate) fn scratch_endpoint(tag: &str) -> crate::transport::typed::Endpoint {
 	let dir = std::env::temp_dir().join(format!(
 		"kern-route-{}-{}-{tag}",
 		std::process::id(),
-		crate::util::now_ms()
+		util::now_ms()
 	));
 	std::fs::create_dir_all(&dir).expect("scratch dir");
 	crate::transport::typed::Endpoint::Unix(dir.join("kern.sock"))
@@ -219,7 +219,7 @@ pub(crate) async fn spawn_http(app: axum::Router) -> (String, JoinHandle<()>) {
 // advances the epoch underneath a one-shot CLI command mid-flight.
 pub(crate) fn commit_extra_kern_via_store(
 	g: &std::sync::Arc<parking_lot::RwLock<crate::graph::GraphGnn>>,
-	kern: crate::base_types::Kern,
+	kern: base::base_types::Kern,
 ) {
 	let gg = g.read();
 	let store = gg.store().expect("graph has a bound store");

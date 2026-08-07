@@ -5,7 +5,7 @@
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
-use crate::base_constants::{GOSSIP_DIAL_TIMEOUT, GOSSIP_FETCH_TIMEOUT, GOSSIP_MAX_FRAME_BYTES};
+use base::base_constants::{GOSSIP_DIAL_TIMEOUT, GOSSIP_FETCH_TIMEOUT, GOSSIP_MAX_FRAME_BYTES};
 
 use crate::gossip_identity::{verify_frame, PeerId, PeerIdentity};
 use crate::gossip_types::*;

@@ -65,7 +65,7 @@ impl PeerIdentity {
 					std::fs::create_dir_all(parent)?;
 				}
 				let id = Self::generate();
-				let hex = crate::util::hex::encode(id.key.to_bytes());
+				let hex = util::hex::encode(id.key.to_bytes());
 				use std::io::Write;
 				let mut f = create_private(path)?;
 				f.write_all(hex.as_bytes())?;

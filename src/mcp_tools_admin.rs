@@ -323,7 +323,7 @@ mod claim_kind_tests {
 
 	#[tokio::test]
 	async fn health_stats_aggregates_entities_and_claim_kinds() {
-		use crate::base_types::{Entity, Kern};
+		use base::base_types::{Entity, Kern};
 		let (srv, _c) = make_server();
 		{
 			let mut g = srv.graph.write();

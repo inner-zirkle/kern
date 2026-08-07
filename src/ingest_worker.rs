@@ -2,16 +2,16 @@
 //! A full queue refuses the job back to the producer (counted), and every
 //! commit funnels through the same accept/dedup path as the durable legs.
 
-use crate::base_types::*;
 use crate::graph::GraphGnn;
 use crate::ingest_config::Config;
 use crate::ingest_place::{document_kind, place_chunks, place_document};
 use crate::llm::Client as LlmClient;
 use crate::math::clamp_confidence;
-use crate::util;
-use crate::util::LogThrottle;
+use base::base_types::*;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use util;
+use util::LogThrottle;
 
 use parking_lot::RwLock;
 use tokio::sync::{mpsc, oneshot};
@@ -941,21 +941,21 @@ mod tests {
 
 		assert_eq!(
 			build(1.0, "file").confidence,
-			crate::base_constants::MAX_AI_CONFIDENCE,
+			base::base_constants::MAX_AI_CONFIDENCE,
 			"a non-user channel is capped, whatever it asked for"
 		);
 		assert_eq!(
-			build(1.0, crate::base_constants::AGENT_SOURCE).confidence,
-			crate::base_constants::MAX_AI_CONFIDENCE,
+			build(1.0, base::base_constants::AGENT_SOURCE).confidence,
+			base::base_constants::MAX_AI_CONFIDENCE,
 		);
 		assert_eq!(
-			build(1.0, crate::base_constants::USER_SOURCE).confidence,
+			build(1.0, base::base_constants::USER_SOURCE).confidence,
 			1.0,
 			"the one path with a human behind it keeps its 1.0"
 		);
 		assert_eq!(
-			build(crate::base_constants::MAX_AI_CONFIDENCE, "file").confidence,
-			crate::base_constants::MAX_AI_CONFIDENCE,
+			build(base::base_constants::MAX_AI_CONFIDENCE, "file").confidence,
+			base::base_constants::MAX_AI_CONFIDENCE,
 			"idempotent: a producer that already clamped is not clamped twice"
 		);
 		assert_eq!(
@@ -1033,7 +1033,7 @@ mod tests {
 			Scoping::default(),
 		);
 
-		let want = crate::base_constants::MAX_AI_CONFIDENCE;
+		let want = base::base_constants::MAX_AI_CONFIDENCE;
 		let mut seen: Vec<(String, f64)> = Vec::new();
 		let cap = std::time::Instant::now() + std::time::Duration::from_secs(5);
 		while std::time::Instant::now() < cap {

@@ -6,11 +6,11 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use crate::base_constants::{
+use crate::graph::GraphGnn;
+use base::base_constants::{
 	DISK_CONSOLIDATE_INTERVAL, DISK_CONSOLIDATE_MIN_DELTA, KERN_IDLE_SWEEP_EVERY, PULSE_DECAY,
 	PULSE_THRESHOLD, STIGMERGY_GC_INTERVAL,
 };
-use crate::graph::GraphGnn;
 
 use crate::tick_queue::{task, Queue, TaskKind};
 
@@ -124,7 +124,7 @@ fn fan_out_cluster(q: &Queue, g: &GraphGnn, kern_id: &str, strength: f64) {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::base_types::{mk_entity, EntityKind, Kern};
+	use base::base_types::{mk_entity, EntityKind, Kern};
 	use std::sync::Arc;
 
 	fn cluster_kerns_after_pulse(strength: f64) -> Vec<String> {

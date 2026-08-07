@@ -14,7 +14,7 @@ use std::time::{Duration, Instant};
 
 use parking_lot::RwLock;
 
-use kern::base_types::{Entity, EntityKind, Kern, Reason};
+use base::base_types::{Entity, EntityKind, Kern, Reason};
 use kern::config::TickConfig;
 use kern::gnn::propagate::GnnConfig;
 use kern::graph::GraphGnn;

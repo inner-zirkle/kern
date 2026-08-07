@@ -2,13 +2,13 @@
 //! the shape detector behind kern splitting and naming: a cohesive-enough
 //! cluster earns a name; the core cluster stays with its graviton.
 
-use crate::base_constants::{
+use crate::math::cosine;
+use base::base_constants::{
 	KERN_COHESION_THRESHOLD, KERN_NAMING_COHESION_THRESHOLD, KERN_NAMING_MIN_CLUSTER_SIZE,
 };
-use crate::base_types::Entity;
-use crate::math::cosine;
-use crate::util::cmp_partial;
+use base::base_types::Entity;
 use rayon::prelude::*;
+use util::cmp_partial;
 
 pub struct Cluster {
 	pub members: Vec<Entity>,

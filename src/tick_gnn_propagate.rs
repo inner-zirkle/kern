@@ -7,10 +7,10 @@ use std::sync::Arc;
 
 use parking_lot::RwLock;
 
-use crate::base_types::{Embedding, EntityStatus, Kern};
 use crate::gnn::graph::Graph;
 use crate::gnn::propagate::{self, GnnConfig, GnnSnapshot};
 use crate::graph::GraphGnn;
+use base::base_types::{Embedding, EntityStatus, Kern};
 
 use crate::tick_queue::{task, Queue, TaskKind};
 
@@ -266,8 +266,8 @@ fn cosine_align(a: &[f32], b: &[f32]) -> f64 {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::base_types::{mk_entity, EntityKind, Reason};
 	use crate::reason::add_reason;
+	use base::base_types::{mk_entity, EntityKind, Reason};
 
 	fn kern_with_n(n: usize) -> Kern {
 		let mut k = Kern::new("k", "");

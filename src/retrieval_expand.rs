@@ -2,12 +2,12 @@
 //! each hop by edge weight and query similarity, and keep the traversal as a
 //! [`PathChain`] so every delivered result carries its provenance chain.
 
-use crate::base_types::*;
 use crate::config::RetrievalConfig;
 use crate::graph::GraphGnn;
 use crate::math::cosine;
 use crate::retrieval::seed::Weights;
 use crate::search::EntityHit;
+use base::base_types::*;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 

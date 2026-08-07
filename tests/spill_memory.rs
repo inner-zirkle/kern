@@ -13,8 +13,8 @@
 // binary once per configuration with KERN_SPILL_MODE set and prints the table.
 //
 // `KERN_SPILL_N` overrides the corpus size.
-use kern::base_constants::KERN_CAP_DISABLED;
-use kern::base_types::{ChunkPart, ChunkPartKind, Entity, EntityKind, Kern, Reason};
+use base::base_constants::KERN_CAP_DISABLED;
+use base::base_types::{ChunkPart, ChunkPartKind, Entity, EntityKind, Kern, Reason};
 use kern::graph::GraphGnn;
 use kern::vector_backend::VectorBackend;
 

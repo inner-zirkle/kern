@@ -45,9 +45,7 @@ pub fn launch_dir_join(path: impl AsRef<Path>) -> PathBuf {
 }
 
 pub mod accept;
-pub mod base_constants;
 pub mod base_store;
-pub mod base_types;
 pub mod commands;
 pub(crate) mod commands_admin;
 pub(crate) mod commands_graph_ops;
@@ -58,7 +56,6 @@ mod commands_query;
 mod commands_reembed;
 mod commands_route;
 pub mod config;
-pub mod crdt;
 pub mod diskann;
 pub mod gnn;
 pub mod gnn_graph;
@@ -108,7 +105,6 @@ pub(crate) mod mcp_tools_query;
 pub(crate) mod mcp_tools_setup;
 pub mod merge;
 pub mod persist;
-pub mod profile;
 pub mod quant;
 pub mod reason;
 pub mod retrieval;
@@ -133,9 +129,7 @@ pub mod tick_trainer;
 pub mod transport;
 pub mod transport_hub_rpc;
 pub mod transport_kern_rpc;
-pub mod util;
 pub mod vector_backend;
-pub mod watcher;
 
 #[cfg(test)]
 mod test_support;

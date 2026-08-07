@@ -191,7 +191,7 @@ impl CrdtTarget {
 pub struct EntitySyncPayload {
 	pub network_id: String,
 	pub kern_id: String,
-	pub entities: Vec<crate::base_types::Entity>,
+	pub entities: Vec<base::base_types::Entity>,
 }
 
 // value is the sender's ABSOLUTE replica-slot total, not an increment — a

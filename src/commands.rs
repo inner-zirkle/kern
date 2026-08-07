@@ -302,7 +302,7 @@ pub enum UnnamedAction {
 pub(crate) fn apply_graph_config(g: &mut GraphGnn, cfg: &crate::config::GraphConfig) {
 	g.set_max_loaded_kerns(cfg.max_kerns);
 	g.set_disk_threshold(cfg.disk_threshold);
-	if cfg.disk_threshold != crate::base_constants::KERN_CAP_DISABLED {
+	if cfg.disk_threshold != base::base_constants::KERN_CAP_DISABLED {
 		g.rebuild_index();
 	}
 }
@@ -829,7 +829,7 @@ pub(crate) async fn bootstrap(cli: &Cli, cfg: &crate::config::Config) -> EngineH
 		task_q: Some(q.clone()),
 		cfg: std::sync::Arc::new(cfg.clone()),
 		broadcast_pulse: broadcast_pulse.clone(),
-		last_activity: std::sync::Arc::new(std::sync::atomic::AtomicU64::new(crate::util::now_ms())),
+		last_activity: std::sync::Arc::new(std::sync::atomic::AtomicU64::new(util::now_ms())),
 	});
 
 	spawn_maintenance_tick(cfg, &g, &q, broadcast_pulse.clone());
@@ -1130,7 +1130,7 @@ fn spawn_file_watcher(cfg: &crate::config::Config, worker: &Arc<crate::ingest::W
 		return;
 	}
 	use crate::ingest::file_watcher::{run as run_file_watcher, KernFileWatcherSink};
-	use crate::watcher::IgnoreRules;
+	use util::watcher::IgnoreRules;
 	let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
 	let roots = cfg.watcher.effective_roots(&cwd);
 	// kern's own state is never content. The default root is the cwd and the
@@ -1261,7 +1261,7 @@ async fn start_gossip(
 					crate::gossip_contract::contract_id(crate::gossip_contract::SIGNED_CRDT_V0_TAG, &params);
 				tracing::info!(
 					target: "kern.gossip",
-					contract = %crate::util::hex::encode(cid),
+					contract = %util::hex::encode(cid),
 					"hosting contract"
 				);
 				Some((
@@ -1330,7 +1330,7 @@ async fn start_gossip(
 			}
 			let pulse_node = node.clone();
 			let broadcast_pulse: BroadcastPulseFn = Arc::new(move |kern_id: &str, strength: f64| {
-				let stamp = crate::util::now_nanos();
+				let stamp = util::now_nanos();
 				let msg = crate::gossip_types::GossipMessage {
 					kind: crate::gossip_types::GossipKind::Pulse,
 					id: format!("pulse-{}-{}", pulse_node.addr(), stamp),
@@ -1345,7 +1345,7 @@ async fn start_gossip(
 			let q_node = node.clone();
 			let broadcast_q: crate::tick_tasks::BroadcastQuestionFunc =
 				Arc::new(move |rid: &str, rvec: &[f32], rtext: &str| {
-					let stamp = crate::util::now_nanos();
+					let stamp = util::now_nanos();
 					let msg = crate::gossip_types::GossipMessage {
 						kind: crate::gossip_types::GossipKind::Question,
 						id: format!("q-{}-{}", q_node.addr(), stamp),
@@ -1533,8 +1533,8 @@ mod entry_point_tests {
 	#[test]
 	fn a_normal_open_stamps_the_model_and_a_swap_reaches_health() {
 		use crate::base_store::EmbedStamp;
-		use crate::base_types::{mk_entity, EntityKind, Kern};
 		use crate::health::graph_health_stats;
+		use base::base_types::{mk_entity, EntityKind, Kern};
 
 		let dir = tempfile::tempdir().unwrap();
 		let data_dir = dir.path().to_string_lossy().into_owned();
@@ -1603,7 +1603,7 @@ mod entry_point_tests {
 		use parking_lot::RwLock;
 		use std::sync::Arc;
 
-		use crate::base_types::{mk_entity, EntityKind, Kern};
+		use base::base_types::{mk_entity, EntityKind, Kern};
 
 		let dir = tempfile::tempdir().unwrap();
 		let cfg = crate::config::Config {
@@ -1655,7 +1655,7 @@ mod entry_point_tests {
 		use parking_lot::RwLock;
 		use std::sync::Arc;
 
-		use crate::base_types::Kern;
+		use base::base_types::Kern;
 
 		let dir = tempfile::tempdir().unwrap();
 		let cfg = crate::config::Config {
@@ -1688,7 +1688,7 @@ mod entry_point_tests {
 		use parking_lot::RwLock;
 		use std::sync::Arc;
 
-		use crate::base_types::{mk_entity, EntityKind, Kern};
+		use base::base_types::{mk_entity, EntityKind, Kern};
 
 		let dir = tempfile::tempdir().unwrap();
 		let cfg = crate::config::Config {
@@ -1729,7 +1729,7 @@ mod entry_point_tests {
 		use parking_lot::RwLock;
 		use std::sync::Arc;
 
-		use crate::base_types::Kern;
+		use base::base_types::Kern;
 
 		let dir = tempfile::tempdir().unwrap();
 		let cfg = crate::config::Config {
@@ -1784,8 +1784,8 @@ mod entry_point_tests {
 		use parking_lot::RwLock;
 		use std::sync::Arc;
 
-		use crate::base_constants::KERN_MIN_CLUSTER_SIZE;
-		use crate::base_types::{mk_entity, EntityKind, Kern};
+		use base::base_constants::KERN_MIN_CLUSTER_SIZE;
+		use base::base_types::{mk_entity, EntityKind, Kern};
 
 		let dir = tempfile::tempdir().unwrap();
 		let cfg = crate::config::Config {
@@ -1835,11 +1835,11 @@ mod entry_point_tests {
 
 	#[test]
 	fn apply_graph_config_spills_to_disk_when_threshold_enabled() {
-		use crate::base_constants::KERN_CAP_DISABLED;
-		use crate::base_types::{Entity, EntityStatus, Kern};
 		use crate::config::GraphConfig;
 		use crate::graph::GraphGnn;
 		use crate::vector_backend::VectorBackend;
+		use base::base_constants::KERN_CAP_DISABLED;
+		use base::base_types::{Entity, EntityStatus, Kern};
 
 		let dir = tempfile::tempdir().unwrap();
 		let mut g = GraphGnn::new();

@@ -8,15 +8,15 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::SystemTime;
 
-use crate::util::LogThrottle;
+use util::LogThrottle;
 
 use parking_lot::RwLock;
 
-use crate::base_constants::{COLD_GC_AGE, COLD_HEAT_THRESHOLD, EVIDENCE_HALF_LIFE_SECS};
-use crate::base_types::{Entity, EntityKind};
 use crate::graph::GraphGnn;
 use crate::heat::{self, HeatConfig};
 use crate::reason::remove_entity;
+use base::base_constants::{COLD_GC_AGE, COLD_HEAT_THRESHOLD, EVIDENCE_HALF_LIFE_SECS};
+use base::base_types::{Entity, EntityKind};
 
 const SKEW_WARN_SECS: u64 = 300;
 static CLOCK_SKEW: AtomicU64 = AtomicU64::new(0);
@@ -85,7 +85,7 @@ fn is_cold_victim(
 // (1,1). `half_life_secs == 0` is a noop (default-off). Decaying (α-1)/(β-1)
 // toward 0 by the heat half-life keeps (1,1) as the floor and never crosses it.
 // Local-only mutable state (item 57); superseded entities are skipped.
-pub fn decay_evidence(kern: &mut crate::base_types::Kern, now: SystemTime, half_life_secs: u64) {
+pub fn decay_evidence(kern: &mut base::base_types::Kern, now: SystemTime, half_life_secs: u64) {
 	if half_life_secs == 0 {
 		return;
 	}
@@ -224,7 +224,7 @@ fn evict_victims(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::base_types::Kern;
+	use base::base_types::Kern;
 	use std::time::Duration;
 
 	const HL: u64 = 3600;
@@ -245,7 +245,7 @@ mod tests {
 	// (immune).
 	fn mixed_population(dir: &tempfile::TempDir) -> (GraphGnn, Arc<crate::base_store::Store>) {
 		use crate::base_store::Store;
-		use crate::base_types::EntityStatus;
+		use base::base_types::EntityStatus;
 
 		let store = Arc::new(Store::open(&dir.path().to_string_lossy()).unwrap());
 		let now = SystemTime::now();
@@ -565,7 +565,7 @@ mod tests {
 
 	#[test]
 	fn superseded_fact_loses_immunity_and_becomes_a_victim() {
-		use crate::base_types::EntityStatus;
+		use base::base_types::EntityStatus;
 		let now = SystemTime::now();
 		let old = now - (COLD_GC_AGE + Duration::from_secs(1));
 		assert!(
@@ -589,7 +589,7 @@ mod tests {
 	#[test]
 	fn run_gc_spills_superseded_fact_to_cold_while_active_fact_stays_immune() {
 		use crate::base_store::Store;
-		use crate::base_types::EntityStatus;
+		use base::base_types::EntityStatus;
 		use parking_lot::RwLock;
 		use std::sync::Arc;
 
@@ -791,7 +791,7 @@ mod tests {
 
 	#[test]
 	fn evidence_decay_damps_alpha_beta_toward_prior_by_half_life() {
-		use crate::base_types::{EntityStatus, Kern};
+		use base::base_types::{EntityStatus, Kern};
 		let now = SystemTime::now();
 		let seven_d = 7 * 24 * 60 * 60;
 		let mut k = Kern::new("k", "");
@@ -812,7 +812,7 @@ mod tests {
 
 	#[test]
 	fn evidence_decay_half_life_zero_is_a_noop() {
-		use crate::base_types::Kern;
+		use base::base_types::Kern;
 		let now = SystemTime::now();
 		let mut k = Kern::new("k", "");
 		let mut e = ent(EntityKind::Fact, 0.0, Some(now));
@@ -830,7 +830,7 @@ mod tests {
 
 	#[test]
 	fn evidence_decay_skips_superseded_entities() {
-		use crate::base_types::{EntityStatus, Kern};
+		use base::base_types::{EntityStatus, Kern};
 		let now = SystemTime::now();
 		let seven_d = 7 * 24 * 60 * 60;
 		let mut k = Kern::new("k", "");

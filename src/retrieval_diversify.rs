@@ -114,8 +114,8 @@ pub fn mmr<T: Scored>(cfg: &RetrievalConfig, query_vec: &[f32], results: &mut Ve
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::base_types::{Entity, Source};
 	use crate::retrieval::expand::ScoredEntity;
+	use base::base_types::{Entity, Source};
 
 	fn sect(id: &str, section: &str, score: f64) -> ScoredEntity {
 		ScoredEntity {

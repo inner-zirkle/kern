@@ -2,16 +2,16 @@
 //! degrade, promote, move — the per-thought reads and writes shared by the
 //! CLI and MCP surfaces.
 
-use crate::base_constants::{
-	DEGRADE_DECAY_BASE, DEGRADE_DECAY_POW, DEGRADE_FLOOR, DEGRADE_MIN_THRESHOLD,
-};
-use crate::base_types::{EntityKind, Kern, Reason, ReasonKind, ReviewState, Source};
 use crate::graph::GraphGnn;
 use crate::math::{average_vec, reason_id};
 use crate::mcp::tools_query::entity_detail_by_id;
 use crate::reason::{add_reason, remove_entity, remove_reason};
 use crate::search::find_entity;
-use crate::util::{explain_relationship_prompt, short_id, truncate};
+use base::base_constants::{
+	DEGRADE_DECAY_BASE, DEGRADE_DECAY_POW, DEGRADE_FLOOR, DEGRADE_MIN_THRESHOLD,
+};
+use base::base_types::{EntityKind, Kern, Reason, ReasonKind, ReviewState, Source};
+use util::{explain_relationship_prompt, short_id, truncate};
 
 use crate::commands::{load_graph, with_graph, Client, Endpoint};
 use crate::commands_route::{array_field, f64_field, route, str_field, u64_field, Routed};
@@ -539,7 +539,7 @@ pub(crate) fn degrade_entity_reasons(g: &mut GraphGnn, kern_id: &str, id: &str) 
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::base_types::{Entity, Kern, Reason};
+	use base::base_types::{Entity, Kern, Reason};
 
 	fn edge(from: &str, to: &str, score: f64) -> Reason {
 		Reason {
@@ -616,7 +616,7 @@ mod tests {
 		use parking_lot::RwLock;
 		use std::sync::Arc;
 
-		use crate::base_types::{mk_entity, EntityKind};
+		use base::base_types::{mk_entity, EntityKind};
 
 		let dir = tempfile::tempdir().unwrap();
 		let cfg = crate::config::Config {
@@ -689,7 +689,7 @@ mod tests {
 		);
 	}
 
-	use crate::base_types::EntityKind;
+	use base::base_types::EntityKind;
 
 	fn ent(id: &str, kind: EntityKind) -> Entity {
 		Entity {
@@ -988,7 +988,7 @@ mod tests {
 				.get_mut("a")
 				.unwrap();
 			a.set_text("the question".into());
-			a.source = crate::base_types::Source::Session {
+			a.source = base::base_types::Source::Session {
 				session_id: "session:sess-1".into(),
 				section: "2,5".into(),
 				title: String::new(),

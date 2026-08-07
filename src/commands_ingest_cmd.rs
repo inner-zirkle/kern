@@ -6,9 +6,9 @@ use std::sync::Arc;
 use parking_lot::RwLock;
 
 use crate::base_store::FlushOutcome;
-use crate::base_types::Source;
 use crate::math::clamp_confidence;
-use crate::util::truncate;
+use base::base_types::Source;
+use util::truncate;
 
 use crate::commands::{load_graph, Client, Endpoint};
 
@@ -75,7 +75,7 @@ pub(crate) async fn cmd_ingest(
 	// Identity per ingest, not a shared constant: a constant hash made every
 	// CLI ingest the same source, so each one superseded the previous fact.
 	let src = Source::Inline {
-		hash: crate::util::content_hash(&text),
+		hash: util::content_hash(&text),
 		section: String::new(),
 	};
 
@@ -135,7 +135,7 @@ async fn run_once(
 	_g: &Arc<RwLock<crate::graph::GraphGnn>>,
 	text: &str,
 	src: &Source,
-	kind: crate::base_types::EntityKind,
+	kind: base::base_types::EntityKind,
 	conf: f64,
 	cfg: &crate::config::Config,
 	valid_until: Option<std::time::SystemTime>,
@@ -149,9 +149,9 @@ async fn run_once(
 			conf,
 			// The CLI is the one path with a human behind it, and `Source::Inline`
 			// cannot record that (ROADMAP item 20), so it names the principal here.
-			crate::base_constants::USER_SOURCE,
+			base::base_constants::USER_SOURCE,
 			ingest_config(cfg, valid_until),
-			crate::base_types::Scoping::default(),
+			base::base_types::Scoping::default(),
 		)
 		.await
 }

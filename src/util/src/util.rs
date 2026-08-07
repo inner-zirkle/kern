@@ -390,7 +390,8 @@ mod throttle_tests {
 	}
 }
 
-pub(crate) fn parse_rfc3339(s: &str) -> Result<std::time::SystemTime, ()> {
+#[allow(clippy::result_unit_err)]
+pub fn parse_rfc3339(s: &str) -> Result<std::time::SystemTime, ()> {
 	let s = s.trim();
 	// The fixed slices below read bytes 0..19: length must be checked AFTER the
 	// trim and those bytes must be ASCII, or the str slicing panics.
@@ -428,7 +429,7 @@ pub(crate) fn parse_rfc3339(s: &str) -> Result<std::time::SystemTime, ()> {
 /// the pair round-trips. Used to render a `SystemTime` as a calendar date for
 /// the distill prompt, so the model can resolve relative dates ("last Tuesday")
 /// against a known today.
-pub(crate) fn civil_from_days(z: i64) -> (i32, u32, u32) {
+pub fn civil_from_days(z: i64) -> (i32, u32, u32) {
 	let z = z + 719468;
 	let era = if z >= 0 { z } else { z - 146096 } / 146097;
 	let doe = z - era * 146097; // [0, 146096]
@@ -446,7 +447,7 @@ pub(crate) fn civil_from_days(z: i64) -> (i32, u32, u32) {
 /// already carries, and a UTC date avoids a local-time zone the prompt has no
 /// way to name. Returns a fixed sentinel on a clock-before-epoch (impossible in
 /// practice) rather than panicking.
-pub(crate) fn date_string(now: std::time::SystemTime) -> String {
+pub fn date_string(now: std::time::SystemTime) -> String {
 	match now.duration_since(std::time::UNIX_EPOCH) {
 		Ok(d) => {
 			let days = (d.as_secs() / 86400) as i64;

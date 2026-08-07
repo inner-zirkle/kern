@@ -65,7 +65,7 @@ pub fn run_idle_sweep(graph: &Arc<RwLock<GraphGnn>>, timeout: Duration) -> usize
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::base_types::Kern;
+	use base::base_types::Kern;
 
 	fn graph_with(ids: &[(&str, Option<SystemTime>)]) -> GraphGnn {
 		let mut g = GraphGnn::new();
@@ -176,7 +176,7 @@ mod tests {
 
 	#[test]
 	fn an_idle_kern_unloads_and_reloads_transparently_with_its_entities() {
-		use crate::base_types::{mk_entity, EntityKind};
+		use base::base_types::{mk_entity, EntityKind};
 
 		let dir = tempfile::tempdir().unwrap();
 		let mut g = stored_graph(dir.path());

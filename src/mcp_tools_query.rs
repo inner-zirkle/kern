@@ -4,9 +4,9 @@
 
 use serde::Deserialize;
 
-use crate::base_types::EntityKind;
 use crate::search::find_entity_by_prefix;
-use crate::util::truncate;
+use base::base_types::EntityKind;
+use util::truncate;
 
 use crate::retrieval;
 
@@ -50,7 +50,7 @@ fn parse_time_filter(field: &str, value: &str) -> Result<Option<std::time::Syste
 	if value.is_empty() {
 		return Ok(None);
 	}
-	crate::util::parse_rfc3339(value)
+	util::parse_rfc3339(value)
 		.map(Some)
 		.map_err(|()| format!("invalid `{field}` timestamp: {value}"))
 }
@@ -71,7 +71,7 @@ fn build_query_options(p: &QueryArgs) -> Result<retrieval::score::QueryOptions, 
 		..Default::default()
 	};
 	if let Some(ref s) = p.scheme {
-		match crate::base_types::Source::parse_scheme(s) {
+		match base::base_types::Source::parse_scheme(s) {
 			Some(tag) => opts.scheme = Some(tag.to_string()),
 			None => return Err(format!("unknown source scheme: {s}")),
 		}
@@ -399,7 +399,7 @@ pub(crate) fn entity_detail_by_id(
 // so the `query` tool can put the row through `matches_filter` — the same
 // predicate the ranked read uses — while still resolving ids exactly one way.
 struct IdHit {
-	thought: crate::base_types::Entity,
+	thought: base::base_types::Entity,
 	kern_id: String,
 	cold: bool,
 }
@@ -433,7 +433,7 @@ fn resolve_by_id(g: &crate::graph::GraphGnn, id: &str) -> Option<IdHit> {
 }
 
 fn entity_detail(
-	thought: &crate::base_types::Entity,
+	thought: &base::base_types::Entity,
 	kern_id: &str,
 	g: &crate::graph::GraphGnn,
 ) -> serde_json::Value {
@@ -494,10 +494,7 @@ fn secs_since_epoch(t: std::time::SystemTime) -> u64 {
 // shape the id-lookup path emits, so a ranked hit can be followed back to the proving
 // corpus page rather than surfacing only the scheme it matched on. It is placed first
 // in the envelope on purpose: the wire contract is "ranked recall carries the backlink".
-pub(crate) fn base_entity_json(
-	entity: &crate::base_types::Entity,
-	score: f64,
-) -> serde_json::Value {
+pub(crate) fn base_entity_json(entity: &base::base_types::Entity, score: f64) -> serde_json::Value {
 	let status_str = if entity.is_superseded() {
 		"superseded"
 	} else {
@@ -524,7 +521,7 @@ pub(crate) fn base_entity_json(
 #[cfg(test)]
 mod envelope_shape_tests {
 	use super::base_entity_json as build_entity_json;
-	use crate::base_types::{ChunkPart, ChunkPartKind, Entity, EntityKind, EntityStatus, Source};
+	use base::base_types::{ChunkPart, ChunkPartKind, Entity, EntityKind, EntityStatus, Source};
 
 	fn entity_with(kind: EntityKind, status: EntityStatus, source: Source) -> Entity {
 		Entity {
@@ -620,10 +617,10 @@ mod envelope_shape_tests {
 
 #[cfg(test)]
 mod id_filter_tests {
-	use crate::base_types::{Entity, EntityKind, Kern, Source};
 	use crate::mcp::tools::is_error;
 	use crate::mcp::Server;
 	use crate::test_support::tool_text as text;
+	use base::base_types::{Entity, EntityKind, Kern, Source};
 
 	fn server_with(thought: Entity) -> Server {
 		let srv = crate::test_support::mcp_server();
@@ -802,7 +799,7 @@ mod id_filter_tests {
 	#[tokio::test]
 	async fn bare_id_read_still_serves_an_expired_row_flagged() {
 		let mut e = fact("f1");
-		let deadline = crate::util::parse_rfc3339("2020-01-01T00:00:00Z").expect("fixed ts");
+		let deadline = util::parse_rfc3339("2020-01-01T00:00:00Z").expect("fixed ts");
 		e.valid_until = Some(deadline);
 		let srv = server_with(e);
 
@@ -831,7 +828,7 @@ mod id_filter_tests {
 	#[tokio::test]
 	async fn id_read_withholds_a_held_row_only_when_exclude_pending_is_asked() {
 		let mut e = fact("f1");
-		e.review = crate::base_types::ReviewState::Pending;
+		e.review = base::base_types::ReviewState::Pending;
 		let srv = server_with(e);
 
 		let out = srv.tool_query(&serde_json::json!({"id": "f1"}));
@@ -852,8 +849,8 @@ mod id_filter_tests {
 
 #[cfg(test)]
 mod cold_tier_filter_tests {
-	use crate::base_types::{Entity, EntityKind, Source};
 	use crate::mcp::tools::is_error;
+	use base::base_types::{Entity, EntityKind, Source};
 
 	fn spilled(id: &str, kind: EntityKind) -> Entity {
 		let mut e = Entity {

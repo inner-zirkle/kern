@@ -10,11 +10,6 @@ use parking_lot::RwLock;
 use crate::accept::{
 	classify_prompt, parse_contradiction, supersede_by_contradiction, ContradictionClass,
 };
-use crate::base_constants::{
-	DEFAULT_SEED_K, KERN_INNER_RADIUS, KERN_OUTER_RADIUS, PROVENANCE_SCORE,
-	QUESTION_RESOLVE_THRESHOLD,
-};
-use crate::base_types::{Embedding, Reason, ReasonKind, Scoping};
 use crate::config::TickConfig;
 use crate::graph::GraphGnn;
 use crate::heat::HeatConfig;
@@ -22,7 +17,12 @@ use crate::ingest::place::build_chunk_entity;
 use crate::math::reason_id;
 use crate::reason::{add_reason, remove_reason};
 use crate::search::search_all_unlocked;
-use crate::util;
+use base::base_constants::{
+	DEFAULT_SEED_K, KERN_INNER_RADIUS, KERN_OUTER_RADIUS, PROVENANCE_SCORE,
+	QUESTION_RESOLVE_THRESHOLD,
+};
+use base::base_types::{Embedding, Reason, ReasonKind, Scoping};
+use util;
 
 use crate::tick_cluster::{
 	centroid_thought, graviton_prompt, largest_cohesive_cluster_for_naming, vector_cluster,
@@ -105,7 +105,7 @@ pub fn do_seed_questions(
 				score: 0.5,
 				score_lamport: 0,
 				score_producer: String::new(),
-				traversal_count: crate::crdt::GCounter::new(),
+				traversal_count: base::crdt::GCounter::new(),
 				producer_id: String::new(),
 			};
 			if let Some(kern) = g.kerns.get_mut(&root_id) {
@@ -549,7 +549,7 @@ pub fn do_reembed(g: &Arc<RwLock<GraphGnn>>, kern_id: &str, embed: Option<&Embed
 				e.dirty = false;
 			}
 		}
-		let endpoint = |k: &crate::base_types::Kern, id: &str| -> Option<Embedding> {
+		let endpoint = |k: &base::base_types::Kern, id: &str| -> Option<Embedding> {
 			k.entities
 				.get(id)
 				.map(|e| e.vector.clone())
@@ -585,8 +585,8 @@ pub fn do_reembed(g: &Arc<RwLock<GraphGnn>>, kern_id: &str, embed: Option<&Embed
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::base_types::{Entity, Kern};
 	use crate::graph::GraphGnn;
+	use base::base_types::{Entity, Kern};
 	use parking_lot::RwLock;
 	use std::sync::Arc;
 
@@ -646,7 +646,7 @@ mod tests {
 		let root = g.root.id.clone();
 		let mut old = Entity {
 			id: "old".into(),
-			kind: crate::base_types::EntityKind::Claim,
+			kind: base::base_types::EntityKind::Claim,
 			vector: vec![1.0, 0.0].into(),
 			..Default::default()
 		};

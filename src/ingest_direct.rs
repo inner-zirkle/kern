@@ -3,11 +3,11 @@
 
 use std::path::Path;
 
-use crate::base_constants::AGENT_SOURCE;
-use crate::base_types::{EntityKind, Scoping, Source};
 use crate::ingest::Worker;
 use crate::ingest_worker::OutcomeStatus;
-use crate::util;
+use base::base_constants::AGENT_SOURCE;
+use base::base_types::{EntityKind, Scoping, Source};
+use util;
 
 use serde::{Deserialize, Serialize};
 
@@ -280,7 +280,7 @@ mod tests {
 		let direct = dir.path().join("direct");
 		let mut j = job("a human said so");
 		j.confidence = 1.0;
-		j.source_tag = crate::base_constants::USER_SOURCE.to_string();
+		j.source_tag = base::base_constants::USER_SOURCE.to_string();
 		intake_direct(&direct, &j).expect("accepted");
 
 		let cfg = crate::ingest::Config {

@@ -4,7 +4,7 @@
 use serde_json::value::RawValue;
 
 use crate::search::{find_entity, find_reason};
-use crate::util::truncate;
+use util::truncate;
 
 use crate::mcp::{err_resp, ok, Response, Server, ERR_INVALID_REQ, ERR_NOT_FOUND};
 
@@ -114,7 +114,7 @@ fn resource_thoughts(server: &Server) -> String {
 	all.sort_by(|a, b| {
 		let a_id = a.1["id"].as_str().unwrap_or("");
 		let b_id = b.1["id"].as_str().unwrap_or("");
-		crate::util::cmp_rank(a.0, a_id, b.0, b_id)
+		util::cmp_rank(a.0, a_id, b.0, b_id)
 	});
 	let top: Vec<serde_json::Value> = all.into_iter().take(TOP_THOUGHTS).map(|(_, v)| v).collect();
 	serde_json::to_string(&top).unwrap_or_default()
@@ -143,7 +143,7 @@ fn resource_claim_kinds(server: &Server) -> String {
 	serde_json::to_string(&g.root.claim_kinds).unwrap_or_default()
 }
 
-fn edge_json(re: &crate::base_types::Reason) -> serde_json::Value {
+fn edge_json(re: &base::base_types::Reason) -> serde_json::Value {
 	serde_json::json!({
 		"id": re.id,
 		"from": re.from,
@@ -213,9 +213,9 @@ fn resource_content(uri: &str, text: &str) -> serde_json::Value {
 mod tests {
 	use super::*;
 
-	use crate::base_types::{Entity, Kern, Reason};
 	use crate::mcp::Server;
 	use crate::reason::add_reason;
+	use base::base_types::{Entity, Kern, Reason};
 
 	fn make_server() -> Server {
 		crate::test_support::mcp_server()

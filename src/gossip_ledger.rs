@@ -6,7 +6,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Instant;
 
-use crate::base_constants::{LEDGER_ROUTING_TTL, LEDGER_THOUGHT_TTL};
+use base::base_constants::{LEDGER_ROUTING_TTL, LEDGER_THOUGHT_TTL};
 
 const DEFAULT_LEDGER_CAP: usize = 10_000;
 

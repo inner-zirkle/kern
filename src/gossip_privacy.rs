@@ -5,7 +5,7 @@
 use chacha20poly1305::aead::{Aead, KeyInit};
 use chacha20poly1305::{Key, XChaCha20Poly1305, XNonce};
 
-use crate::base_types::{ChunkPart, ChunkPartKind, Entity};
+use base::base_types::{ChunkPart, ChunkPartKind, Entity};
 
 use crate::gossip_identity::create_private;
 
@@ -46,12 +46,12 @@ pub fn encrypt_text(key: &[u8; 32], plaintext: &str) -> String {
 	let mut body = Vec::with_capacity(NONCE_LEN + ct.len());
 	body.extend_from_slice(&nonce);
 	body.extend_from_slice(&ct);
-	format!("{CIPHERTEXT_PREFIX}{}", crate::util::hex::encode(body))
+	format!("{CIPHERTEXT_PREFIX}{}", util::hex::encode(body))
 }
 
 pub fn decrypt_text(key: &[u8; 32], ciphertext: &str) -> Option<String> {
 	let hex = ciphertext.strip_prefix(CIPHERTEXT_PREFIX)?;
-	let bytes = crate::util::hex::decode(hex)?;
+	let bytes = util::hex::decode(hex)?;
 	if bytes.len() <= NONCE_LEN {
 		return None;
 	}
@@ -70,7 +70,7 @@ pub fn decrypt_text(key: &[u8; 32], ciphertext: &str) -> Option<String> {
 pub fn encrypt_entity(key: &[u8; 32], entity: &Entity) -> Entity {
 	let sealed_text = encrypt_text(key, &entity.text());
 	let mut out = entity.clone();
-	out.id = crate::util::content_hash(&sealed_text);
+	out.id = util::content_hash(&sealed_text);
 	out.statements = vec![sealed_text];
 	out.chunks = vec![ChunkPart {
 		kind: ChunkPartKind::StatementRef,
@@ -88,7 +88,7 @@ pub fn encrypt_entity(key: &[u8; 32], entity: &Entity) -> Entity {
 pub fn decrypt_entity(key: &[u8; 32], entity: &Entity) -> Option<Entity> {
 	let plaintext = decrypt_text(key, &entity.text())?;
 	let mut out = entity.clone();
-	out.id = crate::util::content_hash(&plaintext);
+	out.id = util::content_hash(&plaintext);
 	out.statements = vec![plaintext];
 	out.chunks = vec![ChunkPart {
 		kind: ChunkPartKind::StatementRef,
@@ -120,7 +120,7 @@ pub fn load_or_mint_key(path: &std::path::Path) -> std::io::Result<[u8; 32]> {
 			}
 			use std::io::Write;
 			let mut f = create_private(path)?;
-			f.write_all(crate::util::hex::encode(key).as_bytes())?;
+			f.write_all(util::hex::encode(key).as_bytes())?;
 			Ok(key)
 		}
 		Err(e) => Err(e),
@@ -130,13 +130,13 @@ pub fn load_or_mint_key(path: &std::path::Path) -> std::io::Result<[u8; 32]> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::base_types::EntityKind;
 	use crate::gossip_contract::*;
 	use crate::gossip_identity::PeerIdentity;
+	use base::base_types::EntityKind;
 
 	fn plain_entity(text: &str) -> Entity {
 		Entity {
-			id: crate::util::content_hash(text),
+			id: util::content_hash(text),
 			kind: EntityKind::Fact,
 			statements: vec![text.to_string()],
 			chunks: vec![ChunkPart {
@@ -240,7 +240,7 @@ mod tests {
 
 		// The relay applies the delta like any tree hop.
 		let mut g = crate::graph::GraphGnn::new();
-		let mut k = crate::base_types::Kern::new(&kid, &g.root.id);
+		let mut k = base::base_types::Kern::new(&kid, &g.root.id);
 		k.root_id = g.root.root_id.clone();
 		g.register(k);
 		let mut state = ContractState::default();
@@ -271,7 +271,7 @@ mod tests {
 		assert_eq!(opened.text(), sentinel);
 		assert_eq!(
 			opened.id,
-			crate::util::content_hash(sentinel),
+			util::content_hash(sentinel),
 			"locally the plaintext hash is the id again"
 		);
 		assert!(

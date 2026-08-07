@@ -1,0 +1,17 @@
+[package]
+name = "base"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+util = { path = "../util" }
+serde.workspace = true
+serde_json.workspace = true
+bincode.workspace = true
+
+[dev-dependencies]
+tempfile = "3"
+
+[lints]
+workspace = true

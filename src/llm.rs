@@ -3,7 +3,6 @@
 //! counters the health surface reports. Callers get strings and vectors, not
 //! HTTP details.
 
-use crate::util::LogThrottle;
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -11,6 +10,7 @@ use std::net::Ipv4Addr;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
+use util::LogThrottle;
 
 #[derive(Debug, thiserror::Error)]
 pub enum LlmError {

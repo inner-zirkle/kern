@@ -514,7 +514,7 @@ async fn run_standalone(cfg: &crate::config::Config) {
 		task_q: Some(q),
 		cfg: Arc::new(cfg.clone()),
 		broadcast_pulse: None,
-		last_activity: Arc::new(std::sync::atomic::AtomicU64::new(crate::util::now_ms())),
+		last_activity: Arc::new(std::sync::atomic::AtomicU64::new(util::now_ms())),
 	};
 	// KERN_TRANSPORT names one of the master transports (tcp:9401, ws:9402,
 	// http:9403, sse:9404, udp:9405, unix:/path); absent, the MCP-child stdio
@@ -610,7 +610,7 @@ mod standalone_tests {
 		let dir = std::env::temp_dir().join(format!(
 			"kern-standalone-{}-{}-{tag}",
 			std::process::id(),
-			crate::util::now_ms()
+			util::now_ms()
 		));
 		std::fs::create_dir_all(&dir).expect("scratch dir");
 		Endpoint::Unix(dir.join("kern.sock"))
@@ -723,7 +723,7 @@ mod proxy_method_tests {
 		let srv = crate::test_support::mcp_server();
 		{
 			let mut g = srv.graph.write();
-			let mut k = crate::base_types::Kern::new("kx", "");
+			let mut k = base::base_types::Kern::new("kx", "");
 			let mut e = crate::test_support::entity(SEEDED_ID);
 			e.set_text(SEEDED_TEXT.to_string());
 			k.entities.insert(SEEDED_ID.into(), e);

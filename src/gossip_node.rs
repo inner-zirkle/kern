@@ -11,8 +11,8 @@ use rand::seq::SliceRandom;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::watch;
 
-use crate::base_constants::*;
 use crate::gossip_types::*;
+use base::base_constants::*;
 
 use crate::gossip_identity::{loc_of, PeerId, PeerIdentity};
 use crate::gossip_ledger::Ledger;
@@ -118,7 +118,7 @@ impl Node {
 				id: peer,
 				addr: addr.to_string(),
 				loc: loc_of(&peer),
-				last_seen: crate::util::now_secs(),
+				last_seen: util::now_secs(),
 			});
 		}
 	}
@@ -319,7 +319,7 @@ impl Node {
 						// Ring maintenance piggybacks on the heartbeat: evict the
 						// silent; near repairs itself from far inside evict_stale.
 						if let Some(r) = node.ring.write().as_mut() {
-							r.evict_stale(crate::util::now_secs(), RING_ENTRY_TTL_SECS);
+							r.evict_stale(util::now_secs(), RING_ENTRY_TTL_SECS);
 						}
 						let msg = GossipMessage {
 							kind: GossipKind::PeerExchange,
@@ -406,7 +406,7 @@ impl Node {
 				id: self.identity.peer_id(),
 				addr: self.addr(),
 				loc: r.loc(),
-				last_seen: crate::util::now_secs(),
+				last_seen: util::now_secs(),
 			});
 			peers.extend(r.near().iter().cloned());
 			peers.extend(r.far().iter().cloned());
@@ -466,7 +466,7 @@ impl Node {
 	}
 }
 
-use crate::util::now_nanos;
+use util::now_nanos;
 
 // ==== [discovery] ====
 
@@ -474,7 +474,7 @@ use std::net::{Ipv4Addr, SocketAddr};
 
 use tokio::net::UdpSocket;
 
-use crate::base_constants::{GOSSIP_DISCOVERY_INTERVAL, GOSSIP_DISCOVERY_MULTICAST};
+use base::base_constants::{GOSSIP_DISCOVERY_INTERVAL, GOSSIP_DISCOVERY_MULTICAST};
 
 const ANNOUNCE_PREFIX: &str = "kern:";
 

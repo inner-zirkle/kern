@@ -204,6 +204,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "base"
+version = "1.3.0"
+dependencies = [
+ "bincode 2.0.1",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "util",
+]
+
+[[package]]
 name = "base64"
 version = "0.22.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1235,6 +1246,7 @@ dependencies = [
  "async-stream",
  "async-trait",
  "axum",
+ "base",
  "bincode 2.0.1",
  "blake3",
  "bytes",
@@ -1265,6 +1277,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "transport-macros",
+ "util",
  "windows-sys 0.61.2",
  "zstd",
 ]
@@ -2543,6 +2556,21 @@ name = "utf8parse"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "06abde3611657adf66d383f00b093d7faecc7fa57071cce2578660c9f1010821"
+
+[[package]]
+name = "util"
+version = "1.3.0"
+dependencies = [
+ "async-trait",
+ "ignore",
+ "notify",
+ "rand 0.10.2",
+ "sha2",
+ "tempfile",
+ "thiserror",
+ "tokio",
+ "tracing",
+]
 
 [[package]]
 name = "valuable"

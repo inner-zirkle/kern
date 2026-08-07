@@ -6,7 +6,7 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::OnceLock;
 
-use crate::util::{content_hash, now_ms};
+use util::{content_hash, now_ms};
 
 // A rebuild unlinks the running binary; /proc/self/exe then reads
 // "<path> (deleted)". hub::node strips the same marker for the same reason.

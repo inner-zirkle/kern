@@ -2,8 +2,8 @@
 //! mapping, and the review policy that decides which sources land `pending`
 //! (held for curation) versus `active`.
 
-use crate::base_constants::INGEST_DEDUP_THRESHOLD;
-use crate::base_types::{EntityKind, ReviewState, Source};
+use base::base_constants::INGEST_DEDUP_THRESHOLD;
+use base::base_types::{EntityKind, ReviewState, Source};
 
 use std::collections::BTreeMap;
 use std::time::{Duration, SystemTime};
@@ -108,7 +108,7 @@ impl Config {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::base_types::EntityKind;
+	use base::base_types::EntityKind;
 
 	#[test]
 	fn runtime_and_serde_ingest_defaults_agree() {

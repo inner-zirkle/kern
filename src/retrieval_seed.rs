@@ -128,7 +128,7 @@ fn seed_by_reason(g: &GraphGnn, query_vec: &[f32], k: usize) -> Vec<EntityHit> {
 		}
 	}
 	let mut hits: Vec<EntityHit> = seen.into_iter().map(EntityHit::from).collect();
-	hits.sort_by(|a, b| crate::util::cmp_rank(a.score, &a.entity_id, b.score, &b.entity_id));
+	hits.sort_by(|a, b| util::cmp_rank(a.score, &a.entity_id, b.score, &b.entity_id));
 	hits
 }
 
@@ -151,7 +151,7 @@ pub fn seed_important(
 			// leaves remote entities gated on access they can never accrue remotely —
 			// they enter the seed pool only once LOCAL use earns it.
 			let remote_kern = kern.is_remote();
-			let gate = move |t: &crate::base_types::Entity| -> Option<EntityHit> {
+			let gate = move |t: &base::base_types::Entity| -> Option<EntityHit> {
 				if !t.has_vector() {
 					return None;
 				}
@@ -191,7 +191,7 @@ pub fn seed_important(
 			}
 		})
 		.collect();
-	hits.sort_by(|a, b| crate::util::cmp_rank(a.score, &a.entity_id, b.score, &b.entity_id));
+	hits.sort_by(|a, b| util::cmp_rank(a.score, &a.entity_id, b.score, &b.entity_id));
 	hits
 }
 
@@ -199,14 +199,14 @@ pub fn merge_seeds(a: Vec<EntityHit>, b: Vec<EntityHit>) -> Vec<EntityHit> {
 	let scored =
 		crate::math::softmax_merge_scores(a.into_iter().chain(b).map(|h| (h.entity_id, h.score)));
 	let mut out: Vec<EntityHit> = scored.into_iter().map(EntityHit::from).collect();
-	out.sort_by(|a, b| crate::util::cmp_rank(a.score, &a.entity_id, b.score, &b.entity_id));
+	out.sort_by(|a, b| util::cmp_rank(a.score, &a.entity_id, b.score, &b.entity_id));
 	out
 }
 
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::base_types::{Entity, EntityKind, Kern};
+	use base::base_types::{Entity, EntityKind, Kern};
 
 	fn ent(id: &str, vector: Vec<f32>, access: u64, fact: bool) -> Entity {
 		let mut e = Entity {
@@ -308,7 +308,7 @@ mod tests {
 				}
 			}
 		}
-		out.sort_by(|a, b| crate::util::cmp_rank(a.1, &a.0, b.1, &b.0));
+		out.sort_by(|a, b| util::cmp_rank(a.1, &a.0, b.1, &b.0));
 		out
 	}
 

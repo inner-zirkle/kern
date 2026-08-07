@@ -61,13 +61,13 @@ impl Server {
 		let last = self
 			.last_activity
 			.load(std::sync::atomic::Ordering::Relaxed);
-		crate::util::now_ms().saturating_sub(last)
+		util::now_ms().saturating_sub(last)
 	}
 
 	pub(crate) fn touch(&self) {
 		self
 			.last_activity
-			.store(crate::util::now_ms(), std::sync::atomic::Ordering::Relaxed);
+			.store(util::now_ms(), std::sync::atomic::Ordering::Relaxed);
 	}
 }
 

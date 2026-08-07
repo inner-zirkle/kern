@@ -6,11 +6,11 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
-use crate::base_types::{EntityKind, Source};
 use crate::ingest::Worker;
 use crate::ingest_distill::{distill, Claim};
 use crate::ingest_worker::OutcomeStatus;
 use crate::llm::LlmFunc;
+use base::base_types::{EntityKind, Source};
 
 pub type ClaimKindsFn = Arc<dyn Fn() -> Vec<String> + Send + Sync>;
 
@@ -217,7 +217,7 @@ async fn drain_entry(
 				0.6,
 				tag,
 				claim_cfg,
-				crate::base_types::Scoping::default(),
+				base::base_types::Scoping::default(),
 			)
 			.await;
 		let ok = !matches!(outcome.status, OutcomeStatus::Failed);
@@ -261,7 +261,7 @@ async fn drain_document(
 			1.0,
 			tag,
 			cfg.clone(),
-			crate::base_types::Scoping::default(),
+			base::base_types::Scoping::default(),
 		)
 		.await;
 	let ok = !matches!(outcome.status, OutcomeStatus::Failed);

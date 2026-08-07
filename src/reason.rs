@@ -4,7 +4,7 @@
 //! commands build on.
 
 use super::graph::GraphGnn;
-use crate::base_types::{Kern, Reason, ReasonKind};
+use base::base_types::{Kern, Reason, ReasonKind};
 use std::collections::HashSet;
 
 pub(crate) fn collect_reason_ids(kern: &Kern, entity_id: &str) -> Vec<String> {
@@ -227,7 +227,7 @@ fn remove_string_from_vec(vec: Option<&mut Vec<String>>, s: &str) {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::base_types::{Entity, EntityKind, Kern};
+	use base::base_types::{Entity, EntityKind, Kern};
 
 	use crate::test_support::{edge, entity_vec as ent};
 

@@ -4,17 +4,17 @@
 
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use crate::util::LogThrottle;
 use std::sync::Arc;
 use std::time::SystemTime;
+use util::LogThrottle;
 
 use parking_lot::RwLock;
 
-use crate::base_constants::*;
-use crate::base_types::{Kern, ReasonKind};
-use crate::crdt::{lww_wins, GCounter};
 use crate::graph::GraphGnn;
 use crate::search::search_all_unlocked;
+use base::base_constants::*;
+use base::base_types::{Kern, ReasonKind};
+use base::crdt::{lww_wins, GCounter};
 
 use crate::gossip_contract::{
 	contract_kern_id, contract_loc, entity_sig_digest, tombstone_digest, Applied, ContractId,
@@ -113,7 +113,7 @@ fn spawn_fetch_entity(d: &Arc<Deps>, network_id: String, kern_id: String, entity
 			Some(b) => b,
 			None => return,
 		};
-		let entity = match bincode::serde::decode_from_slice::<crate::base_types::Entity, _>(
+		let entity = match bincode::serde::decode_from_slice::<base::base_types::Entity, _>(
 			&body,
 			bincode::config::standard(),
 		) {
@@ -163,7 +163,7 @@ pub fn start_announce(node: Arc<Node>, graph: Arc<RwLock<GraphGnn>>) {
 						}
 					};
 					if let Some(payload) = payload {
-						let stamp = crate::util::now_nanos();
+						let stamp = util::now_nanos();
 						let msg = GossipMessage {
 							kind: GossipKind::Sphere,
 							id: format!("sphere-{}-{}", node.addr(), stamp),
@@ -193,15 +193,15 @@ const ENTITY_SYNC_BATCH: usize = 32;
 // References cost a pointer each; `select_nth_unstable_by` is linear and uses the
 // same total comparator as the old sort, so the chosen set and its order are
 // unchanged.
-fn hottest_local(g: &GraphGnn, n: usize) -> Vec<crate::base_types::Entity> {
-	let mut refs: Vec<&crate::base_types::Entity> = g
+fn hottest_local(g: &GraphGnn, n: usize) -> Vec<base::base_types::Entity> {
+	let mut refs: Vec<&base::base_types::Entity> = g
 		.kerns
 		.iter()
 		.filter(|(kid, _)| !crate::merge::is_remote_kern_id(kid))
 		.flat_map(|(_, k)| k.entities.values())
 		.collect();
-	let by_heat = |a: &&crate::base_types::Entity, b: &&crate::base_types::Entity| {
-		crate::util::cmp_rank(a.heat as f64, &a.id, b.heat as f64, &b.id)
+	let by_heat = |a: &&base::base_types::Entity, b: &&base::base_types::Entity| {
+		util::cmp_rank(a.heat as f64, &a.id, b.heat as f64, &b.id)
 	};
 	if n == 0 {
 		return Vec::new();
@@ -235,7 +235,7 @@ pub fn start_entity_sync(node: Arc<Node>, graph: Arc<RwLock<GraphGnn>>) {
 						}
 					};
 					if let Some(payload) = payload {
-						let stamp = crate::util::now_nanos();
+						let stamp = util::now_nanos();
 						let msg = GossipMessage {
 							kind: GossipKind::EntitySync,
 							id: format!("esync-{}-{}", node.addr(), stamp),
@@ -278,7 +278,7 @@ pub fn start_delta_flush(node: Arc<Node>, graph: Arc<RwLock<GraphGnn>>) {
 							lww_value: delta.lww_value,
 							orset_delta: Vec::new(),
 						};
-						let stamp = crate::util::now_nanos();
+						let stamp = util::now_nanos();
 						let msg = GossipMessage {
 							kind: GossipKind::Delta,
 							id: format!("delta-{}-{}", node.addr(), stamp),
@@ -349,7 +349,7 @@ fn handle_question(d: &Deps, peer: crate::gossip_identity::PeerId, msg: GossipMe
 	// expensive. The budget is keyed on the envelope-verified PeerId — spoofing
 	// a fresh `origin` string no longer buys a fresh budget; a fresh budget now
 	// costs a fresh keypair.
-	if !d.node.question_rate.allow(&crate::util::hex::encode(peer)) {
+	if !d.node.question_rate.allow(&util::hex::encode(peer)) {
 		if QUESTION_RATE_WARN.allow() {
 			tracing::warn!(
 				target: "kern.gossip",
@@ -558,7 +558,7 @@ pub fn forged_id_rejected() -> u64 {
 // SHAPE are judged: an id that is not a 64-char lowercase hex digest was never a
 // content hash, so failing it would be an assertion about a format we do not
 // define — and dropping legitimate remote knowledge is worse than the exposure.
-pub(crate) fn id_matches_body(e: &crate::base_types::Entity) -> bool {
+pub(crate) fn id_matches_body(e: &base::base_types::Entity) -> bool {
 	let looks_hashed = e.id.len() == 64
 		&& e
 			.id
@@ -567,7 +567,7 @@ pub(crate) fn id_matches_body(e: &crate::base_types::Entity) -> bool {
 	if !looks_hashed {
 		return true;
 	}
-	crate::util::content_hash(&e.text()) == e.id
+	util::content_hash(&e.text()) == e.id
 }
 
 // Only `remote-*` kerns may be reached by an unauthenticated LWW delta. Reaching a
@@ -691,7 +691,7 @@ fn handle_subscribe(d: &Arc<Deps>, msg: GossipMessage) {
 		&msg.origin,
 		GossipMessage {
 			kind: GossipKind::SubAck,
-			id: format!("suback-{}-{}", d.node.addr(), crate::util::now_nanos()),
+			id: format!("suback-{}-{}", d.node.addr(), util::now_nanos()),
 			origin: d.node.addr(),
 			payload: GossipPayload::SubAck(SubAckPayload {
 				contract: cid,
@@ -722,7 +722,7 @@ pub fn subscribe_upstream(d: &Arc<Deps>, cid: &ContractId) {
 		&next,
 		GossipMessage {
 			kind: GossipKind::Subscribe,
-			id: format!("sub-{}-{}", d.node.addr(), crate::util::now_nanos()),
+			id: format!("sub-{}-{}", d.node.addr(), util::now_nanos()),
 			origin: d.node.addr(),
 			payload: GossipPayload::Subscribe(SubscribePayload { contract: *cid }),
 		},
@@ -759,7 +759,7 @@ fn handle_suback(d: &Arc<Deps>, msg: GossipMessage) {
 			&msg.origin,
 			GossipMessage {
 				kind: GossipKind::SyncDiff,
-				id: format!("sdiff-{}-{}", d.node.addr(), crate::util::now_nanos()),
+				id: format!("sdiff-{}-{}", d.node.addr(), util::now_nanos()),
 				origin: d.node.addr(),
 				payload: GossipPayload::SyncDiff(SyncDiffPayload {
 					contract: cid,
@@ -773,7 +773,7 @@ fn handle_suback(d: &Arc<Deps>, msg: GossipMessage) {
 			&msg.origin,
 			GossipMessage {
 				kind: GossipKind::SyncSummary,
-				id: format!("ssum-{}-{}", d.node.addr(), crate::util::now_nanos()),
+				id: format!("ssum-{}-{}", d.node.addr(), util::now_nanos()),
 				origin: d.node.addr(),
 				payload: GossipPayload::SyncSummary(SyncSummaryPayload {
 					contract: cid,
@@ -803,7 +803,7 @@ fn handle_sync_summary(d: &Arc<Deps>, msg: GossipMessage) {
 		&msg.origin,
 		GossipMessage {
 			kind: GossipKind::SyncDiff,
-			id: format!("sdiff-{}-{}", d.node.addr(), crate::util::now_nanos()),
+			id: format!("sdiff-{}-{}", d.node.addr(), util::now_nanos()),
 			origin: d.node.addr(),
 			payload: GossipPayload::SyncDiff(SyncDiffPayload {
 				contract: cid,
@@ -831,7 +831,7 @@ fn handle_contract_delta(d: &Arc<Deps>, msg: GossipMessage) {
 				tracing::warn!(
 					target: "kern.gossip",
 					origin = %msg.origin,
-					contract = %crate::util::short_id(&crate::util::hex::encode(cid)),
+					contract = %util::short_id(&util::hex::encode(cid)),
 					refusal = ?refusal,
 					total_refused = crate::gossip_contract::contract_refused(),
 					"contract delta refused (further refusals counted, not logged)"
@@ -852,7 +852,7 @@ fn handle_contract_delta(d: &Arc<Deps>, msg: GossipMessage) {
 				&addr,
 				GossipMessage {
 					kind: GossipKind::ContractDelta,
-					id: format!("cdelta-{}-{}", d.node.addr(), crate::util::now_nanos()),
+					id: format!("cdelta-{}-{}", d.node.addr(), util::now_nanos()),
 					origin: d.node.addr(),
 					payload: GossipPayload::ContractDelta(ContractDeltaPayload {
 						contract: cid,
@@ -887,8 +887,8 @@ fn handle_tombstone(d: &Arc<Deps>, msg: GossipMessage) {
 	d.subs.remove(&p.contract);
 	tracing::info!(
 		target: "kern.gossip",
-		old = %crate::util::short_id(&crate::util::hex::encode(p.contract)),
-		new = %crate::util::short_id(&crate::util::hex::encode(p.new_id)),
+		old = %util::short_id(&util::hex::encode(p.contract)),
+		new = %util::short_id(&util::hex::encode(p.new_id)),
 		"contract tombstoned by its owner; unsubscribed — resubscribe to the new id to follow"
 	);
 }
@@ -900,7 +900,7 @@ fn handle_tombstone(d: &Arc<Deps>, msg: GossipMessage) {
 pub fn publish_to_contract(
 	d: &Arc<Deps>,
 	cid: &ContractId,
-	entity: crate::base_types::Entity,
+	entity: base::base_types::Entity,
 ) -> Result<Applied, String> {
 	let Some(host) = d.host(cid) else {
 		return Err("contract not hosted on this node".into());
@@ -931,7 +931,7 @@ pub fn publish_to_contract(
 			&addr,
 			GossipMessage {
 				kind: GossipKind::ContractDelta,
-				id: format!("cdelta-{}-{}", d.node.addr(), crate::util::now_nanos()),
+				id: format!("cdelta-{}-{}", d.node.addr(), util::now_nanos()),
 				origin: d.node.addr(),
 				payload: GossipPayload::ContractDelta(ContractDeltaPayload {
 					contract: *cid,
@@ -957,7 +957,7 @@ pub fn contract_sync_once(d: &Arc<Deps>) {
 					&up,
 					GossipMessage {
 						kind: GossipKind::SyncSummary,
-						id: format!("ssum-{}-{}", d.node.addr(), crate::util::now_nanos()),
+						id: format!("ssum-{}-{}", d.node.addr(), util::now_nanos()),
 						origin: d.node.addr(),
 						payload: GossipPayload::SyncSummary(SyncSummaryPayload {
 							contract: cid,
@@ -1045,8 +1045,8 @@ fn resolve_question_from_peer(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::base_types::{mk_entity as mk_entity_kind, Entity, EntityKind, Reason};
 	use crate::reason::add_reason;
+	use base::base_types::{mk_entity as mk_entity_kind, Entity, EntityKind, Reason};
 
 	fn mk_entity(id: &str, text: &str, heat: f64) -> Entity {
 		mk_entity_kind(id, text, heat, EntityKind::Fact)
@@ -1300,7 +1300,7 @@ mod tests {
 			.fetch_thought("holdernet", "eF")
 			.await
 			.expect("holder serves the entity body");
-		let (entity, _) = bincode::serde::decode_from_slice::<crate::base_types::Entity, _>(
+		let (entity, _) = bincode::serde::decode_from_slice::<base::base_types::Entity, _>(
 			&body,
 			bincode::config::standard(),
 		)
@@ -1387,11 +1387,11 @@ mod tests {
 		// creation path, the check drops legitimate remote knowledge. Build through
 		// the shipped constructor rather than by hand.
 		let text = "Ada keeps her bicycle in the garden shed";
-		let e = crate::base_types::Entity {
-			id: crate::util::content_hash(text),
+		let e = base::base_types::Entity {
+			id: util::content_hash(text),
 			statements: vec![text.to_string()],
-			chunks: vec![crate::base_types::ChunkPart {
-				kind: crate::base_types::ChunkPartKind::StatementRef,
+			chunks: vec![base::base_types::ChunkPart {
+				kind: base::base_types::ChunkPartKind::StatementRef,
 				text: String::new(),
 				index: 0,
 			}],
@@ -1406,11 +1406,11 @@ mod tests {
 
 	#[test]
 	fn a_body_that_does_not_hash_to_its_id_is_rejected() {
-		let mut e = crate::base_types::Entity {
-			id: crate::util::content_hash("the original text"),
+		let mut e = base::base_types::Entity {
+			id: util::content_hash("the original text"),
 			statements: vec!["attacker-substituted text".to_string()],
-			chunks: vec![crate::base_types::ChunkPart {
-				kind: crate::base_types::ChunkPartKind::StatementRef,
+			chunks: vec![base::base_types::ChunkPart {
+				kind: base::base_types::ChunkPartKind::StatementRef,
 				text: String::new(),
 				index: 0,
 			}],
@@ -1428,8 +1428,8 @@ mod tests {
 	#[test]
 	fn remote_kern_ids_excludes_local_kerns() {
 		let mut g = GraphGnn::new();
-		g.register(crate::base_types::Kern::new("remote-netA-k1", &g.root.id));
-		g.register(crate::base_types::Kern::new("local-kern", &g.root.id));
+		g.register(base::base_types::Kern::new("remote-netA-k1", &g.root.id));
+		g.register(base::base_types::Kern::new("local-kern", &g.root.id));
 
 		let ids = remote_kern_ids(&g);
 		assert!(ids.iter().any(|k| k == "remote-netA-k1"));
@@ -1444,7 +1444,7 @@ mod tests {
 	}
 	#[test]
 	fn hottest_local_picks_the_top_n_and_skips_remote_kerns() {
-		use crate::base_types::{Entity, Kern};
+		use base::base_types::{Entity, Kern};
 		let mut g = GraphGnn::new();
 		let local = g.root.id.clone();
 		{
@@ -1488,7 +1488,7 @@ mod tests {
 
 	#[test]
 	fn hottest_local_returns_everything_when_under_the_batch() {
-		use crate::base_types::Entity;
+		use base::base_types::Entity;
 		let mut g = GraphGnn::new();
 		let local = g.root.id.clone();
 		{
@@ -1514,8 +1514,8 @@ mod tests {
 	}
 	#[test]
 	fn a_flood_of_questions_from_one_peer_is_refused() {
-		use crate::base_types::Entity;
 		use crate::gossip_rate::GOSSIP_QUESTION_PER_MIN;
+		use base::base_types::Entity;
 		let mut graph = GraphGnn::new();
 		let root = graph.root.id.clone();
 		{
@@ -1606,10 +1606,10 @@ mod tests {
 
 	fn fed_entity(text: &str) -> Entity {
 		Entity {
-			id: crate::util::content_hash(text),
+			id: util::content_hash(text),
 			statements: vec![text.to_string()],
-			chunks: vec![crate::base_types::ChunkPart {
-				kind: crate::base_types::ChunkPartKind::StatementRef,
+			chunks: vec![base::base_types::ChunkPart {
+				kind: base::base_types::ChunkPartKind::StatementRef,
 				text: String::new(),
 				index: 0,
 			}],

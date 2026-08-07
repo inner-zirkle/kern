@@ -5,7 +5,7 @@
 use crate::transport::kern_rpc::AuthReq;
 use crate::transport::typed::Endpoint;
 
-use crate::util::short_id;
+use util::short_id;
 
 use crate::commands::{
 	load_graph, save_graph_unguarded, with_graph, ClaimKindAction, Client, GravitonAction,
@@ -52,7 +52,7 @@ pub(crate) async fn cmd_health(cfg: &crate::config::Config) {
 	} else {
 		println!("gravitons:     {}", h.gravitons.join(", "));
 	}
-	let kerns_cap = if h.max_kerns == crate::base_constants::KERN_CAP_DISABLED {
+	let kerns_cap = if h.max_kerns == base::base_constants::KERN_CAP_DISABLED {
 		"off".to_string()
 	} else {
 		h.max_kerns.to_string()
@@ -376,7 +376,7 @@ fn kern_cap_health_lines(h: Option<&crate::transport::kern_rpc::HealthRes>) -> V
 		return Vec::new();
 	}
 	let resident = h.kerns;
-	if (resident as f64) >= crate::base_constants::KERN_CAP_APPROACH_FRAC * (cap as f64) {
+	if (resident as f64) >= base::base_constants::KERN_CAP_APPROACH_FRAC * (cap as f64) {
 		vec![format!("kerns near cap: {}/{}", resident, cap)]
 	} else {
 		Vec::new()
@@ -1695,7 +1695,7 @@ mod cmd_tests {
 
 #[cfg(test)]
 mod hub_merge_tests {
-	use crate::base_types::{mk_entity, EntityKind, Kern};
+	use base::base_types::{mk_entity, EntityKind, Kern};
 
 	fn store_with_entity(root: &std::path::Path, eid: &str) {
 		std::fs::create_dir_all(root.join(".kern")).unwrap();

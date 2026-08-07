@@ -191,7 +191,7 @@ mod tests {
 	#[tokio::test]
 	async fn a_completed_reembed_restamps_the_store_with_the_new_model() {
 		use crate::base_store::{EmbedCheck, EmbedStamp, Store};
-		use crate::base_types::Entity;
+		use base::base_types::Entity;
 
 		// Fake embed endpoint: one 2-dim vector per input, any batch size.
 		let app = axum::Router::new().route(
@@ -213,7 +213,7 @@ mod tests {
 			let store = std::sync::Arc::new(Store::open(&cfg.data_dir).unwrap());
 			let mut g = crate::graph::GraphGnn::new();
 			g.data_dir = cfg.data_dir.clone();
-			let mut child = crate::base_types::Kern::new("k", &g.root.id);
+			let mut child = base::base_types::Kern::new("k", &g.root.id);
 			child.entities.insert(
 				"e1".into(),
 				Entity {
@@ -279,7 +279,7 @@ mod tests {
 	#[tokio::test]
 	async fn reembed_cold_reports_stale_count_and_leaves_the_tier_unchanged_on_failure() {
 		use crate::base_store::Store;
-		use crate::base_types::Entity;
+		use base::base_types::Entity;
 
 		let app = axum::Router::new().route(
 			"/api/embed",

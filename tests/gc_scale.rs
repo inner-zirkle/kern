@@ -9,9 +9,9 @@
 // empty, so a sweep over a kern with ZERO victims is the selection scan and
 // nothing else. Subtracting it from a sweep with V victims separates selection
 // from eviction without touching the code under measurement.
-use kern::base_constants::COLD_GC_AGE;
+use base::base_constants::COLD_GC_AGE;
+use base::base_types::{ChunkPart, ChunkPartKind, Entity, EntityKind, Kern};
 use kern::base_store::Store;
-use kern::base_types::{ChunkPart, ChunkPartKind, Entity, EntityKind, Kern};
 use kern::graph::GraphGnn;
 use kern::heat::HeatConfig;
 use kern::tick_stigmergy::run_gc;

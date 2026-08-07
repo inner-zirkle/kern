@@ -8,8 +8,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::SystemTime;
 
-use super::util;
 use crate::crdt::GCounter;
+use util;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[repr(u8)]
@@ -683,8 +683,7 @@ impl Kern {
 /// ```
 pub type Embedding = std::sync::Arc<[f32]>;
 
-#[cfg(test)]
-pub(crate) fn mk_entity(id: &str, text: &str, heat: f64, kind: EntityKind) -> Entity {
+pub fn mk_entity(id: &str, text: &str, heat: f64, kind: EntityKind) -> Entity {
 	let mut e = Entity {
 		id: id.to_string(),
 		root_id: String::new(),

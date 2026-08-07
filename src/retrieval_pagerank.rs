@@ -281,8 +281,7 @@ fn pagerank_at(
 	let mut out_list: Vec<EntityHit> = Vec::with_capacity(take);
 	if take > 0 {
 		// Unique ids make this a STRICT total order, so the top-k partition + sorting only the survivors equals a full sort + take.
-		let cmp =
-			|a: &(usize, f64), b: &(usize, f64)| crate::util::cmp_rank(a.1, &ids[a.0], b.1, &ids[b.0]);
+		let cmp = |a: &(usize, f64), b: &(usize, f64)| util::cmp_rank(a.1, &ids[a.0], b.1, &ids[b.0]);
 		// A zero-rank node loses to every positive one, so once the reached set alone
 		// can fill top_k the untouched majority cannot enter it and never gets scanned.
 		let mut scored: Vec<(usize, f64)> = reached
@@ -323,7 +322,7 @@ fn pagerank_at(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::base_types::Kern;
+	use base::base_types::Kern;
 
 	use crate::test_support::{edge, entity as ent};
 
@@ -409,7 +408,7 @@ mod tests {
 			return Vec::new();
 		}
 		let mut scored: Vec<(usize, f64)> = rank.iter().copied().enumerate().collect();
-		scored.sort_by(|a, b| crate::util::cmp_rank(a.1, &ids[a.0], b.1, &ids[b.0]));
+		scored.sort_by(|a, b| util::cmp_rank(a.1, &ids[a.0], b.1, &ids[b.0]));
 		scored.truncate(take);
 		scored
 			.into_iter()

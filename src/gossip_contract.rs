@@ -8,8 +8,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use serde::{Deserialize, Serialize};
 
-use crate::base_types::{Entity, EntityKind};
 use crate::graph::GraphGnn;
+use base::base_types::{Entity, EntityKind};
 
 use crate::gossip_identity::{loc_of, verify_sig_by};
 
@@ -97,7 +97,7 @@ pub fn contract_loc(id: &ContractId) -> f64 {
 /// The graph kern a contract's entities merge into. The `remote-` prefix
 /// keeps every existing trust boundary (`is_remote_kern_id`) intact.
 pub fn contract_kern_id(id: &ContractId) -> String {
-	format!("remote-contract-{}", crate::util::hex::encode(id))
+	format!("remote-contract-{}", util::hex::encode(id))
 }
 
 /// What a writer signs: blake3 over a domain tag, the entity id and the
@@ -114,7 +114,7 @@ pub fn entity_sig_digest(entity_id: &str, lamport: u64) -> [u8; 32] {
 
 /// Decode a hex-encoded 32-byte key (ed25519 pubkey or contract id).
 pub fn parse_key_hex(s: &str) -> Option<[u8; 32]> {
-	crate::util::hex::decode(s.trim())
+	util::hex::decode(s.trim())
 		.filter(|v| v.len() == 32)
 		.and_then(|v| v.try_into().ok())
 }
@@ -412,12 +412,12 @@ impl SyncContract for SignedCrdt {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::base_types::{ChunkPart, ChunkPartKind, Kern};
 	use crate::gossip_identity::PeerIdentity;
+	use base::base_types::{ChunkPart, ChunkPartKind, Kern};
 
 	fn entity_of(text: &str, kind: EntityKind) -> Entity {
 		Entity {
-			id: crate::util::content_hash(text),
+			id: util::content_hash(text),
 			kind,
 			statements: vec![text.to_string()],
 			chunks: vec![ChunkPart {

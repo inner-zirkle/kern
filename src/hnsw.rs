@@ -3,10 +3,10 @@
 //! assignment (hash of the id, not RNG) keeps rebuilds reproducible.
 
 use super::math::cosine_distance;
-use super::util::{cmp_partial, content_hash};
 use crate::quant::{quantized_cosine_distance, QuantizationMode, QuantizedVec};
 use std::collections::HashMap;
 use std::marker::PhantomData;
+use util::{cmp_partial, content_hash};
 
 #[derive(Debug, Clone)]
 pub struct HnswHit {
@@ -15,7 +15,7 @@ pub struct HnswHit {
 }
 
 struct HnswNode {
-	vec: crate::base_types::Embedding,
+	vec: base::base_types::Embedding,
 	qvec: Option<QuantizedVec>,
 	layers: Vec<Vec<u32>>,
 }
@@ -167,14 +167,14 @@ impl HnswIndex {
 		self.free.append(&mut self.pending_scrub);
 	}
 
-	pub fn insert(&mut self, id: String, vec: crate::base_types::Embedding) {
+	pub fn insert(&mut self, id: String, vec: base::base_types::Embedding) {
 		if vec.is_empty() || self.slot_of.contains_key(&id) {
 			return;
 		}
 		let level = self.level_for(&id);
 		let (stored_vec, qvec) = match self.quant_mode {
 			QuantizationMode::Int8 | QuantizationMode::Binary => (
-				crate::base_types::Embedding::from(&[][..]),
+				base::base_types::Embedding::from(&[][..]),
 				Some(QuantizedVec::encode(&vec, self.quant_mode)),
 			),
 			_ => (vec.clone(), None),
@@ -633,9 +633,9 @@ type MaxHeap = Heap<Max>;
 mod tests {
 	use super::*;
 	use crate::math::cosine_distance as bf_cosine;
-	use crate::util::cmp_partial as bf_cmp;
 	use rand::{RngExt, SeedableRng};
 	use std::collections::HashSet;
+	use util::cmp_partial as bf_cmp;
 
 	impl HnswIndex {
 		fn arena_slots(&self) -> usize {

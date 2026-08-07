@@ -62,9 +62,9 @@ impl Server {
 		};
 		let sig = identity.sign_digest(&digest);
 		tool_result_json(&serde_json::json!({
-			"signature": crate::util::hex::encode(&sig),
-			"pubkey": crate::util::hex::encode(identity.pubkey()),
-			"peer_id": crate::util::hex::encode(identity.peer_id()),
+			"signature": util::hex::encode(&sig),
+			"pubkey": util::hex::encode(identity.pubkey()),
+			"peer_id": util::hex::encode(identity.peer_id()),
 		}))
 	}
 
@@ -118,9 +118,9 @@ impl Server {
 		let mut writer_keys: Vec<String> = cfg.writer_keys.clone();
 		writer_keys.push(grantee_hex.trim().to_string());
 		tool_result_json(&serde_json::json!({
-			"old_id": crate::util::hex::encode(old_id),
-			"new_id": crate::util::hex::encode(new_id),
-			"tombstone_sig": crate::util::hex::encode(&tombstone_sig),
+			"old_id": util::hex::encode(old_id),
+			"new_id": util::hex::encode(new_id),
+			"tombstone_sig": util::hex::encode(&tombstone_sig),
 			"amended_contract": {
 				"kind": cfg.kind,
 				"owners": cfg.owners,
@@ -157,7 +157,7 @@ mod tests {
 	async fn sign_returns_a_signature_the_daemons_own_pubkey_verifies() {
 		let dir = tempfile::tempdir().unwrap();
 		let s = server_in(dir.path());
-		let digest_hex = crate::util::content_hash("payload to sign");
+		let digest_hex = util::content_hash("payload to sign");
 		let out = s.tool_sign(&serde_json::json!({"payload_hash": digest_hex}));
 		assert!(!is_error(&out), "sign should succeed: {out}");
 		let b = body(&out);
@@ -168,7 +168,7 @@ mod tests {
 			.as_str()
 			.or(b["signature"].as_str())
 			.unwrap();
-		let sig: Vec<u8> = crate::util::hex::decode(sig_hex).unwrap();
+		let sig: Vec<u8> = util::hex::decode(sig_hex).unwrap();
 		assert!(
 			verify_sig_by(&pubkey, &digest, &sig),
 			"the returned signature verifies against the returned pubkey"
@@ -201,7 +201,7 @@ mod tests {
 		// Make this daemon an owner: mint its key, then write a contract
 		// naming that pubkey.
 		let own_pubkey = body(&s.tool_sign(&serde_json::json!({
-			"payload_hash": crate::util::content_hash("x")
+			"payload_hash": util::content_hash("x")
 		})))["pubkey"]
 			.as_str()
 			.unwrap()
@@ -212,7 +212,7 @@ mod tests {
 			"writers": "owners-only",
 		});
 		let grantee = PeerIdentity::from_bytes([42u8; 32]);
-		let grantee_hex = crate::util::hex::encode(grantee.pubkey());
+		let grantee_hex = util::hex::encode(grantee.pubkey());
 
 		let out = s.tool_contract_grant(&serde_json::json!({
 			"contract": contract,
@@ -238,7 +238,7 @@ mod tests {
 			crate::gossip_contract::parse_key_hex(b["amended_contract"]["owners"][0].as_str().unwrap())
 				.unwrap();
 		let sig_hex = b["tombstone_sig"].as_str().unwrap();
-		let sig: Vec<u8> = crate::util::hex::decode(sig_hex).unwrap();
+		let sig: Vec<u8> = util::hex::decode(sig_hex).unwrap();
 		assert!(verify_sig_by(
 			&owner_pk,
 			&tombstone_digest(&old_id, &new_id),
@@ -253,12 +253,12 @@ mod tests {
 		let stranger = PeerIdentity::from_bytes([9u8; 32]);
 		let contract = serde_json::json!({
 			"kind": "signed-crdt-v0",
-			"owners": [crate::util::hex::encode(stranger.pubkey())],
+			"owners": [util::hex::encode(stranger.pubkey())],
 			"writers": "owners-only",
 		});
 		let out = s.tool_contract_grant(&serde_json::json!({
 			"contract": contract,
-			"pubkey": crate::util::hex::encode(PeerIdentity::from_bytes([8u8; 32]).pubkey()),
+			"pubkey": util::hex::encode(PeerIdentity::from_bytes([8u8; 32]).pubkey()),
 		}));
 		assert!(is_error(&out), "a non-owner daemon must not mint grants");
 	}

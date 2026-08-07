@@ -8,9 +8,9 @@ use super::graph::GraphGnn;
 use super::math::{average_vec, cosine_distance, reason_id};
 use super::reason::{add_reason, superseded_ancestors};
 use super::search::search_all_unlocked;
-use crate::base_constants::*;
-use crate::base_types::*;
-use crate::crdt::GCounter;
+use base::base_constants::*;
+use base::base_types::*;
+use base::crdt::GCounter;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 #[derive(Debug)]
@@ -864,18 +864,18 @@ pub(crate) fn seed_examples(text: &str) -> Vec<String> {
 		.collect();
 	if lines.len() < 2 {
 		let whole = text.trim();
-		if whole.chars().count() > crate::base_constants::GRAVITON_SEED_CHAR_CHUNK {
+		if whole.chars().count() > base::base_constants::GRAVITON_SEED_CHAR_CHUNK {
 			// ponytail: char-budget split on a code-point boundary; the caller
 			// embeds each chunk and mean_pools them, same as the multi-line path.
 			let mut out = Vec::new();
 			let mut buf = String::new();
-			let mut budget = crate::base_constants::GRAVITON_SEED_CHAR_CHUNK;
+			let mut budget = base::base_constants::GRAVITON_SEED_CHAR_CHUNK;
 			for ch in whole.chars() {
 				buf.push(ch);
 				budget -= 1;
 				if budget == 0 {
 					out.push(std::mem::take(&mut buf));
-					budget = crate::base_constants::GRAVITON_SEED_CHAR_CHUNK;
+					budget = base::base_constants::GRAVITON_SEED_CHAR_CHUNK;
 				}
 			}
 			if !buf.is_empty() {
@@ -984,7 +984,7 @@ fn equivalent_graviton_exists(g: &GraphGnn, name: &str, vec: &[f32]) -> bool {
 			.map(|c| {
 				!c.graviton_vec.is_empty()
 					&& crate::math::cosine(&c.graviton_vec, vec)
-						>= crate::base_constants::GRAVITON_DEDUP_THRESHOLD
+						>= base::base_constants::GRAVITON_DEDUP_THRESHOLD
 			})
 			.unwrap_or(false)
 	})
@@ -2037,7 +2037,7 @@ mod tests {
 
 	#[test]
 	fn seed_examples_char_chunks_a_long_single_paragraph() {
-		let chunk = crate::base_constants::GRAVITON_SEED_CHAR_CHUNK;
+		let chunk = base::base_constants::GRAVITON_SEED_CHAR_CHUNK;
 		let body = "x".repeat(chunk + 5);
 		let out = seed_examples(&body);
 		assert_eq!(out.len(), 2, "ceil((chunk+5)/chunk) -> 2 chunks");
@@ -2054,7 +2054,7 @@ mod tests {
 	#[test]
 	fn seed_examples_char_chunks_split_on_a_code_point_boundary() {
 		// a multibyte char straddling the boundary must not be split mid-char
-		let chunk = crate::base_constants::GRAVITON_SEED_CHAR_CHUNK;
+		let chunk = base::base_constants::GRAVITON_SEED_CHAR_CHUNK;
 		let mut body = "a".repeat(chunk - 1);
 		body.push('ß');
 		body.push('z');

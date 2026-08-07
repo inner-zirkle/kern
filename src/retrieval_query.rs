@@ -3,11 +3,9 @@
 //! provenance chains. The one place the pipeline's stage order is spelled out;
 //! every stage lives in its own `retrieval_*` module.
 
-use crate::base_constants::QUERY_MAX_CHAINS;
 use crate::config::RetrievalConfig;
 use crate::graph::GraphGnn;
 use crate::heat::HeatConfig;
-use crate::profile::Profiler;
 use crate::retrieval::expand::{
 	self, find_entity_ref_in_graph, PathChain, Scored, ScoredEntity, ScoredRef,
 };
@@ -15,7 +13,9 @@ use crate::retrieval::score::QueryOptions;
 use crate::retrieval::seed::{Mode, Weights};
 use crate::retrieval::{diversify, pagerank, score, seed};
 use crate::search::{find_entity, find_reason};
-use crate::util;
+use base::base_constants::QUERY_MAX_CHAINS;
+use util;
+use util::profile::Profiler;
 
 // Marks peer-held content in delivered chain text. kern does no synthesis — the
 // calling agent does — so the trust vocabulary must survive into the output.
@@ -49,7 +49,7 @@ pub fn query_profiled(
 	query_text: &str,
 	mode: Mode,
 	opts: Option<QueryOptions>,
-) -> (QueryResult, crate::profile::Profile) {
+) -> (QueryResult, util::profile::Profile) {
 	let mut prof = Profiler::new("query");
 	let w = Weights::for_mode(cfg, mode);
 
@@ -126,7 +126,7 @@ fn fuse_hybrid_seeds(
 			.map(|e| crate::math::cosine(qvec, &e.vector))
 			.unwrap_or(0.0);
 	}
-	fused.sort_by(|a, b| crate::util::cmp_rank(a.score, &a.entity_id, b.score, &b.entity_id));
+	fused.sort_by(|a, b| util::cmp_rank(a.score, &a.entity_id, b.score, &b.entity_id));
 	fused
 }
 
@@ -154,7 +154,7 @@ pub fn retrieve_profiled(
 	mode: Mode,
 	opts: Option<&QueryOptions>,
 	w: Weights,
-) -> (Retrieved, crate::profile::Profile) {
+) -> (Retrieved, util::profile::Profile) {
 	let mut prof = Profiler::new("retrieve");
 	let lexical = g.lexical();
 	let lex_ref = lexical.as_deref();
@@ -229,7 +229,7 @@ pub fn retrieve_profiled(
 	if cfg.lexical_top_boost > 0.0 {
 		if let Some(lex) = lex_ref {
 			score::apply_lexical_boost(lex, cfg, query_text, &mut results);
-			results.sort_by(|a, b| crate::util::cmp_rank(a.score, &a.entity.id, b.score, &b.entity.id));
+			results.sort_by(|a, b| util::cmp_rank(a.score, &a.entity.id, b.score, &b.entity.id));
 		}
 	}
 
@@ -337,9 +337,8 @@ pub fn rrf(lists: &[&[EntityHit]], weights: &[f64], k_rrf: f64, top_k: usize) ->
 	}
 	let mut out: Vec<EntityHit> = agg.into_iter().map(EntityHit::from).collect();
 	// Unique ids make this a STRICT total order, so the top_k partition + sorting only the survivors equals a full sort + truncate.
-	let cmp = |a: &EntityHit, b: &EntityHit| {
-		crate::util::cmp_rank(a.score, &a.entity_id, b.score, &b.entity_id)
-	};
+	let cmp =
+		|a: &EntityHit, b: &EntityHit| util::cmp_rank(a.score, &a.entity_id, b.score, &b.entity_id);
 	if top_k < out.len() {
 		out.select_nth_unstable_by(top_k - 1, &cmp);
 		out.truncate(top_k);
@@ -391,15 +390,15 @@ pub fn merge_results<'a>(
 		.collect();
 
 	// Score desc, id asc — the id tie-break is required for determinism (HashMap order varies per process).
-	results.sort_by(|a, b| crate::util::cmp_rank(a.score, &a.entity.id, b.score, &b.entity.id));
+	results.sort_by(|a, b| util::cmp_rank(a.score, &a.entity.id, b.score, &b.entity.id));
 	results
 }
 
 // ==== [gravity] ====
 
 use crate::accept::root_graviton_ids;
-use crate::base_types::Kern;
 use crate::math::cosine;
+use base::base_types::Kern;
 
 // Max over gravitons, not sum — overlapping gravitons must not double-count.
 pub fn apply_gravity<T: Scored>(g: &GraphGnn, cfg: &RetrievalConfig, results: &mut [T]) {
@@ -432,8 +431,8 @@ pub fn apply_gravity<T: Scored>(g: &GraphGnn, cfg: &RetrievalConfig, results: &m
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::base_types::{mk_entity, EntityKind, Kern, Reason, ReasonKind};
 	use crate::reason::add_reason;
+	use base::base_types::{mk_entity, EntityKind, Kern, Reason, ReasonKind};
 
 	// ROADMAP item 94. A dedup keeps the incoming wording on a `Rephrase` reason
 	// and nothing else, so the exact phrasing a user might search for sat in the
@@ -1044,10 +1043,10 @@ mod fuse_tests {
 #[cfg(test)]
 mod merge_tests {
 	use super::*;
-	use crate::base_types::Kern;
+	use base::base_types::Kern;
 
-	use crate::base_types::Entity;
 	use crate::test_support::entity as ent;
+	use base::base_types::Entity;
 	fn hit(id: &str, score: f64) -> EntityHit {
 		EntityHit {
 			entity_id: id.into(),
@@ -1112,8 +1111,8 @@ mod merge_tests {
 mod gravity_tests {
 	use super::*;
 	use crate::accept::add_graviton_with_mass;
-	use crate::base_types::{mk_entity, EntityKind};
 	use crate::retrieval::expand::ScoredEntity;
+	use base::base_types::{mk_entity, EntityKind};
 
 	fn scored(id: &str, vector: Vec<f32>, score: f64) -> ScoredEntity {
 		let mut entity = mk_entity(id, "t", 0.5, EntityKind::Claim);

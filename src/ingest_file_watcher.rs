@@ -5,13 +5,13 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use crate::watcher::{
+use async_trait::async_trait;
+use util::watcher::{
 	FileWatcher, IgnoreRules, IngestPipeline, IngestRecord, IngestSink, WatcherError,
 };
-use async_trait::async_trait;
 
-use crate::base_types::{EntityKind, Scoping, Source};
 use crate::ingest::{Config as IngestRunConfig, Worker};
+use base::base_types::{EntityKind, Scoping, Source};
 
 fn strip_file_uri(uri: &str) -> String {
 	if let Some(rest) = uri.strip_prefix("file:///") {
@@ -186,10 +186,10 @@ mod tests {
 	use tokio::time::{sleep, timeout};
 
 	use crate::accept;
-	use crate::base_types::{ChunkPart, ChunkPartKind, Embedding, Entity, EntityStatus};
-	use crate::crdt::GCounter;
 	use crate::graph::GraphGnn;
-	use crate::util;
+	use base::base_types::{ChunkPart, ChunkPartKind, Embedding, Entity, EntityStatus};
+	use base::crdt::GCounter;
+	use util;
 
 	#[derive(Clone)]
 	struct DirectFileSink {
@@ -569,7 +569,7 @@ mod tests {
 		}
 		assert!(!betas.is_empty(), "the watched file reached the graph");
 
-		let agent = 2.0 - crate::base_constants::MAX_AI_CONFIDENCE as f32;
+		let agent = 2.0 - base::base_constants::MAX_AI_CONFIDENCE as f32;
 		for got in &betas {
 			assert!(
 				(got - agent).abs() < 1e-6,
@@ -649,7 +649,7 @@ mod tests {
 			.filter(|e| matches!(e.kind, EntityKind::Document))
 			.collect();
 		assert!(!docs.is_empty(), "the drain rebuilt the document");
-		let want = 2.0 - crate::base_constants::MAX_AI_CONFIDENCE as f32;
+		let want = 2.0 - base::base_constants::MAX_AI_CONFIDENCE as f32;
 		for d in &docs {
 			assert_eq!(d.source.scheme(), "file", "it came back as a file");
 			assert!(

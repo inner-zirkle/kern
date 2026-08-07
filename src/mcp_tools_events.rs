@@ -216,10 +216,10 @@ impl Server {
 #[cfg(test)]
 mod tests {
 	use super::EventCursor;
-	use crate::base_types::{Entity, EntityKind, EntityStatus, Kern, Source};
 	use crate::mcp::tools::is_error;
 	use crate::mcp::Server;
 	use crate::test_support::tool_text as text;
+	use base::base_types::{Entity, EntityKind, EntityStatus, Kern, Source};
 	use std::time::{Duration, UNIX_EPOCH};
 
 	fn at(secs: u64) -> std::time::SystemTime {

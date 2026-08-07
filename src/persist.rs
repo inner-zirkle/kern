@@ -6,10 +6,10 @@
 //! overwritten.
 
 use super::graph::GraphGnn;
-use super::util;
-use crate::base_types::Kern;
 use crate::quant::QuantizationMode;
+use base::base_types::Kern;
 use std::collections::HashMap;
+use util;
 
 pub fn load_dir(dir: &str) -> Result<GraphGnn, crate::base_store::StoreError> {
 	use crate::base_store::Store;
@@ -282,7 +282,7 @@ mod tests {
 		// destructive prune used to delete its disk row — the only copy —
 		// permanently losing its thoughts while their reason edges lived on.
 		use crate::base_store::Store;
-		use crate::base_types::{mk_entity, EntityKind};
+		use base::base_types::{mk_entity, EntityKind};
 		let dir = tempdir().unwrap();
 		let d = dir.path().to_string_lossy().to_string();
 

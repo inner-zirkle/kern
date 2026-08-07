@@ -3,7 +3,7 @@
 
 use crate::mcp::tools_query::base_entity_json;
 use crate::search::{find_entity, search_all_unlocked};
-use crate::util::{short_id, truncate};
+use util::{short_id, truncate};
 
 use crate::commands::{load_graph, Client};
 use crate::commands_route::{array_field, f64_field, route, str_field, Routed};
@@ -142,8 +142,8 @@ pub(crate) async fn cmd_search(
 use std::sync::Arc;
 use std::time::Instant;
 
-use crate::profile::{render_timeline, Profile};
 use crate::retrieval::seed::Mode;
+use util::profile::{render_timeline, Profile};
 
 use crate::commands::Endpoint;
 

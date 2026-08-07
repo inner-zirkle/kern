@@ -5,13 +5,13 @@
 
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use crate::util::LogThrottle;
 use std::time::SystemTime;
+use util::LogThrottle;
 
-use crate::base_constants as constants;
-use crate::base_types::{Entity, EntityStatus, Reason};
-use crate::crdt::{lww_wins, GCounter};
 use crate::graph::GraphGnn;
+use base::base_constants as constants;
+use base::base_types::{Entity, EntityStatus, Reason};
+use base::crdt::{lww_wins, GCounter};
 
 // Gossip files every peer's rows into a `remote-<network_id>-<kern_id>` phantom kern
 // (see `gossip::handler`), so the kern id is the one durable "this came off the wire"
@@ -185,7 +185,7 @@ pub fn merge_remote_entity(g: &mut GraphGnn, target_kern_id: &str, mut remote: E
 		Some(other) => {
 			tracing::warn!(
 				target: "kern.merge",
-				id = %crate::util::short_id(&remote.id),
+				id = %util::short_id(&remote.id),
 				owner = %other,
 				target = %target_kern_id,
 				"remote entity id collides with an entity owned by another kern; rejected"
@@ -307,8 +307,8 @@ pub fn absorb_graph(local: &mut GraphGnn, disk: GraphGnn) -> usize {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::base_types::{mk_entity, EntityKind, Kern};
 	use crate::graph::GraphGnn;
+	use base::base_types::{mk_entity, EntityKind, Kern};
 	use std::time::{Duration, UNIX_EPOCH};
 
 	fn t(secs: u64) -> Option<SystemTime> {
