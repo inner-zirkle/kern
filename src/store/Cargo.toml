@@ -11,6 +11,7 @@ graph = { path = "../graph" }
 math = { path = "../math" }
 util = { path = "../util" }
 store_core = { path = "../store_core" }
+bootstrap = { path = "../bootstrap" }
 ingest = { path = "../ingest" }
 llm = { path = "../llm" }
 tick = { path = "../tick" }

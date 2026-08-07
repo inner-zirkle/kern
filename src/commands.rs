@@ -603,7 +603,7 @@ pub(crate) async fn bootstrap(cli: &Cli, cfg: &config::Config) -> EngineHandle {
 	};
 	let tick_embed: tick_loop::tick_tasks::EmbedFunc = embed_fn(&llm_client);
 
-	let registry = Arc::new(crate::store::Registry::new());
+	let registry = Arc::new(::store::Registry::new());
 	let shared_bq: Arc<parking_lot::RwLock<Option<tick_loop::tick_tasks::BroadcastQuestionFunc>>> =
 		Arc::new(parking_lot::RwLock::new(None));
 	let bq_slot = shared_bq.clone();

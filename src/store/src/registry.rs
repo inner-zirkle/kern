@@ -86,13 +86,13 @@ impl Registry {
 		let mut store_cfg = cfg.clone();
 		store_cfg.data_dir = data_dir.to_string_lossy().into_owned();
 
-		let graph = Arc::new(RwLock::new(crate::commands::load_graph(&store_cfg)));
+		let graph = Arc::new(RwLock::new(bootstrap::load_graph(&store_cfg)));
 
 		// The one persist closure; guarded flush won't overwrite a graph another writer grew on disk.
 		let save_g = graph.clone();
 		let save_cfg = store_cfg.clone();
 		let save_fn: Arc<dyn Fn() + Send + Sync> = Arc::new(move || {
-			crate::commands::save_graph_guarded(&save_g, &save_cfg);
+			bootstrap::save_graph_guarded(&save_g, &save_cfg);
 		});
 
 		let tick_q = Arc::new(Queue::new(cfg.tick.queue_capacity.max(1)));

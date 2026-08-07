@@ -65,7 +65,7 @@ pub(crate) mod mcp_tools_mutate;
 pub(crate) mod mcp_tools_query;
 pub(crate) mod mcp_tools_setup;
 pub mod rpc;
-pub mod store;
+
 
 #[cfg(test)]
 mod test_support;
