@@ -449,18 +449,6 @@
   revert. Decided by: fix-the-root, name-the-tradeoff, verify-before-claiming.
   Still open: rate-limit / `ReasonKind::Edit` decision + triggers #2/#3.
 
-- 2026-07-22 — item 24 residue #2 closed: `connect_kern` peer-uid check now has
-  a test seam mirroring the bind arm's `bind_unix(path, expected_peer)` — a
-  `#[cfg(test)]` path injects the expected uid, and
-  `connect_kern_refuses_when_the_peer_uid_differs` drives it with
-  `geteuid().wrapping_add(1)` against a socket this uid serves, asserting
-  `AdapterError::UntrustedEndpoint` naming `served by uid {euid}`. Negative
-  control (neuter `require_peer_uid` → foreign uid accepted → test reds, green
-  on revert) — same mutation the bind arm test uses. `cargo test -p trnsprt` 61
-  passed (+1). The owner-check half was already covered via a root-owned
-  `foreign_path()`; this closes the peer-uid half — the gap item 24 named.
-  Decided by: fix-the-root, name-the-tradeoff, verify-before-claiming.
-
 - 2026-07-22 — item 52 mechanism half-closed (default-off): `seed_examples`
   (`src/base/accept.rs`) now char-chunks a single long graviton-seed paragraph
   at `GRAVITON_SEED_CHAR_CHUNK` (new, `src/base/constants.rs`, default `4000`)
@@ -548,3 +536,20 @@
 
 - 2026-08-07 — split the single `kern` crate into a 24-member workspace of concept crates (no `kern-` prefix, llm/src shape): util, base, math, store_core, store, bootstrap, graph, ingest_config, llm, config, gnn, retrieval, ingest, tick, gossip, tick_loop, transport, test_support, health, mcp, rpc, hub, commands, plus the `kern` binary. Each crate has Cargo.toml + README + its own `src/lib.rs`. Cycle-breaks by moving pure helpers into lower crates: `entity_detail_by_id`/`base_entity_json`→retrieval::id_detail; `link_entities`/`forget_entity`/`promote_entity`/`forget_by_source`/`degrade_entity_reasons`→graph::graph_ops; `graviton_rows`→graph::graph_ops; `load_graph`/`save_graph_guarded`/`snapshot_if_dirty`/`reconcile_if_stale`/`bind_embed_model`/`apply_graph_config`/`reload_graph`→bootstrap; `store::base_store`/`store::lock`→store_core (split out so graph→store_core stays acyclic with store::Registry needing them); `launch_dir_join`/`set_launch_dir`→commands. `kern` lib.rs reduced to 25 lines (just `pub use` re-exports). 1108 tests pass, `cargo clippy --all-targets --workspace` clean. Decided by: continue-folding (user-directed structural split, llm/src shape).
 
+
+- 2026-08-07 — release-readiness audit: the tree is **not** release-clean.
+  `cargo fmt --check` failed on 20 files left unformatted by the 24-crate split
+  (CI lint gate would have rejected the push); fixed. A prior "tests pass"
+  reading was the root package only (12 tests) — `--workspace` is 1108, and one
+  of them, `base_types::observe_support_and_observe_contradict_stamp_updated_at`,
+  raced on `SystemTime::now()` under load (wall clock is not monotonic); rewritten
+  against a UNIX_EPOCH sentinel, 3 consecutive `--no-fail-fast` runs green.
+  Remaining blocker: `tests/e2e/test_gnn_recall.py` fails on the repo's own
+  retrieval floor — recall@1 0.8750 vs 0.9028 floor (63/72 probes at rank 1,
+  floor 65/72), MRR 0.9142 vs 0.9314, recall@5 exactly at floor. Reproducible
+  across runs, so it is a real quality regression, not flake.
+  `test_daemon_reads` also fails locally but only on a WSL-loopback stderr
+  warning the test forbids — environmental, green on CI's ubuntu runner.
+  Alpha exit deferred: leaving alpha means promising format stability, and the
+  codebase is built on the opposite policy (FORMAT_VERSION bump = wipe and
+  reingest, no migrations). Decided by: verify-before-claiming, name-the-tradeoff.
