@@ -1136,7 +1136,7 @@ client→node — the hub is connect-time only, never a proxy hop.
   without chdir).
 - **Supervisor** (`src/hub/`, 547 LoC) — `node.rs` spawn/probe/ready-wait/
   shutdown, `serve.rs` handler + accept loop + dead-node reaper (`run_hub` at
-  `src/hub/serve.rs:294`). Hub exit leaves nodes running; a restarted hub
+  `src/hub_serve.rs:294`). Hub exit leaves nodes running; a restarted hub
   re-adopts them via probe. `canon` re-pins any path to the nearest `.kern`
   ancestor, so two clients in different subdirs resolve to one node.
 - **Graceful unload** — `KernRpc::shutdown` fires the daemon's save-then-exit
@@ -1154,7 +1154,7 @@ client→node — the hub is connect-time only, never a proxy hop.
   RPC; nodes stay up.
 - **Detached children are logged.** Both spawners — the hub
   (`spawn_hub`/`spawn_daemon`, `src/commands_mcp_cmd.rs`) and the hub's per-root
-  node (`src/hub/node.rs:104`) — route the child's stdout *and* stderr into an
+  node (`src/hub_node.rs:104`) — route the child's stdout *and* stderr into an
   append-only, owner-only file under `Config::log_dir()` = `<data_dir>/logs`
   (`src/config.rs`), one file per spawn arg: `hub.log`, `daemon.log`
   (`detached_log::log_path`, `src/config_detached_log.rs:10`). Append, never
@@ -1183,7 +1183,7 @@ empty list while it is (`src/config_watcher.rs:8`, returned `:24-26`). Everythin
 only in a deployment that turned it on — which is what ranks its gaps, the same
 way `Federation` says "off by default" rather than leaving it to be inferred.
 
-**How.** `FileWatcher` (`src/watcher/file.rs`) wraps `notify`, emits
+**How.** `FileWatcher` (`src/watcher_file.rs`) wraps `notify`, emits
 `WatchEvent`s (`event.rs`: `Created`/`Modified`/`Deleted`/`Renamed {from, to}`).
 `IgnoreRules` (`ignore_rules.rs:5`, built `from_roots` over ripgrep's `ignore`
 crate — a real `Gitignore` per root for `.gitignore` and `.kernignore`, plus
@@ -1196,11 +1196,11 @@ filters noise. `IngestPipeline` (`pipeline.rs:24`) debounces, caps at
 
 **Gaps.** *Both claims here were stale and are corrected 2026-07-21.* `.gitignore`
 parsing is **not** approximate — `IgnoreRules` builds a real `Gitignore` through
-ripgrep's `ignore` crate (`src/watcher/ignore_rules.rs:3`, matched `:71`), so
+ripgrep's `ignore` crate (`src/watcher_ignore_rules.rs:3`, matched `:71`), so
 it is the full spec; the deliberate deviations are the unconditional `.git` skip
-(`:60`) and the host's denied prefixes (`:63`), which no ignore file can unset. Renames **are** tracked at the event layer — `WatchKind::Renamed {from, to}` (`src/watcher/event.rs:9`) carries both
+(`:60`) and the host's denied prefixes (`:63`), which no ignore file can unset. Renames **are** tracked at the event layer — `WatchKind::Renamed {from, to}` (`src/watcher_event.rs:9`) carries both
 endpoints. What is actually missing is graph-level re-keying: `build_record`
-ingests `to` and discards `from` (`src/watcher/pipeline.rs:48`), so a rename
+ingests `to` and discards `from` (`src/watcher_pipeline.rs:48`), so a rename
 lands as a new `Document` and the old one is neither moved nor removed.
 
 ---

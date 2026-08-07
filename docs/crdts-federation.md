@@ -5,16 +5,16 @@ Ticket: `A01F62NW` — "Study CRDTs for conflict-free federated kern state"
 > **Implementation status (2026-07).** Stages 0/1 shipped: `src/crdt.rs` is
 > `GCounter` plus an `lww_wins` tiebreak and nothing else — **no `PnCounter` was
 > ever built** — `access_count` and `traversal_count` are GCounters, and
-> `src/base/merge.rs` is the content-addressed entity/edge join (counters join,
+> `src/merge.rs` is the content-addressed entity/edge join (counters join,
 > heat and timestamps merge, status follows the `Active < Superseded` lattice).
 > Three deviations from this study, all deliberate: confidence is
 > **replica-local**, never merged from a peer (anti-poisoning); LWW landed as
 > inline lamport-stamped fields on `Entity` rather than as a named
 > `LWWRegister` type; and **OR-Set for `statements` was reversed, not deferred**
 > — see the note in §6 below. `Delta` has a live sender
-> (`gossip::handler::start_delta_flush` at `src/gossip/handler.rs:222`, wired at
+> (`gossip::handler::start_delta_flush` at `src/gossip_handler.rs:222`, wired at
 > `src/commands.rs:1082`), and inbound deltas are still clamped on receipt
-> (`GOSSIP_CRDT_DELTA_MAX`, `src/gossip/handler.rs:407`). Anti-entropy was not built
+> (`GOSSIP_CRDT_DELTA_MAX`, `src/gossip_handler.rs:407`). Anti-entropy was not built
 > (`ROADMAP.md` — "Anti-entropy"). Type and path names below predate the
 > `Thought`→`Entity` rename and the move from `crates/` to `src/`.
 
@@ -254,8 +254,8 @@ where a stage did not survive contact with the code, that is noted on the stage.
 > `statements == [text]`, so a same-id peer already holds identical content and a
 > differing one is asserting content its id does not hash to; importing it would
 > break content-addressing and resurrect locally-cleared statements. `merge_entity`
-> never imports them (`src/base/merge.rs:112`) and `CrdtTarget::Statements` is
-> rejected on receipt (`src/gossip/handler.rs:502`), kept as a refused variant so a
+> never imports them (`src/merge.rs:112`) and `CrdtTarget::Statements` is
+> rejected on receipt (`src/gossip_handler.rs:502`), kept as a refused variant so a
 > peer on an older build cannot inject text under a content-addressed id.
 > Statements converge through full EntitySync bodies instead. The LWW half landed
 > as inline lamport-stamped fields, not as CRDT-typed ones.

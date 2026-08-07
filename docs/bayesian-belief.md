@@ -6,21 +6,21 @@ instead of today's scalar `confidence` / `score`, and how that tuple updates as
 new observers arrive.
 
 > **Implementation status (2026-07).** Adopted: entities carry Beta-distributed
-> confidence (`conf_alpha`/`conf_beta` at `src/base/types.rs:290-291`, with
-> `observe_support` / `observe_contradict` at `src/base/types.rs:411` and
-> `src/base/types.rs:417`), seeded `(1+conf, 1+(1−conf))` exactly as §3 proposes
-> (`src/ingest/place.rs:16-18`). Under federation the tuple is deliberately
-> **replica-local** — never merged from a peer (`src/base/merge.rs:93`).
+> confidence (`conf_alpha`/`conf_beta` at `src/base_types.rs:290-291`, with
+> `observe_support` / `observe_contradict` at `src/base_types.rs:411` and
+> `src/base_types.rs:417`), seeded `(1+conf, 1+(1−conf))` exactly as §3 proposes
+> (`src/ingest_place.rs:16-18`). Under federation the tuple is deliberately
+> **replica-local** — never merged from a peer (`src/merge.rs:93`).
 >
 > Contradiction detection shipped, but not in either form §2 weighed. There is no
-> `ReasonKind::Contradicts` (`src/base/types.rs:77-86` lists the seven kinds that
+> `ReasonKind::Contradicts` (`src/base_types.rs:77-86` lists the seven kinds that
 > exist), no NLI model and no `stance` argument on ingest: the accept path only
-> ever supports (`src/base/accept.rs:162`). What moves `β` is GNN propagation —
+> ever supports (`src/accept.rs:162`). What moves `β` is GNN propagation —
 > each refreshed embedding is compared against the entity's own vector and scores
 > `observe_support` at cosine alignment ≥ 0.5, `observe_contradict` below it
-> (`src/tick/gnn_propagate.rs:229-233`). So the "observer" that can contradict is
+> (`src/tick_gnn_propagate.rs:229-233`). So the "observer" that can contradict is
 > the graph's own learned view, not a second agent. Since the propagation chain
-> became fallible end to end (`src/gnn/model.rs:19`, `src/gnn/model.rs:30`) a
+> became fallible end to end (`src/gnn_model.rs:19`, `src/gnn_model.rs:30`) a
 > failed forward or backward applies no updates at all, so belief moves only on a
 > propagation that completed.
 >

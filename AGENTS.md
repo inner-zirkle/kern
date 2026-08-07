@@ -8,11 +8,11 @@ kern is version alpha. Features we change need **no** backward compatibility:
 no migration paths, no legacy decode fallbacks, no serde aliases for renamed
 fields, no wire-format stability across builds. When a persisted or wire format
 changes, bump the single live format version (`FORMAT_VERSION` in
-`src/base/store.rs`, `WEIGHT_FILE_VERSION` in `src/gnn/persist.rs`) so old data
+`src/base_store.rs`, `WEIGHT_FILE_VERSION` in `src/gnn_persist.rs`) so old data
 is rejected cleanly — never migrated, never sniffed. Old stores are wiped and
 reingested.
 
-Exception: tolerant RPC decode in `src/trnsprt/src/kern_rpc/dto.rs` stays — it
+Exception: tolerant RPC decode in `src/transport_kern_rpc_dto.rs` stays — it
 serves the live attach → detect-stale → auto-restart handshake with an
 already-running daemon from an older build, not persisted-data compat.
 

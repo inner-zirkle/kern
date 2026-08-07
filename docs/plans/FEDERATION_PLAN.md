@@ -24,14 +24,14 @@ Kleinberg small-world papers, public CRDT literature.
 
 ## 0. What exists today (baseline)
 
-- `src/gossip/node.rs` — flat TCP peer list, capped, broadcast + fetch.
-- `src/gossip/discovery.rs` — UDP LAN announce.
-- `src/gossip/handler.rs` — entity sync into phantom kerns, `id_matches_body`
+- `src/gossip_node.rs` — flat TCP peer list, capped, broadcast + fetch.
+- `src/gossip_discovery.rs` — UDP LAN announce.
+- `src/gossip_handler.rs` — entity sync into phantom kerns, `id_matches_body`
   (content-hash self-certifying entity IDs), question/answer, CRDT delta.
 - `src/crdt.rs` — GCounter, `lww_wins` (lamport, producer tiebreak).
-- `src/base/merge.rs` — commutative/idempotent entity merge,
+- `src/merge.rs` — commutative/idempotent entity merge,
   `strip_untrusted_ranking_signals`, remote cap.
-- `src/gossip/rate.rs`, `seen.rs` — per-peer rate limits, dedup TTL set.
+- `src/gossip_rate.rs`, `seen.rs` — per-peer rate limits, dedup TTL set.
 - Trust model: shared `network_id` string = full mutual trust. This is the
   thing the plan replaces.
 - Auth to local daemon: `mcp-token` file, owner-only (`config/serve.rs`).
@@ -43,7 +43,7 @@ Keep all of it. The plan layers identity, topology, and per-key policy on top;
 
 ## 1. Identity (peer keys)
 
-New module `src/gossip/identity.rs`.
+New module `src/gossip_identity.rs`.
 
 - Keypair: ed25519 (crate: `ed25519-dalek`, MIT/Apache — license-clean).
 - Minted at first daemon boot, path `.kern/state/peer.key`, owner-only perms,
@@ -58,7 +58,7 @@ New module `src/gossip/identity.rs`.
 
 ## 2. Circular view — small-world ring topology
 
-New module `src/gossip/ring.rs`. Replaces flat `Node.add_peer` list for WAN;
+New module `src/gossip_ring.rs`. Replaces flat `Node.add_peer` list for WAN;
 UDP LAN discovery stays as a bootstrap source.
 
 Data:
@@ -93,7 +93,7 @@ fn route(&self, target: f64) -> Option<&PeerEntry> // strictly-closer neighbor, 
 
 ## 3. Contracts — the authentication method
 
-New module `src/gossip/contract.rs`.
+New module `src/gossip_contract.rs`.
 
 Key idea (Freenet's): the key IS the policy. A shared kern is addressed by the
 hash of its validation policy + parameters, so a peer holding the key knows
@@ -256,23 +256,23 @@ Each phase lands independently, feature-flagged, alpha rules (no migrations).
 
 Where the code lives and where it deliberately deviates:
 
-- **§1 Identity** — `src/gossip/identity.rs`. As specced. Envelope =
+- **§1 Identity** — `src/gossip_identity.rs`. As specced. Envelope =
   `SignedFrame` in `types.rs`; verification inside `transport::decode_msg`,
   structurally before the seen-set/peer-list/rate-limit in
   `Node::handle_conn`. The Question budget keys on the verified PeerId.
-- **§2 Ring** — `src/gossip/ring.rs`. Deviation: the join walk is
+- **§2 Ring** — `src/gossip_ring.rs`. Deviation: the join walk is
   **iterative (requester-driven)**, not recursive hop-forwarding — each hop
   answers `Nearest{own + near + far}` and holds no request state; same
   greedy result, simpler failure story. Both §9 gates pass (99% nearest-peer
   reach in ≤ log²n hops at n=1000; 20% churn).
-- **§3 Contracts** — `src/gossip/contract.rs`. Deviation: `Summary` carries
+- **§3 Contracts** — `src/gossip_contract.rs`. Deviation: `Summary` carries
   its sorted `(id, lamport)` entries **alongside** the 16 nibble-bucket
   hashes, so `diff` names missing/stale ids in one round trip instead of
   per-bucket fetches; matched buckets are still skipped. Acceptable at v0
   sizes (`max_entities` caps the list); a fetch-per-bucket protocol can
   replace it wire-compatibly later. The one migration mapping is removed
   (alpha, no compat).
-- **§4 Subscriptions** — `src/gossip/subs.rs` + `handler.rs`
+- **§4 Subscriptions** — `src/gossip_subs.rs` + `handler.rs`
   (`handle_subscribe`/`handle_suback`/`handle_contract_delta`/
   `handle_sync_summary`, `start_contract_sync`, `publish_to_contract`).
   Two guards the spec did not name, added after the three-node gate flaked:
@@ -283,13 +283,13 @@ Where the code lives and where it deliberately deviates:
   needs the params. The §9 gate runs three real-socket nodes in-process
   rather than three spawned daemons; the daemon wiring itself is exercised
   by boot config (`[gossip] subscriptions`, `[[gossip.contracts]]`).
-- **§5 Delegates** — `src/mcp/tools_delegate.rs` (`sign`, `contract_grant`),
+- **§5 Delegates** — `src/mcp_tools_delegate.rs` (`sign`, `contract_grant`),
   token-gated like every mcp tool. `contract_grant` is stateless: it takes
   the current contract table, checks the daemon's key is an owner, returns
   amended params + new ContractId + tombstone signature
   (`tombstone_digest`). `handle_tombstone` verifies the owner signature and
   unsubscribes; following the pointer is the operator's call in v0.
-- **§6 Privacy** — `src/gossip/privacy.rs` (xchacha20poly1305). Deviation
+- **§6 Privacy** — `src/gossip_privacy.rs` (xchacha20poly1305). Deviation
   worth naming: the entity **vector is dropped**, not encrypted — an
   embedding of hidden text is a leak of it, and a relay cannot route what it
   cannot read (the spec's own consequence note). The sealed id is the

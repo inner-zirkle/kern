@@ -10,18 +10,18 @@ tick) with a tunable half-life. Retrieval already consumes this signal via
 convergence metric so we can answer "is the bell curve actually converging?".
 
 > **Implementation status (2026-07).** The core of this proposal shipped:
-> entities carry a `heat` scalar (`src/base/heat.rs`) that access deposits and
+> entities carry a `heat` scalar (`src/heat.rs`) that access deposits and
 > the pulse re-deposits on root-reachable entities, decaying lazily with a
 > configurable half-life (`[heat] half_life_secs`, default **7 days** — not the
-> 36h proposed in §4.1); the cold-path GC lives in `src/tick/stigmergy.rs`
+> 36h proposed in §4.1); the cold-path GC lives in `src/tick_stigmergy.rs`
 > (reap when `heat < 0.01` and last touch — `accessed_at`, falling back to
 > `created_at` — is older than 7 days, Facts/Documents immune — thresholds at
-> `src/base/constants.rs:101-103`), spilling to the capped cold tier first.
+> `src/base_constants.rs:101-103`), spilling to the capped cold tier first.
 > Rows the cold tier's FIFO cap then drops are counted and reported
-> (`src/base/store.rs:718`, `src/base/health.rs:16`), and a maintenance task
+> (`src/base_store.rs:718`, `src/health.rs:16`), and a maintenance task
 > that panics is contained and counted rather than killing decay, GC, clustering
 > and persist for the rest of the process (`src/tick.rs:67`,
-> `src/tick/queue.rs:152`). So health answers what the loop destroyed and where
+> `src/tick_queue.rs:152`). So health answers what the loop destroyed and where
 > it faulted; it does not answer whether the loop converges. The Gini /
 > top-10-stability convergence metrics (§5) were not built. Code paths below
 > reference the pre-1.0 `crates/` layout.

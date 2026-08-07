@@ -20,7 +20,7 @@ sets; parallelize only what does not overlap.
 
 ## retrieval
 
-- **Scope:** `src/retrieval/`, `src/gnn/`, `src/quant.rs`.
+- **Scope:** `src/retrieval*.rs`, `src/gnn*.rs`, `src/quant.rs`.
 - **Knows:** the hybrid pipeline (HNSW/DiskANN + BM25 + GNN-blended seeds,
   edge expansion, RRF + PageRank fusion, MMR diversify — LLM-free end to end
   since 2026-07-21), int8 quantization recall parity, filtered ANN on
@@ -41,12 +41,12 @@ sets; parallelize only what does not overlap.
 
 ## lifecycle
 
-- **Scope:** `src/tick/`.
+- **Scope:** `src/tick*.rs`.
 - **Knows:** heat deposit/pulse, half-life lazy decay, stigmergy GC and its
   Fact immunity, cold-tier spill, clustering into child kerns, graviton
   auto-promotion, the bi-temporal supersede classification that runs off the
   recall path, and that GNN training is the one thing here that is *not* a queue
-  task — `src/tick/trainer.rs` owns a dedicated thread, coalesces a second
+  task — `src/tick_trainer.rs` owns a dedicated thread, coalesces a second
   request for a kern already waiting, catches per job, and counts what it
   refuses past `TRAIN_QUEUE_CAP` as `gnn_train_refused`.
 - **Delegate when:** decay/eviction tuning, tick cadence, or anything that
@@ -64,7 +64,7 @@ sets; parallelize only what does not overlap.
 
 ## federation
 
-- **Scope:** `src/gossip/`, `src/trnsprt/`, `src/gossip/types.rs`, `src/crdt.rs`
+- **Scope:** `src/gossip/`, `src/transport/`, `src/gossip_types.rs`, `src/crdt.rs`
   (merge semantics), `docs/site/content/docs/concepts/security.mdx`.
 - **Knows:** LAN gossip heartbeats, content-addressed CRDT entity-body merge,
   multicast discovery and `network_id` pairing, which message kinds have
@@ -74,7 +74,7 @@ sets; parallelize only what does not overlap.
 
 ## surface
 
-- **Scope:** `src/mcp/`, `src/rpc/`, `src/commands/`.
+- **Scope:** `src/mcp*.rs`, `src/rpc*.rs`, `src/commands*.rs`.
 - **Knows:** the one-dispatch-core law (every surface goes through
   `mcp::Server::call_tool`, never a second copy), the fifteen MCP tools,
   `KernRpc` over this repo's own `service!` macro (there is no tarpc), the
@@ -86,7 +86,7 @@ sets; parallelize only what does not overlap.
   only exceptions, one commit after that stopped being true; then it said five,
   one commit after the graviton and claim-kind writes started routing too; then
   it said nine, one commit after `promote` started routing too.* Ten
-  commands route (`src/commands/route.rs`): `forget`, `degrade`, `promote`,
+  commands route (`src/commands_route.rs`): `forget`, `degrade`, `promote`,
   `intake drain`, `graviton add`/`remove` and `claim-kind add`/`rm` write,
   `get` and `query` read, all ten over `call_tool` with the local pass as the
   `NoDaemon` fallback. `search` and `list` stay local **by decision** — they are

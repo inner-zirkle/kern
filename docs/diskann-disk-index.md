@@ -3,13 +3,13 @@
 **Status (updated 2026-07-21): WIRED (opt-in, entity index only).** DiskANN now
 serves the live entity vector search above a configurable threshold — it is the
 architecture's designated answer to the unbounded resident-set ceiling. The spill
-decision is one line (`src/base/graph.rs:295`), and nothing else bounds the
-resident set: `KERN_CAP_DISABLED` (`src/base/constants.rs:29-30`) caps kerns, not
+decision is one line (`src/graph.rs:295`), and nothing else bounds the
+resident set: `KERN_CAP_DISABLED` (`src/base_constants.rs:29-30`) caps kerns, not
 entities, so below the threshold a kern's in-RAM HNSW grows with the corpus.
 
 How it works:
 - `GraphGnn`'s entity/gnn/reason indices are a `VectorBackend` enum
-  (`src/base/vector_backend.rs`): `Resident(HnswIndex)` or `Disk { snapshot:
+  (`src/vector_backend.rs`): `Resident(HnswIndex)` or `Disk { snapshot:
   DiskIndex, delta: HnswIndex, tombstones }`.
 - `rebuild_index` spills `entity_idx` to a `<data_dir>/diskann/entity` DiskANN
   snapshot once the resident searchable-entity count exceeds `[graph]
@@ -21,9 +21,9 @@ How it works:
   delta back into a fresh snapshot once it grows past
   `DISK_CONSOLIDATE_MIN_DELTA`, at most hourly, so the delta stays bounded.
 
-Still standalone (`src/base/diskann.rs:157` `build_and_save` + mmap
-`DiskIndex::open`/`search` at `src/base/diskann.rs:310` and
-`src/base/diskann.rs:385`). This note previously published a "recall@10 ≥ 0.90
+Still standalone (`src/diskann.rs:157` `build_and_save` + mmap
+`DiskIndex::open`/`search` at `src/diskann.rs:310` and
+`src/diskann.rs:385`). This note previously published a "recall@10 ≥ 0.90
 vs brute force" figure here; it came from tooling that no longer exists and is
 **withdrawn**, not superseded. The retrieval instrument that landed since
 (`tests/e2e/test_recall.py` — recall@1 / recall@5 / MRR, no LLM in the scoring loop)
@@ -56,7 +56,7 @@ claim — so it is not comparable to anything published elsewhere.
 
 > **Reality drift since this doc was written.** The original slice-A target below
 > (replace `cold.rs`'s O(n) JSONL scan) is OBSOLETE: `cold.rs` and `persist.rs`
-> were replaced by an LMDB store (`src/base/store.rs`) with int8-on-disk vectors,
+> were replaced by an LMDB store (`src/base_store.rs`) with int8-on-disk vectors,
 > and `Store::cold_search` is now a BOUNDED scan (capped by `COLD_MAX_ENTRIES`),
 > so the cold tier no longer degrades linearly. What DiskANN fixes today is the
 > **hot/resident** ceiling: per loaded kern the in-memory `HnswIndex` holds every
@@ -73,12 +73,12 @@ claim — so it is not comparable to anything published elsewhere.
 
 Three things keep the whole corpus in memory and bound it to a single host's RAM:
 
-1. **`HnswIndex` is in-memory** (`src/base/hnsw.rs`). Nodes, the layered graph,
+1. **`HnswIndex` is in-memory** (`src/hnsw.rs`). Nodes, the layered graph,
    and quantized vectors all live on the heap; rebuilt from the graph on load.
-2. **The graph is a full-RAM bincode blob** (`src/base/persist.rs`). `load_dir`
+2. **The graph is a full-RAM bincode blob** (`src/persist.rs`). `load_dir`
    decodes an entire kern (`Entity { vector: Vec<f64>, gnn_vector: Vec<f64>, … }`)
    into memory; `save_all` re-encodes it. Load time and RSS scale with corpus.
-3. **The cold tier is an O(n) linear scan** (`src/base/store.rs`, absorbed from
+3. **The cold tier is an O(n) linear scan** (`src/base_store.rs`, absorbed from
    the since-deleted `src/base/cold.rs`): `cold_search` decodes and scores every
    row.
 
@@ -160,9 +160,9 @@ shipped, as the `delta`/`tombstones` fields and the `DiskConsolidate` task.
 
 ## Reusable building blocks already in tree
 
-- `src/base/hnsw.rs` — beam search, neighbor pruning, heaps (adapt to 1 layer).
+- `src/hnsw.rs` — beam search, neighbor pruning, heaps (adapt to 1 layer).
 - `src/quant.rs` — quantization seam + int8; extend with PQ.
-- `src/base/store.rs` — the LMDB store + cold tier (the original slice-A
+- `src/base_store.rs` — the LMDB store + cold tier (the original slice-A
   target, `src/base/cold.rs`, was absorbed here).
-- `src/base/vector_backend.rs` — the `Resident`/`Disk` backend seam the wiring
+- `src/vector_backend.rs` — the `Resident`/`Disk` backend seam the wiring
   landed on.

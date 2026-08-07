@@ -49,7 +49,7 @@ Moved all 13 `src/gossip/*.rs` up to `src/gossip_*.rs` (prefix-rename to dodge
 declares the 13 `pub mod gossip_*` (all pub, visibility preserved). Rewrites in
 moved files: `crate::gossip::X`→`crate::gossip_X`, `super::X` (sibling)→`crate::gossip_X`,
 `use crate::gossip::{X,Y}`→`use crate::gossip_X; use crate::gossip_Y;`, test
-`use super::*` kept. External `src/mcp/tools_delegate.rs` + `src/commands.rs`:
+`use super::*` kept. External `src/mcp_tools_delegate.rs` + `src/commands.rs`:
 `crate::gossip::X`→`crate::gossip_X`. Build clean, 11 test suites pass, guards 0.
 
 ### Flatten `commands` subdir into src/ root — DONE 2026-08-06 (this fire)
@@ -62,7 +62,7 @@ declarations (admin+graph_ops `pub(crate)`, rest private). Rewrites in moved
 files: `use super::route::`→`use crate::commands_route::` (sibling submods),
 `use super::{load_graph, Client, ...}`→`use crate::commands::{...}` (parent
 items), `pub(super)`→`pub(crate)`, test `use super::*` kept (same-file items).
-External consumers `src/mcp/tools_{mutate,admin}.rs`:
+External consumers `src/mcp_tools_{mutate,admin}.rs`:
 `crate::commands::graph_ops::`→`crate::commands_graph_ops::`,
 `crate::commands::admin::`→`crate::commands_admin::`. Build clean, tests pass,
 guards exit 0.
@@ -75,7 +75,7 @@ Folded the `watcher` workspace member into `kern` as `crate::watcher`. Moved
 to dodge clippy `module_inception`); dropped `src/watcher/Cargo.toml` + the
 `watcher` path-dep + workspace member; folded `notify`+`ignore` into root deps
 (its `async-trait`/`tempfile`/`tracing`/`thiserror`/`tokio` were already root);
-rewrote consumers `src/ingest/file_watcher.rs:5` + `src/commands.rs:1140`
+rewrote consumers `src/ingest_file_watcher.rs:5` + `src/commands.rs:1140`
 `use watcher::`→`use crate::watcher::`; fixed the two internal `use crate::event::`
 in `watcher.rs`/`pipeline.rs`→`use super::event::`; moved the integration test to
 `tests/watcher_tests.rs` (`use watcher::`→`use kern::watcher::`). Build clean,
@@ -114,7 +114,7 @@ forced exception. No action; record only.
   pins) — zero callers, but `docs/vllm.md:16` documents "seed/temperature (eval
   pins) are forwarded; vLLM honors both" → planned-feature scaffolding. Keep;
   close `dropped — feature WIP`.
-- `forged_id_rejected()` (src/gossip/handler.rs) — read accessor dead, but its
+- `forged_id_rejected()` (src/gossip_handler.rs) — read accessor dead, but its
   counter `FORGED_ID` IS incremented at handler.rs:616 (live write path).
   Deleting only the reader leaves a zombie counter; deleting the counter too
   loses a diagnostic intent that may be wired later → needs a decision, not a
@@ -151,7 +151,7 @@ Folded the `base` subdir (22 files) into src/ root. `src/base/{store,types,const
 
 ### 2026-08-07 — flatten src/config/ into src/ root (config_* prefix)
 
-Moved `src/config/mod.rs` → `src/config.rs` and all 17 subfiles → `src/config_*.rs` (config_embed.rs, config_gnn.rs, etc.). Subfiles became crate-root modules declared in lib.rs (private `mod` preserved original visibility; `pub mod` for detached_log + io). config.rs re-exports retargeted to `crate::config_*::`. External `crate::config::detached_log::` → `crate::config_detached_log::` (hub_node.rs, commands/mcp_cmd.rs); `kern::config::io::Error` → `kern::config_io::Error` (main.rs). 1096 lib tests pass.
+Moved `src/config.rs` → `src/config.rs` and all 17 subfiles → `src/config_*.rs` (config_embed.rs, config_gnn.rs, etc.). Subfiles became crate-root modules declared in lib.rs (private `mod` preserved original visibility; `pub mod` for detached_log + io). config.rs re-exports retargeted to `crate::config_*::`. External `crate::config::detached_log::` → `crate::config_detached_log::` (hub_node.rs, commands/mcp_cmd.rs); `kern::config::io::Error` → `kern::config_io::Error` (main.rs). 1096 lib tests pass.
 
 ### 2026-08-06 — B6: dead `pub fn is_semantic` deleted (unused ReasonKind predicate)
 
@@ -162,7 +162,7 @@ Moved `src/config/mod.rs` → `src/config.rs` and all 17 subfiles → `src/confi
 **Evidence (re-run 2026-08-06):** `rg -n 'is_semantic' src/ -g '*.rs'` → no
 hits; the enum variants stay (Similarity used in tick/accept/commands/query).
 
-**What changed:** deleted the 6-line predicate from `src/base/types.rs`.
+**What changed:** deleted the 6-line predicate from `src/base_types.rs`.
 
 **Why the old shape was wrong:** a `pub` predicate nobody calls is surface
 area with no consumer; the classification, if ever needed, is a one-line
@@ -171,7 +171,7 @@ area with no consumer; the classification, if ever needed, is a one-line
 ### 2026-08-06 — B5: dead `pub fn neighbor_ids` deleted (cross-crate dead-pub axis)
 
 `pub fn neighbor_ids<'a>(g: &'a GraphGnn, id: &str) -> Vec<&'a str>` in
-`src/retrieval/expand.rs` (~22 lines) mirrored `expand()`'s edge filters
+`src/retrieval_expand.rs` (~22 lines) mirrored `expand()`'s edge filters
 without scoring; its doc comment said "path diagnostics measure what retrieval
 sees." Zero callers anywhere in the crate (tests included). No diagnostics
 command/surface exists in `src/commands/` or `src/mcp/`, and no
@@ -223,7 +223,7 @@ mcp/tools_admin.rs, tools_events.rs, tools_mutate.rs, tools_delegate.rs, and
 two in tools_query.rs across its `id_filter_tests` and `cold_tier_filter_tests`
 modules) all re-implemented `out.get("isError").and_then(|x| x.as_bool()).unwrap_or(false)`.
 An inherited WIP had started centralizing them into a `pub(crate) fn is_error`
-in `src/mcp/tools.rs` but (a) left it un-`#[cfg(test)]`-gated, so the non-test
+in `src/mcp_tools.rs` but (a) left it un-`#[cfg(test)]`-gated, so the non-test
 lib build flagged it `dead_code` under `-D warnings` (blocking `just check`),
 and (b) missed two of the six copies (tools_query.rs:845 and tools_delegate.rs).
 Finished the fold: gated the canonical `#[cfg(test)]`, deleted all six private
@@ -304,7 +304,7 @@ Evidence grep:
     rg -n 'allow\(dead_code\)' src/ --type rust
 
 Hits:
-- src/base/accept.rs:846 — `#[cfg_attr(not(test), allow(dead_code))]` over
+- src/accept.rs:846 — `#[cfg_attr(not(test), allow(dead_code))]` over
   `pub(crate) fn add_graviton` (a thin wrapper over `add_graviton_with_mass`).
   Callers all `#[cfg(test)]` (see B3).
 
@@ -319,13 +319,13 @@ Evidence grep:
     rg -n "from_str_radix.*16|step_by\(2\)" src/ --type rust
 
 Hits:
-- src/gossip/identity.rs:163  — private `decode_hex_32`, manual loop -> [u8;32]
-- src/gossip/contract.rs:121  — pub `parse_key_hex`, manual loop -> [u8;32] (also strips `ed25519:`)
-- src/gossip/privacy.rs:57    — manual loop -> Vec<u8> (variable length)
-- src/mcp/tools_delegate.rs:168 — test, manual loop -> Vec<u8> (64-byte sig)
-- src/mcp/tools_delegate.rs:240 — test, manual loop -> Vec<u8> (64-byte sig)
+- src/gossip_identity.rs:163  — private `decode_hex_32`, manual loop -> [u8;32]
+- src/gossip_contract.rs:121  — pub `parse_key_hex`, manual loop -> [u8;32] (also strips `ed25519:`)
+- src/gossip_privacy.rs:57    — manual loop -> Vec<u8> (variable length)
+- src/mcp_tools_delegate.rs:168 — test, manual loop -> Vec<u8> (64-byte sig)
+- src/mcp_tools_delegate.rs:240 — test, manual loop -> Vec<u8> (64-byte sig)
 
-Canonical home: `src/base/util.rs` `pub mod hex` has `encode` only — no
+Canonical home: `src/util.rs` `pub mod hex` has `encode` only — no
 `decode`. `parse_key_hex` (contract.rs) is already pub and imported cross-
 module (mcp/tools_delegate uses it).
 

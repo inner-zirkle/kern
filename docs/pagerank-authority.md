@@ -9,7 +9,7 @@ optional additive prior in retrieval scoring, never as the sole rank signal.
 > **Implementation status (2026-07).** What shipped is the RRF variant of §6.2
 > at the *thought* level: retrieval runs a personalised PageRank (`d = 0.85`,
 > 25 iterations, teleport at the query's dense+lexical seeds —
-> `src/retrieval/pagerank.rs`) and fuses its top-k as an extra list in the RRF
+> `src/retrieval_pagerank.rs`) and fuses its top-k as an extra list in the RRF
 > seed fusion. The DB-level `AuthorityTable`, TrustRank seeding, and the Sybil
 > defences of §5 are not in effect — and none ever were: a `RateClipper`
 > (`gossip/sybil.rs`) and `trimmed_mean_merge_hits` (`gossip/merge.rs`) were
@@ -31,7 +31,7 @@ optional additive prior in retrieval scoring, never as the sole rank signal.
 > edge is created and walkable; it still does not meaningfully reach ranking. One reason it cannot reach
 > the *score* is visible in the seed path: RRF settles which entities seed, then
 > every survivor is rescored by plain query cosine before re-entering the pipeline
-> (`fuse_hybrid_seeds`, `src/retrieval/query.rs`; formerly answer.rs, deleted with the answer leg), so a PageRank list can only change
+> (`fuse_hybrid_seeds`, `src/retrieval_query.rs`; formerly answer.rs, deleted with the answer leg), so a PageRank list can only change
 > membership. Whether it changes membership under a new edge is not established.
 > Read the shipped personalised PageRank as wired and running, not as a retrieval
 > signal with a demonstrated effect — and read §6 below as an unvalidated design.
