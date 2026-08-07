@@ -1,3 +1,7 @@
+//! Peer identity and frame authentication: an ed25519 keypair per daemon, the
+//! peer id derived from the public key, and sign/verify over `(seq, body)` so
+//! a frame body cannot be swapped under its signature.
+
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 

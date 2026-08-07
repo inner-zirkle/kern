@@ -1,3 +1,8 @@
+//! Hosted-contract enforcement: a contract names its owners, writer allowlist,
+//! entity kinds, caps and retention; deltas that violate it are refused and
+//! counted. Params are policy — amending them mints a new contract id, with an
+//! owner-signed tombstone pointing subscribers at the successor.
+
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 

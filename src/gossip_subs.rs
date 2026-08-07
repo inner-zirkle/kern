@@ -1,3 +1,6 @@
+//! Contract subscriptions: who follows which hosted contract, capped so a
+//! hostile peer cannot grow the table without bound.
+
 use std::collections::HashMap;
 
 use parking_lot::RwLock;

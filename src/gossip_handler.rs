@@ -1,3 +1,7 @@
+//! The receive path: dispatch each verified message kind — anti-entropy
+//! heartbeats, deltas, questions, contract traffic — into the local graph
+//! through the merge/contract gates, with counters for everything refused.
+
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::log_throttle::LogThrottle;

@@ -1,3 +1,7 @@
+//! TCP framing for gossip: big-endian u32 length prefix around a bincode
+//! `SignedFrame` whose body is the bincode `GossipMessage`; verification
+//! happens before any decode of the body.
+
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 

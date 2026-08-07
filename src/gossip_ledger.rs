@@ -1,3 +1,6 @@
+//! The replicated-entry ledger with per-entry expiry: map plus expiry index
+//! mutated in lockstep, so retention sweeps are O(expired), not O(table).
+
 use parking_lot::RwLock;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::atomic::{AtomicUsize, Ordering};

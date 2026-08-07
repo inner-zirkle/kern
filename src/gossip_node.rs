@@ -1,3 +1,7 @@
+//! The gossip node: owns the peer table, socket loops, and send fan-out.
+//! Every per-sender policy keys on the envelope-verified `PeerId`, never on
+//! the spoofable `msg.origin` string.
+
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 

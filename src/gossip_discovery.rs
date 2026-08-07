@@ -1,3 +1,6 @@
+//! LAN peer discovery over UDP broadcast: announce `network_id@addr`, listen
+//! for peers on the same network id, and hand live addresses to the node.
+
 use std::net::{Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 

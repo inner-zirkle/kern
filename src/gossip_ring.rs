@@ -1,3 +1,6 @@
+//! Ring topology selection: keep a few nearest peers plus sampled far links,
+//! so gossip reaches the whole network in few hops without full mesh fan-out.
+
 use serde::{Deserialize, Serialize};
 
 use crate::gossip_identity::PeerId;

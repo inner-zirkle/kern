@@ -1,3 +1,6 @@
+//! Duplicate suppression: a TTL'd seen-set of message ids. Constant TTL makes
+//! expiry monotonic in insertion order, so reclaim pops from the deque front.
+
 use parking_lot::Mutex;
 use std::collections::{HashMap, VecDeque};
 use std::time::Instant;

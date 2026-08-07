@@ -1,3 +1,7 @@
+//! Payload encryption for private networks: XChaCha20-Poly1305 under a shared
+//! key, with an 8-byte key hint so a receiver picks the right key without
+//! trial decryption.
+
 use chacha20poly1305::aead::{Aead, KeyInit};
 use chacha20poly1305::{Key, XChaCha20Poly1305, XNonce};
 

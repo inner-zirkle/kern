@@ -1,3 +1,7 @@
+//! The wire types. bincode encodes variant order, so enum ORDER here is the
+//! wire format — reordering is a breaking change (alpha: peers upgrade
+//! together, nothing is migrated).
+
 use serde::{Deserialize, Serialize};
 
 // serde/bincode encode the declaration index, so variant ORDER is on-wire;
