@@ -15,7 +15,7 @@ use base::base_constants::{COLD_GC_AGE, COLD_HEAT_THRESHOLD, PULSE_DECAY, PULSE_
 use base::base_types::{Entity, EntityKind, Kern};
 use config::HeatConfig;
 use graph::graph::GraphGnn;
-use kern::retrieval::score::commit_access_ids;
+use retrieval::score::commit_access_ids;
 use kern::tick_pulse::pulse;
 use kern::tick_queue::Queue;
 use kern::tick_stigmergy::run_gc;

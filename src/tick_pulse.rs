@@ -204,7 +204,7 @@ mod tests {
 	// half-lives to fall under the 0.01 cold gate.
 	#[test]
 	fn at_equal_usage_survival_does_not_depend_on_depth() {
-		use crate::retrieval::score::commit_access_ids;
+		use retrieval::score::commit_access_ids;
 		use crate::tick_stigmergy::run_gc;
 		use config::HeatConfig;
 		use parking_lot::RwLock;

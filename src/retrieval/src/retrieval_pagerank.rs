@@ -324,7 +324,7 @@ mod tests {
 	use super::*;
 	use base::base_types::Kern;
 
-	use crate::test_support::{edge, entity as ent};
+	use test_support::{edge, entity as ent};
 
 	fn hit(id: &str, score: f64) -> EntityHit {
 		EntityHit {
@@ -508,7 +508,7 @@ mod tests {
 	#[test]
 	#[ignore = "measurement, not an assertion; run explicitly in release"]
 	fn allocation_and_floor_by_reach() {
-		use crate::test_support::alloc_probe;
+		use test_support::alloc_probe;
 		use std::time::Instant;
 		const N: usize = 100_000;
 		for pct in [1usize, 10, 50, 90, 100] {
@@ -547,7 +547,7 @@ mod tests {
 	#[test]
 	#[ignore = "measurement, not an assertion; run explicitly in release"]
 	fn floor_by_graph_width_at_fixed_reach() {
-		use crate::test_support::alloc_probe;
+		use test_support::alloc_probe;
 		use std::time::Instant;
 		const BLOCK: usize = 1_000;
 		let seeds: Vec<EntityHit> = (0..75)
@@ -659,7 +659,7 @@ mod tests {
 	// the graph, which is 4x larger on the right and must not exist.
 	#[test]
 	fn a_narrow_query_allocates_nothing_sized_by_the_graph() {
-		use crate::test_support::alloc_probe;
+		use test_support::alloc_probe;
 		const BLOCK: usize = 250;
 		let small = synth_blocks(4_000, 4, 16, BLOCK);
 		let big = synth_blocks(16_000, 4, 16, BLOCK);

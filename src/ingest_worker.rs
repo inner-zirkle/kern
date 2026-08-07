@@ -10,7 +10,6 @@ use llm::Client as LlmClient;
 use math::clamp_confidence;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
-use util;
 use util::LogThrottle;
 
 use parking_lot::RwLock;

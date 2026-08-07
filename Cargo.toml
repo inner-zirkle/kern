@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["src/util", "src/base", "src/math", "src/store", "src/graph", "src/ingest_config", "src/llm", "src/config", "src/gnn", "src/test_support", "src/transport/macros"]
+members = ["src/util", "src/base", "src/math", "src/store", "src/graph", "src/ingest_config", "src/llm", "src/config", "src/gnn", "src/retrieval", "src/test_support", "src/transport/macros"]
 
 [workspace.package]
 version = "1.3.0"
@@ -41,6 +41,7 @@ ingest_config = { path = "src/ingest_config" }
 llm = { path = "src/llm" }
 config = { path = "src/config" }
 gnn = { path = "src/gnn" }
+retrieval = { path = "src/retrieval" }
 test_support = { path = "src/test_support" }
 
 [workspace.lints.rust]
@@ -110,6 +111,7 @@ ingest_config = { path = "src/ingest_config" }
 llm = { path = "src/llm" }
 config = { path = "src/config" }
 gnn = { path = "src/gnn" }
+retrieval = { path = "src/retrieval" }
 test_support = { path = "src/test_support" }
 
 # Unix socket ownership: std exposes the owner of a *file* but never the

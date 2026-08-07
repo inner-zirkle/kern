@@ -22,7 +22,6 @@ use graph::graph::GraphGnn;
 use graph::reason::{add_reason, remove_reason};
 use graph::search::search_all_unlocked;
 use math::reason_id;
-use util;
 
 use crate::tick_cluster::{
 	centroid_thought, graviton_prompt, largest_cohesive_cluster_for_naming, vector_cluster,
@@ -466,7 +465,7 @@ pub fn do_commit_access(g: &Arc<RwLock<GraphGnn>>, extra: &str, heat_cfg: &HeatC
 	if ids.is_empty() {
 		return;
 	}
-	crate::retrieval::score::commit_access_ids(&mut g.write(), &ids, heat_cfg);
+	retrieval::score::commit_access_ids(&mut g.write(), &ids, heat_cfg);
 }
 
 pub fn do_persist(g: &Arc<RwLock<GraphGnn>>, kern_id: &str) {

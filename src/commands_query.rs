@@ -53,7 +53,7 @@ pub(crate) async fn cmd_query(cfg: &config::Config, params: QueryParams<'_>) {
 	// `k` is not optional here: the tool's own default is `seed_k`, well under the
 	// delivery pool this command prints locally, so leaving it off would make the
 	// hit count depend on whether a daemon happens to be up.
-	let k = crate::retrieval::score::delivery_cap(&cfg.retrieval);
+	let k = retrieval::score::delivery_cap(&cfg.retrieval);
 	match route(
 		"query",
 		serde_json::json!({
@@ -78,17 +78,17 @@ pub(crate) async fn cmd_query(cfg: &config::Config, params: QueryParams<'_>) {
 		}
 	};
 
-	let mode = crate::retrieval::seed::Mode::parse(mode);
+	let mode = retrieval::seed::Mode::parse(mode);
 
 	// `None` unless the caller asked, so the unfiltered read stays byte-for-byte
 	// the path it has always taken; `exclude_pending` alone makes `is_active()`
 	// true, which is what puts this on the pre-filtered ANN path.
-	let opts = exclude_pending.then(|| crate::retrieval::score::QueryOptions {
+	let opts = exclude_pending.then(|| retrieval::score::QueryOptions {
 		exclude_pending: true,
 		..Default::default()
 	});
 	let result =
-		crate::retrieval::query::query(&g, &cfg.retrieval, &cfg.heat, &vec, text, mode, opts);
+		retrieval::query::query(&g, &cfg.retrieval, &cfg.heat, &vec, text, mode, opts);
 	// No save: read-only — access/heat bumps land on cloned result entities, and
 	// persisting would risk clobbering a daemon's newer on-disk state.
 
@@ -97,7 +97,7 @@ pub(crate) async fn cmd_query(cfg: &config::Config, params: QueryParams<'_>) {
 		.iter()
 		.map(|st| base_entity_json(&st.entity, st.score))
 		.collect();
-	let chains = crate::retrieval::query::format_chains(&g, &result.path_chains);
+	let chains = retrieval::query::format_chains(&g, &result.path_chains);
 	print_results(&serde_json::json!({"entities": entities, "chains": chains}));
 }
 
@@ -142,7 +142,7 @@ pub(crate) async fn cmd_search(
 use std::sync::Arc;
 use std::time::Instant;
 
-use crate::retrieval::seed::Mode;
+use retrieval::seed::Mode;
 use util::profile::{render_timeline, Profile};
 
 use crate::commands::Endpoint;
@@ -213,7 +213,7 @@ pub(crate) async fn cmd_profile(cfg: &config::Config, text: &str, no_llm: bool) 
 		(Mode::Reason, "query reason (no llm)"),
 		(Mode::Hybrid, "query hybrid (no llm)"),
 	] {
-		let (_, p) = crate::retrieval::query::query_profiled(
+		let (_, p) = retrieval::query::query_profiled(
 			&g,
 			&cfg.retrieval,
 			&cfg.heat,
@@ -230,7 +230,7 @@ pub(crate) async fn cmd_profile(cfg: &config::Config, text: &str, no_llm: bool) 
 			eprintln!("no reason endpoint configured; skipping llm stages");
 		}
 	} else {
-		let llm_fn: crate::retrieval::LlmFunc = Arc::new(llm_client.complete_func());
+		let llm_fn: retrieval::LlmFunc = Arc::new(llm_client.complete_func());
 
 		let t = Instant::now();
 		let claims =

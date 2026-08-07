@@ -4,7 +4,6 @@
 
 use base::base_constants::*;
 use base::base_types::{EntityKind, ReasonKind};
-use util;
 
 pub fn cosine(a: &[f32], b: &[f32]) -> f64 {
 	#[cfg(target_arch = "x86_64")]

@@ -10,8 +10,8 @@
 use base::base_types::{ChunkPart, ChunkPartKind, Entity, EntityKind, Kern, Reason};
 use config::RetrievalConfig;
 use graph::graph::GraphGnn;
-use kern::retrieval::query::retrieve_profiled;
-use kern::retrieval::seed::{seed_important, Mode, Weights};
+use retrieval::query::retrieve_profiled;
+use retrieval::seed::{seed_important, Mode, Weights};
 use std::time::Instant;
 
 const DIM: usize = 384;

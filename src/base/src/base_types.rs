@@ -9,7 +9,6 @@ use std::collections::HashMap;
 use std::time::SystemTime;
 
 use crate::crdt::GCounter;
-use util;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[repr(u8)]

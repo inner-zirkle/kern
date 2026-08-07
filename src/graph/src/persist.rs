@@ -9,7 +9,6 @@ use super::graph::GraphGnn;
 use base::base_types::Kern;
 use math::quant::QuantizationMode;
 use std::collections::HashMap;
-use util;
 
 pub fn load_dir(dir: &str) -> Result<GraphGnn, store::base_store::StoreError> {
 	use std::sync::Arc;

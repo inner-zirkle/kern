@@ -14,7 +14,6 @@ use config::HeatConfig;
 use config::RetrievalConfig;
 use graph::graph::GraphGnn;
 use graph::search::{find_entity, find_reason};
-use util;
 use util::profile::Profiler;
 
 // Marks peer-held content in delivered chain text. kern does no synthesis — the
@@ -1045,7 +1044,7 @@ mod merge_tests {
 	use super::*;
 	use base::base_types::Kern;
 
-	use crate::test_support::entity as ent;
+	use test_support::entity as ent;
 	use base::base_types::Entity;
 	fn hit(id: &str, score: f64) -> EntityHit {
 		EntityHit {

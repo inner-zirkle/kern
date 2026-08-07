@@ -12,7 +12,6 @@ use graph::accept;
 use graph::graph::GraphGnn;
 use llm::Client as LlmClient;
 use std::sync::Arc;
-use util;
 
 use parking_lot::RwLock;
 use std::time::SystemTime;

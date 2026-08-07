@@ -7,7 +7,6 @@ use crate::ingest::Worker;
 use crate::ingest_worker::OutcomeStatus;
 use base::base_constants::AGENT_SOURCE;
 use base::base_types::{EntityKind, Scoping, Source};
-use util;
 
 use serde::{Deserialize, Serialize};
 

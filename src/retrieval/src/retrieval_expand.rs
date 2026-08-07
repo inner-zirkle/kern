@@ -434,7 +434,7 @@ mod tests {
 	use super::*;
 	use graph::reason::add_reason;
 
-	use crate::test_support::entity_vec as ent;
+	use test_support::entity_vec as ent;
 	fn edge(from: &str, to: &str, score: f64) -> Reason {
 		Reason {
 			id: format!("{from}->{to}"),

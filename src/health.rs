@@ -167,7 +167,7 @@ pub fn graph_health_stats(g: &GraphGnn) -> HealthStats {
 		},
 		embed_mismatch: store.map(|s| s.embed_mismatch()).unwrap_or(false),
 		query_dim_rejected: graph::search::query_dim_rejected(),
-		below_floor_deliveries: crate::retrieval::score::below_floor_deliveries(),
+		below_floor_deliveries: retrieval::score::below_floor_deliveries(),
 		clock_skew_skips: crate::tick_stigmergy::clock_skew_skips(),
 		ingest_dropped_chunks: crate::ingest::worker::ingest_dropped_chunks(),
 		remote_cap_dropped: graph::merge::remote_cap_dropped(),
