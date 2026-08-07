@@ -205,7 +205,7 @@ dependencies = [
 
 [[package]]
 name = "base"
-version = "1.3.0"
+version = "1.4.0"
 dependencies = [
  "bincode 2.0.1",
  "serde",
@@ -283,7 +283,7 @@ dependencies = [
 
 [[package]]
 name = "bootstrap"
-version = "1.3.0"
+version = "1.4.0"
 dependencies = [
  "base",
  "config",
@@ -455,7 +455,7 @@ dependencies = [
 
 [[package]]
 name = "commands"
-version = "1.3.0"
+version = "1.4.0"
 dependencies = [
  "axum",
  "base",
@@ -493,7 +493,7 @@ dependencies = [
 
 [[package]]
 name = "config"
-version = "1.3.0"
+version = "1.4.0"
 dependencies = [
  "base",
  "dirs",
@@ -901,7 +901,7 @@ dependencies = [
 
 [[package]]
 name = "gnn"
-version = "1.3.0"
+version = "1.4.0"
 dependencies = [
  "bincode 2.0.1",
  "config",
@@ -916,7 +916,7 @@ dependencies = [
 
 [[package]]
 name = "gossip"
-version = "1.3.0"
+version = "1.4.0"
 dependencies = [
  "base",
  "bincode 2.0.1",
@@ -940,7 +940,7 @@ dependencies = [
 
 [[package]]
 name = "graph"
-version = "1.3.0"
+version = "1.4.0"
 dependencies = [
  "base",
  "bincode 2.0.1",
@@ -1073,7 +1073,7 @@ checksum = "df3b46402a9d5adb4c86a0cf463f42e19994e3ee891101b1841f30a545cb49a9"
 
 [[package]]
 name = "hub"
-version = "1.3.0"
+version = "1.4.0"
 dependencies = [
  "config",
  "gossip",
@@ -1286,7 +1286,7 @@ dependencies = [
 
 [[package]]
 name = "ingest"
-version = "1.3.0"
+version = "1.4.0"
 dependencies = [
  "async-trait",
  "axum",
@@ -1309,7 +1309,7 @@ dependencies = [
 
 [[package]]
 name = "ingest_config"
-version = "1.3.0"
+version = "1.4.0"
 dependencies = [
  "base",
  "tracing",
@@ -1434,7 +1434,7 @@ dependencies = [
 
 [[package]]
 name = "kern"
-version = "1.3.0"
+version = "1.4.0"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -1552,7 +1552,7 @@ checksum = "92daf443525c4cce67b150400bc2316076100ce0b3686209eb8cf3c31612e6f0"
 
 [[package]]
 name = "llm"
-version = "1.3.0"
+version = "1.4.0"
 dependencies = [
  "axum",
  "parking_lot",
@@ -1615,7 +1615,7 @@ checksum = "47e1ffaa40ddd1f3ed91f717a33c8c0ee23fff369e3aa8772b9605cc1d22f4c3"
 
 [[package]]
 name = "math"
-version = "1.3.0"
+version = "1.4.0"
 dependencies = [
  "base",
  "serde",
@@ -1625,7 +1625,7 @@ dependencies = [
 
 [[package]]
 name = "mcp"
-version = "1.3.0"
+version = "1.4.0"
 dependencies = [
  "axum",
  "base",
@@ -2079,7 +2079,7 @@ dependencies = [
 
 [[package]]
 name = "retrieval"
-version = "1.3.0"
+version = "1.4.0"
 dependencies = [
  "base",
  "config",
@@ -2112,7 +2112,7 @@ dependencies = [
 
 [[package]]
 name = "rpc"
-version = "1.3.0"
+version = "1.4.0"
 dependencies = [
  "base",
  "config",
@@ -2470,7 +2470,7 @@ checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
 
 [[package]]
 name = "store"
-version = "1.3.0"
+version = "1.4.0"
 dependencies = [
  "base",
  "bootstrap",
@@ -2492,7 +2492,7 @@ dependencies = [
 
 [[package]]
 name = "store_core"
-version = "1.3.0"
+version = "1.4.0"
 dependencies = [
  "base",
  "bincode 2.0.1",
@@ -2586,7 +2586,7 @@ dependencies = [
 
 [[package]]
 name = "test_support"
-version = "1.3.0"
+version = "1.4.0"
 dependencies = [
  "axum",
  "base",
@@ -2625,7 +2625,7 @@ dependencies = [
 
 [[package]]
 name = "tick"
-version = "1.3.0"
+version = "1.4.0"
 dependencies = [
  "base",
  "config",
@@ -2644,7 +2644,7 @@ dependencies = [
 
 [[package]]
 name = "tick_loop"
-version = "1.3.0"
+version = "1.4.0"
 dependencies = [
  "base",
  "config",
@@ -2895,7 +2895,7 @@ dependencies = [
 
 [[package]]
 name = "transport"
-version = "1.3.0"
+version = "1.4.0"
 dependencies = [
  "async-stream",
  "axum",
@@ -2914,7 +2914,7 @@ dependencies = [
 
 [[package]]
 name = "transport-macros"
-version = "1.3.0"
+version = "1.4.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2987,7 +2987,7 @@ checksum = "06abde3611657adf66d383f00b093d7faecc7fa57071cce2578660c9f1010821"
 
 [[package]]
 name = "util"
-version = "1.3.0"
+version = "1.4.0"
 dependencies = [
  "async-trait",
  "ignore",

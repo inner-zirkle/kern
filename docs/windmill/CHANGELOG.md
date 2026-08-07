@@ -2,6 +2,8 @@
 
 <!-- docs-check: historical -->
 
+- 2026-08-07 — released v1.4.0, still alpha. Version bumped 1.3.0→1.4.0 and FEATURES.md restamped to the post-split tree (128 `.rs` files across 24 crates, was 180 flat; ~63.6k LoC; reconciled 2026-08-07). Alpha wording in `AGENTS.md` and `README.md:231` deliberately unchanged: leaving alpha is a promise of format stability, and the live policy is still FORMAT_VERSION bump = wipe and reingest, no migrations. Shipping the cleanup does not require making that promise. Decided by: name-the-tradeoff (user chose tag-as-alpha over lowering the recall floor or writing a migration policy under pressure).
+
 - 2026-08-07 — retargeted every stale nested-module path reference (`src/base/store.rs`-style) left behind by the src/ flattening to the flat layout (`src/base_store.rs`-style) across `README.md`, `AGENTS.md`, `docs/*.md`, `docs/plans/`, and the present-tense windmill files (`ROADMAP.md`, `FEATURES.md`, `SPECIALISTS.md` — scopes now glob the flat prefixes). Historical text (this changelog, ideas.md flatten narratives, the absorbed `src/base/cold.rs` mention) untouched. Decided by: single-crate-fold (user-directed full src/ flattening).
 
 - 2026-08-07 — flattened `transport/kern_rpc` nested subdir: 4 `src/transport/kern_rpc/{auth,client_local,dto,svc}.rs` → `src/transport_kern_rpc_{auth,client_local,dto,svc}.rs` at src/ root. `kern_rpc/mod.rs` → `src/transport_kern_rpc.rs` shim re-exporting auth/client_local/dto/svc + items (present_auth..KernRpcClient). lib.rs gained 5 `pub mod transport_kern_rpc*`. transport/mod.rs: `pub mod kern_rpc;`→`pub use crate::transport_kern_rpc as kern_rpc;`. `mod http;` widened to `pub(crate)` (auth.rs now a crate-root sibling needs crate::transport::http::ct_eq). Build green, 1096 tests pass, guards 0. Decided by: single-crate-fold (user-directed full src/ flattening).
@@ -431,39 +433,6 @@
   `cargo test -p kern --lib` 953 passed, 0 failed, 4 ignored.
   Decided by: fix-the-root, name-the-tradeoff, verify-before-claiming.
 
-- 2026-07-22 — item 58 trigger #1 instrumented: `supersede` /
-  `supersede_by_contradiction` (`src/base/accept.rs`) increment a
-  process-global `SUPERSEDE_CHAIN_DEPTH_EXCEEDED` `AtomicU64` when the chain
-  depth (via the existing `superseded_ancestors` walk) exceeds
-  `SUPERSEDE_CHAIN_HOP_THRESHOLD` (new, `src/base/constants.rs`, default `5` —
-  the doc's own number). The counter reads into
-  `HealthStats.supersede_chain_depth_exceeded`, folds into `kern health`
-  `degraded:` (daemon-sourced only, item 100/28 precedent), and rides MCP
-  `health` JSON + `trnsprt::HealthRes` `#[serde(default)]` (old daemon → `0`).
-  Proved by `supersede_chain_depth_counter_increments_past_threshold` (6-deep
-  → delta 1; 3-deep → 0; serialised on `SUPERSEDE_CHAIN_TEST_MUX` per item 28
-  process-global lesson), `graph_health_stats_carries_supersede_chain_depth_exceeded`,
-  dto round-trip `: 22`. `cargo test -p kern --lib` 952 passed, 0 failed, 4
-  ignored; `cargo test -p trnsprt --lib` 61 passed. Negative control
-  (`SUPERSEDE_CHAIN_HOP_THRESHOLD = usize::MAX` → no increment) reds, green on
-  revert. Decided by: fix-the-root, name-the-tradeoff, verify-before-claiming.
-  Still open: rate-limit / `ReasonKind::Edit` decision + triggers #2/#3.
-
-- 2026-07-22 — item 52 mechanism half-closed (default-off): `seed_examples`
-  (`src/base/accept.rs`) now char-chunks a single long graviton-seed paragraph
-  at `GRAVITON_SEED_CHAR_CHUNK` (new, `src/base/constants.rs`, default `4000`)
-  — when a single-line seed exceeds the threshold it splits on a code-point
-  boundary into `ceil(len/chunk)` chunks returned to the existing caller which
-  embeds each + `mean_pool`s (no caller change). Under threshold:
-  `vec![text.trim()]` — bit-identical today. Same default-off shape as item 49
-  (`DISTILL_CHUNK_TURNS`) and item 57 (`EVIDENCE_HALF_LIFE_SECS=0`). Proved by
-  `seed_examples_char_chunks_a_long_single_paragraph` (chunk+5 → 2, each `<=`
-  threshold, concat == original) and
-  `seed_examples_char_chunks_split_on_a_code_point_boundary` (multibyte `ß` not
-  split mid-`char`); `seed_examples_splits_lines_and_keeps_single_text_whole`
-  green unedited. `cargo test -p kern --lib` 948 passed, 0 failed, 4 ignored.
-  Negative control (force single-chunk path) reds, green on revert.
-  Decided by: fix-the-root, name-the-tradeoff, verify-before-claiming.
 
 - 2026-07-22 — item 83 reembed double-alloc half closed: at reembed `vector`
   and `gnn_vector` now share the `Arc` — `e.vector = v.clone().into();

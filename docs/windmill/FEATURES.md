@@ -3,7 +3,7 @@
 A full technical scrape of everything that actually exists in the kern source
 today. Organized by subsystem. For each: **what** it does, **how** it works,
 **where** it lives in the code, and **gaps** (known limitations / improvement
-opportunities). Version: `1.3.0`. LoC ~63.1k (raw `wc -l`, tracked + new federation files) across 180 `.rs` files.
+opportunities). Version: `1.4.0`. LoC ~63.6k (raw `wc -l`, tracked) across 128 `.rs` files in a 24-crate workspace.
 
 State legend: `active` (runs today), `building` (wired but partial/unverified),
 `off` (present but disabled by default).
@@ -1516,7 +1516,7 @@ Ranked by leverage:
 
 ---
 
-*Scraped from source at `v1.3.0`, last reconciled against the tree 2026-07-27.
+*Scraped from source at `v1.4.0`, last reconciled against the tree 2026-08-07.
 Update this file when a subsystem's public surface changes — it is the canonical
 feature inventory. The stamp is a date, not a commit: a commit hash here ages
 into a lie the moment the next one lands, and nothing checks it.*
