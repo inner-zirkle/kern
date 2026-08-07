@@ -3,7 +3,7 @@
 
 use std::collections::HashMap;
 
-use crate::gnn_sparse::SparseMatrix;
+use crate::gnn_tensor::SparseMatrix;
 use crate::gnn_tensor::Tensor;
 use rayon::prelude::*;
 

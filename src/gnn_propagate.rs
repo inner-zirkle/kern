@@ -4,13 +4,13 @@
 
 use std::collections::{HashMap, HashSet};
 
-use crate::gnn_activation::Activation;
-use crate::gnn_gcn::GCNLayer;
+use crate::gnn::link_prediction_grad;
+use crate::gnn::Activation;
+use crate::gnn::Adam;
+use crate::gnn::GCNLayer;
+use crate::gnn::Model;
+use crate::gnn::{marshal_weights, unmarshal_weights};
 use crate::gnn_graph::Graph;
-use crate::gnn_loss::link_prediction_grad;
-use crate::gnn_model::Model;
-use crate::gnn_optim::Adam;
-use crate::gnn_persist::{marshal_weights, unmarshal_weights};
 use crate::gnn_tensor::Tensor;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
@@ -120,7 +120,7 @@ pub fn run_learned_propagation(
 		let grads: Vec<Tensor> = model.param_grads().iter().map(|t| (*t).clone()).collect();
 		let grad_refs: Vec<&Tensor> = grads.iter().collect();
 		let mut params = model.parameters_mut();
-		use crate::gnn_optim::Optimizer;
+		use crate::gnn::Optimizer;
 		optim.step(&mut params, &grad_refs);
 	}
 
