@@ -55,7 +55,7 @@ mod commands_reembed;
 mod commands_route;
 pub use ::mcp;
 pub mod hub;
-pub mod rpc;
+pub use ::rpc;
 
 
 #[cfg(test)]

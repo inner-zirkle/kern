@@ -250,7 +250,7 @@ mod tests {
 	}
 
 	fn server_with(entities: Vec<Entity>) -> Server {
-		let srv = crate::test_helpers::inner::mcp_server();
+		let srv = crate::test_helpers::mcp_server();
 		let mut k = Kern::new("kx", "");
 		for e in entities {
 			k.entities.insert(e.id.clone(), e);

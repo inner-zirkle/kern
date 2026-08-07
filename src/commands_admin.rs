@@ -134,7 +134,7 @@ async fn daemon_health(cfg: &config::Config) -> Option<transport::kern_rpc::Heal
 
 	let client = KernRpcClient::<JsonEnvelopeCodec>::connect_endpoint_with_retry(
 		&Endpoint::kern(),
-		&crate::rpc::caller_of(cfg),
+		&::rpc::caller_of(cfg),
 		1,
 		std::time::Duration::ZERO,
 	)
@@ -488,7 +488,7 @@ fn print_graviton_removed(name: &str) {
 }
 
 pub(crate) async fn cmd_graviton(cfg: &config::Config, action: GravitonAction) {
-	graviton_at(cfg, &Endpoint::kern(), &crate::rpc::caller_of(cfg), action).await
+	graviton_at(cfg, &Endpoint::kern(), &::rpc::caller_of(cfg), action).await
 }
 
 // Routed first for the same reason as forget: `with_graph` writes the whole kern
@@ -586,7 +586,7 @@ fn print_claim_kind_removed(name: &str) {
 }
 
 pub(crate) async fn cmd_claim_kind(cfg: &config::Config, action: ClaimKindAction) {
-	claim_kind_at(cfg, &Endpoint::kern(), &crate::rpc::caller_of(cfg), action).await
+	claim_kind_at(cfg, &Endpoint::kern(), &::rpc::caller_of(cfg), action).await
 }
 
 async fn claim_kind_at(
@@ -947,7 +947,7 @@ pub(crate) async fn cmd_status(cfg: &config::Config) {
 	println!("data dir     {}", cfg.data_dir);
 	println!("kern socket  {}", kern_ep.display());
 
-	let caller = crate::rpc::caller_of(cfg);
+	let caller = ::rpc::caller_of(cfg);
 	let daemon = probe(&kern_ep, &caller).await;
 	match &daemon {
 		Some(h) => println!(

@@ -150,13 +150,13 @@ use transport::McpServer;
 
 #[derive(Clone)]
 pub struct KernRpcHandler {
-	pub kern: Arc<crate::mcp::Server>,
+	pub kern: Arc<mcp::Server>,
 	// Fires the daemon's graceful-exit path (save then exit) — the hub's unload.
 	pub shutdown: Arc<tokio::sync::Notify>,
 }
 
 impl KernRpcHandler {
-	pub fn new(kern: Arc<crate::mcp::Server>, shutdown: Arc<tokio::sync::Notify>) -> Self {
+	pub fn new(kern: Arc<mcp::Server>, shutdown: Arc<tokio::sync::Notify>) -> Self {
 		Self { kern, shutdown }
 	}
 }
@@ -446,7 +446,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn health_carries_every_degradation_signal_to_the_rpc_surface() {
-		let mut srv = crate::test_support::mcp_server();
+		let mut srv = mcp::test_helpers::mcp_server();
 		let q = Arc::new(Queue::new(8));
 		q.record_task_panic(&task(TaskKind::Cluster, "k1"), "boom");
 		q.record_task_failure(&task(TaskKind::GnnPropagate, "k2"), "train epoch 0 forward");
@@ -473,8 +473,8 @@ mod tests {
 	async fn a_refused_ingest_reaches_the_rpc_health_surface() {
 		let _serial = ingest::worker::queue_refused_test_lock().lock().await;
 		let (url, _server) =
-			crate::test_support::spawn_http(crate::test_support::hanging_embed_app()).await;
-		let srv = crate::test_support::mcp_server_with_embed_url(&url);
+			test_support::spawn_http(test_support::hanging_embed_app()).await;
+		let srv = mcp::test_helpers::mcp_server_with_embed_url(&url);
 
 		let mut offered = 0;
 		while srv
@@ -540,7 +540,7 @@ mod tests {
 		}
 
 		let handler = KernRpcHandler::new(
-			Arc::new(crate::test_support::mcp_server()),
+			Arc::new(mcp::test_helpers::mcp_server()),
 			Arc::new(tokio::sync::Notify::new()),
 		);
 		let refused = gnn_train_refused();
@@ -726,7 +726,7 @@ mod auth_gate_tests {
 	#[tokio::test(flavor = "multi_thread")]
 	async fn an_authenticated_call_answers_exactly_what_the_handler_answers_directly() {
 		let handler = KernRpcHandler::new(
-			Arc::new(crate::test_support::mcp_server()),
+			Arc::new(mcp::test_helpers::mcp_server()),
 			Arc::new(tokio::sync::Notify::new()),
 		);
 		let direct = handler

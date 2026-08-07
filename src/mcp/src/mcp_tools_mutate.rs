@@ -548,7 +548,7 @@ mod tests {
 	use graph::reason::add_reason;
 
 	fn make_server() -> Server {
-		crate::test_helpers::inner::mcp_server()
+		crate::test_helpers::mcp_server()
 	}
 
 	use test_support::tool_text as text;

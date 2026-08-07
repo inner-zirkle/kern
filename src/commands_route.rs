@@ -11,7 +11,7 @@ pub(crate) enum Routed {
 }
 
 pub(crate) async fn route(name: &str, args: serde_json::Value) -> Routed {
-	route_to(&Endpoint::kern(), &crate::rpc::caller(), name, args).await
+	route_to(&Endpoint::kern(), &::rpc::caller(), name, args).await
 }
 
 // One attempt and no spawn: a one-shot write must never conjure the daemon it

@@ -15,7 +15,7 @@ pub(crate) async fn cmd_mcp(cfg: &config::Config) {
 	// Hub-first: a running hub owns node lifecycle (spawn, adopt, unload) so the
 	// proxy never self-spawns a daemon the hub can't see. No hub -> direct path.
 	let log_dir = cfg.log_dir();
-	let caller = crate::rpc::caller_of(cfg);
+	let caller = ::rpc::caller_of(cfg);
 	if let Some(client) = attach_via_hub(cfg.hub.auto_start, &log_dir).await {
 		let client = replace_if_stale(client, cfg, &log_dir, true).await;
 		run_proxy(client, caller).await;
@@ -90,7 +90,7 @@ async fn replace_if_stale(
 ) -> KernRpcClient<JsonEnvelopeCodec> {
 	use gossip::identity;
 
-	let caller = crate::rpc::caller_of(cfg);
+	let caller = ::rpc::caller_of(cfg);
 
 	let health = match client.health().await {
 		Ok(h) => h,
@@ -226,7 +226,7 @@ async fn attach_via_hub(
 		spawned = res.spawned,
 		"attached via hub"
 	);
-	KernRpcClient::<JsonEnvelopeCodec>::connect_endpoint(&endpoint, &crate::rpc::caller_at(&root))
+	KernRpcClient::<JsonEnvelopeCodec>::connect_endpoint(&endpoint, &::rpc::caller_at(&root))
 		.await
 		.ok()
 }
@@ -423,14 +423,14 @@ async fn run_standalone(cfg: &config::Config) {
 	let _writer_lock = match claim_standalone(
 		&cfg.data_dir,
 		&Endpoint::kern(),
-		&crate::rpc::caller_of(cfg),
+		&::rpc::caller_of(cfg),
 		40,
 		std::time::Duration::from_millis(250),
 	)
 	.await
 	{
 		StandaloneEntry::Own(l) => l,
-		StandaloneEntry::Attach(client) => return run_proxy(*client, crate::rpc::caller_of(cfg)).await,
+		StandaloneEntry::Attach(client) => return run_proxy(*client, ::rpc::caller_of(cfg)).await,
 		StandaloneEntry::Refuse(who) => {
 			eprintln!("kern mcp: {who}");
 			eprintln!(
@@ -619,11 +619,11 @@ mod standalone_tests {
 		let BindOutcome::Bound(listener) = bind_kern_listener(endpoint).await.expect("bind") else {
 			panic!("scratch endpoint already bound");
 		};
-		let handler = crate::rpc::KernRpcHandler::new(
+		let handler = ::rpc::KernRpcHandler::new(
 			Arc::new(crate::test_support::mcp_server()),
 			Arc::new(tokio::sync::Notify::new()),
 		);
-		tokio::spawn(crate::rpc::serve_kern_rpc_loop(
+		tokio::spawn(::rpc::serve_kern_rpc_loop(
 			listener,
 			handler,
 			crate::test_support::TEST_TOKEN.to_string(),

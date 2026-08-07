@@ -78,8 +78,8 @@ pub(crate) async fn serving(srv: crate::mcp::Server, endpoint: &transport::typed
 		panic!("scratch endpoint already bound");
 	};
 	let handler =
-		crate::rpc::KernRpcHandler::new(Arc::new(srv), Arc::new(tokio::sync::Notify::new()));
-	tokio::spawn(crate::rpc::serve_kern_rpc_loop(
+		::rpc::KernRpcHandler::new(Arc::new(srv), Arc::new(tokio::sync::Notify::new()));
+	tokio::spawn(::rpc::serve_kern_rpc_loop(
 		listener,
 		handler,
 		TEST_TOKEN.to_string(),

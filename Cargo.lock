@@ -1418,6 +1418,7 @@ dependencies = [
  "rayon",
  "reqwest",
  "retrieval",
+ "rpc",
  "serde",
  "serde_json",
  "sha2",
@@ -2051,6 +2052,29 @@ dependencies = [
  "libc",
  "untrusted",
  "windows-sys 0.52.0",
+]
+
+[[package]]
+name = "rpc"
+version = "1.3.0"
+dependencies = [
+ "base",
+ "config",
+ "gossip",
+ "ingest",
+ "llm",
+ "mcp",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "test_support",
+ "thiserror",
+ "tick",
+ "tick_loop",
+ "tokio",
+ "tracing",
+ "transport",
+ "util",
 ]
 
 [[package]]

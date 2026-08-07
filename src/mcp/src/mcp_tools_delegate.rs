@@ -149,7 +149,7 @@ mod tests {
 	fn server_in(dir: &std::path::Path) -> Server {
 		let mut cfg = config::Config::default_in(dir);
 		cfg.data_dir = dir.to_string_lossy().to_string();
-		crate::test_helpers::inner::mcp_server_with_config(cfg)
+		crate::test_helpers::mcp_server_with_config(cfg)
 	}
 
 	// tokio tests: the default rig's Worker spawns onto the runtime.

@@ -504,7 +504,7 @@ mod tests {
 		use std::sync::Arc;
 		use tick::tick_queue::{task, Queue, TaskKind};
 
-		let mut srv = crate::test_helpers::inner::mcp_server();
+		let mut srv = crate::test_helpers::mcp_server();
 		let q = Arc::new(Queue::new(8));
 		srv.task_q = Some(q.clone());
 
@@ -524,7 +524,7 @@ mod tests {
 		use std::sync::Arc;
 		use tick::tick_queue::{task, Queue, TaskKind};
 
-		let mut srv = crate::test_helpers::inner::mcp_server();
+		let mut srv = crate::test_helpers::mcp_server();
 		let q = Arc::new(Queue::new(8));
 		srv.task_q = Some(q.clone());
 
@@ -548,7 +548,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn health_carries_the_store_signals_to_the_mcp_surface() {
-		let srv = crate::test_helpers::inner::mcp_server();
+		let srv = crate::test_helpers::mcp_server();
 		let h = srv.health_stats();
 		for key in [
 			"cold_evicted",

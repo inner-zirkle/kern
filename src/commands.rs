@@ -721,7 +721,7 @@ pub async fn run_server(cli: &Cli, cfg: &config::Config) {
 				return;
 			}
 		};
-		let handler = crate::rpc::KernRpcHandler::new(mcp_server.clone(), shutdown.clone());
+		let handler = ::rpc::KernRpcHandler::new(mcp_server.clone(), shutdown.clone());
 		let endpoint = transport::typed::Endpoint::kern();
 		#[cfg(unix)]
 		let bound = if gossip::identity::is_takeover_boot() {
@@ -778,7 +778,7 @@ pub async fn run_server(cli: &Cli, cfg: &config::Config) {
 		{
 			handover_fd = listener.dup_fd().ok();
 		}
-		tokio::spawn(crate::rpc::serve_kern_rpc_loop(listener, handler, token));
+		tokio::spawn(::rpc::serve_kern_rpc_loop(listener, handler, token));
 	}
 
 	if cli.mcp_stdio {

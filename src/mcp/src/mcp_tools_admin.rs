@@ -311,7 +311,7 @@ mod claim_kind_tests {
 	fn make_server() -> (Server, Arc<AtomicUsize>) {
 		let counter = Arc::new(AtomicUsize::new(0));
 		let c2 = counter.clone();
-		let mut server = crate::test_helpers::inner::mcp_server();
+		let mut server = crate::test_helpers::mcp_server();
 		server.save_fn = Arc::new(move || {
 			c2.fetch_add(1, Ordering::SeqCst);
 		});

@@ -483,7 +483,7 @@ mod id_filter_tests {
 	use base::base_types::{Entity, EntityKind, Kern, Source};
 
 	fn server_with(thought: Entity) -> Server {
-		let srv = crate::test_helpers::inner::mcp_server();
+		let srv = crate::test_helpers::mcp_server();
 		let mut k = Kern::new("kx", "");
 		k.entities.insert(thought.id.clone(), thought);
 		srv.graph.write().kerns.insert("kx".into(), k);
@@ -608,7 +608,7 @@ mod id_filter_tests {
 		let mut k = Kern::new("kx", "");
 		k.entities.insert("f1".into(), fact("f1"));
 		k.entities.insert("f2".into(), fact("f2"));
-		let srv = crate::test_helpers::inner::mcp_server();
+		let srv = crate::test_helpers::mcp_server();
 		srv.graph.write().kerns.insert("kx".into(), k);
 
 		let out = srv.tool_query(&serde_json::json!({"ids": ["f1", "f2", "ghost"]}));
@@ -639,7 +639,7 @@ mod id_filter_tests {
 		let mut claim = fact("c1");
 		claim.kind = EntityKind::Claim;
 		k.entities.insert("c1".into(), claim);
-		let srv = crate::test_helpers::inner::mcp_server();
+		let srv = crate::test_helpers::mcp_server();
 		srv.graph.write().kerns.insert("kx".into(), k);
 
 		let out = srv.tool_query(&serde_json::json!({"ids": ["f1", "c1"], "kind": "fact"}));
@@ -739,7 +739,7 @@ mod cold_tier_filter_tests {
 			}),
 		);
 		let (url, _server) = test_support::spawn_http(app).await;
-		let mut srv = crate::test_helpers::inner::mcp_server_with_embed_url(&url);
+		let mut srv = crate::test_helpers::mcp_server_with_embed_url(&url);
 		// The ranked path embeds the query itself, so this rig needs the server's
 		// own client, not just the worker's.
 		srv.llm = Some(llm::Client::new_embed_only(&url, "test", ""));

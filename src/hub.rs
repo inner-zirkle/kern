@@ -41,7 +41,7 @@ impl NodeHandle {
 // only the root can, via the config that names its data_dir. The endpoint is
 // derived here from the same root, so the two can never drift apart.
 fn node_caller(root: &Path) -> transport::kern_rpc::AuthReq {
-	crate::rpc::caller_at(root)
+	::rpc::caller_at(root)
 }
 
 // None = unreachable; Some(0) also means "treat as active" — daemons predating
