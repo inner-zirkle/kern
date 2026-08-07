@@ -1,3 +1,6 @@
+//! Optimizers behind the [`Optimizer`] trait; Adam with bias correction is
+//! the one training uses.
+
 use crate::gnn_tensor::Tensor;
 
 pub trait Optimizer {

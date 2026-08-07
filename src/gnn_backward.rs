@@ -1,3 +1,6 @@
+//! The backward-pass traits ([`GraphLayer`], [`BackwardGraphLayer`]) and the
+//! activation-derivative chain-rule helper shared by every trainable layer.
+
 use crate::gnn_activation::Activation;
 use crate::gnn_graph::Graph;
 use crate::gnn_tensor::Tensor;

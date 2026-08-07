@@ -1,3 +1,7 @@
+//! Propagation: run the trained model over a kern snapshot to produce the
+//! GNN-refined embeddings the second ANN index serves, so structural
+//! neighbours rank near each other even when raw content vectors differ.
+
 use std::collections::{HashMap, HashSet};
 
 use crate::gnn_activation::Activation;

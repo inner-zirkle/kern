@@ -1,3 +1,6 @@
+//! Link-prediction loss and gradient: positive pairs are connected nodes,
+//! negatives are sampled non-edges, scored by sigmoid of the dot product.
+
 use crate::gnn_activation::sigmoid;
 use crate::gnn_tensor::Tensor;
 

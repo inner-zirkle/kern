@@ -1,3 +1,6 @@
+//! CSR sparse matrix with rayon-parallel dense multiply — the adjacency
+//! representation the GCN forward/backward passes run through.
+
 use rayon::prelude::*;
 
 use crate::gnn_tensor::{Tensor, TensorError};

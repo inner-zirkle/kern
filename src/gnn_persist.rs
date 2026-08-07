@@ -1,3 +1,7 @@
+//! Weight (de)serialization, gated by `WEIGHT_FILE_VERSION`: a mismatched or
+//! torn weight file is rejected and training restarts from init — weights are
+//! a cache, never migrated (alpha policy).
+
 use crate::gnn_model::Model;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;

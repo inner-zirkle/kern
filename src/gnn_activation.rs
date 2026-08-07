@@ -1,3 +1,6 @@
+//! Activation functions and their derivatives, paired by construction so a
+//! layer can never mix an activation with the wrong gradient.
+
 #[inline]
 pub fn relu(x: f64) -> f64 {
 	x.max(0.0)

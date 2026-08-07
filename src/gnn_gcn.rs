@@ -1,3 +1,6 @@
+//! The graph-convolution layer: neighbourhood aggregation through the
+//! normalised adjacency, with its forward and backward passes.
+
 use crate::gnn::GnnError;
 use crate::gnn_activation::Activation;
 use crate::gnn_backward::{act_deriv_mul, BackwardGraphLayer, GraphLayer};

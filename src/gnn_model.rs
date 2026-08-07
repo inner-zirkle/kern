@@ -1,3 +1,6 @@
+//! The assembled model: GCN layers plus head, with forward, backward, and
+//! parameter access for the optimizer and persistence.
+
 use crate::gnn::GnnError;
 use crate::gnn_backward::{BackwardGraphLayer, GraphLayer};
 use crate::gnn_gcn::GCNLayer;

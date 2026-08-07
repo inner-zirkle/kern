@@ -1,3 +1,7 @@
+//! Namespace shim for the hand-rolled GNN stack: re-exports every `gnn_*`
+//! module under `crate::gnn::<name>` plus the shared [`GnnError`]. No graph
+//! logic of its own.
+
 pub use crate::gnn_activation::Activation;
 pub use crate::gnn_backward::{BackwardGraphLayer, GraphLayer};
 

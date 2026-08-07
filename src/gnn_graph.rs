@@ -1,3 +1,6 @@
+//! The training-side graph view: nodes with feature vectors, weighted edges,
+//! and the normalised sparse adjacency the GCN layers multiply through.
+
 use std::collections::HashMap;
 
 use crate::gnn_sparse::SparseMatrix;

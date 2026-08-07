@@ -1,3 +1,5 @@
+//! Layer normalisation with learned scale/shift, and its backward pass.
+
 use crate::gnn::GnnError;
 use crate::gnn_layer::{Backward, Layer};
 use crate::gnn_tensor::Tensor;

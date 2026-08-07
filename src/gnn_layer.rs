@@ -1,3 +1,6 @@
+//! The dense building blocks: [`Layer`]/[`Backward`] traits and the linear
+//! layer, used by the model head around the graph-convolution core.
+
 use crate::gnn::GnnError;
 use crate::gnn_tensor::Tensor;
 

@@ -1,3 +1,6 @@
+//! A minimal row-major 2-D tensor with the shape-checked ops the GNN needs;
+//! errors, not panics, on dimension mismatch.
+
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
