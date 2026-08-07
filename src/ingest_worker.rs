@@ -5,8 +5,6 @@
 use crate::base_types::*;
 use crate::graph::GraphGnn;
 use crate::ingest_config::Config;
-use crate::ingest_embed::embed_chunks;
-use crate::ingest_outcome::{FailureReport, Outcome, OutcomeStatus};
 use crate::ingest_place::{document_kind, place_chunks, place_document};
 use crate::llm::Client as LlmClient;
 use crate::math::clamp_confidence;
@@ -347,7 +345,7 @@ async fn process(
 	let doc_id = util::content_hash(&job.text);
 
 	// Heuristic split ONLY — an LLM split would add a per-document LLM call on the commit path.
-	let chunks = crate::ingest_split::split(&job.text, &job.hint, None);
+	let chunks = crate::ingest_worker::split(&job.text, &job.hint, None);
 
 	let (doc_thought, doc_fail) = place_document(
 		graph,
@@ -415,6 +413,194 @@ fn classify_status(embedded_chunks: usize, failed_chunks: usize) -> OutcomeStatu
 	} else {
 		OutcomeStatus::Failed
 	}
+}
+
+// ==== [outcome] ====
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OutcomeStatus {
+	Committed,
+	Partial,
+	Deduped,
+	Failed,
+}
+
+impl OutcomeStatus {
+	pub fn as_str(&self) -> &'static str {
+		match self {
+			Self::Committed => "committed",
+			Self::Partial => "partial",
+			Self::Deduped => "deduped",
+			Self::Failed => "failed",
+		}
+	}
+}
+
+// class: "permanent" | "transient" (retryable); chunk_index 0 = document scope.
+#[derive(Debug, Clone)]
+pub struct FailureReport {
+	pub scope: String,
+	pub chunk_index: usize,
+	pub class: String,
+	pub error: String,
+}
+
+impl FailureReport {
+	pub fn document_permanent(error: impl Into<String>) -> Self {
+		Self {
+			scope: "document".into(),
+			chunk_index: 0,
+			class: "permanent".into(),
+			error: error.into(),
+		}
+	}
+}
+
+// INVARIANT: transient_failures + permanent_failures == failures.len().
+#[derive(Debug, Clone)]
+pub struct Outcome {
+	pub status: OutcomeStatus,
+	pub doc_id: String,
+	pub total_chunks: usize,
+	pub embedded_chunks: usize,
+	pub failed_chunks: usize,
+	pub transient_failures: usize,
+	pub permanent_failures: usize,
+	pub failures: Vec<FailureReport>,
+	pub message: String,
+}
+
+impl Outcome {
+	pub fn failed(message: impl Into<String>, failures: Vec<FailureReport>) -> Self {
+		Self {
+			status: OutcomeStatus::Failed,
+			doc_id: String::new(),
+			total_chunks: 0,
+			embedded_chunks: 0,
+			failed_chunks: 0,
+			transient_failures: 0,
+			permanent_failures: 0,
+			failures,
+			message: message.into(),
+		}
+	}
+}
+
+// ==== [embed] ====
+
+use crate::llm::is_transient;
+
+const RETRY_DELAYS_MS: [u64; 3] = [150, 300, 600];
+
+pub(crate) async fn embed_chunks(
+	embedder: &LlmClient,
+	chunks: &[String],
+) -> (Vec<Vec<f32>>, Vec<FailureReport>) {
+	if chunks.is_empty() {
+		return (Vec::new(), Vec::new());
+	}
+
+	if let Ok(vecs) = embedder.embed_batch(chunks).await {
+		if vecs.len() == chunks.len() {
+			return (vecs, Vec::new());
+		}
+	}
+
+	let mut vecs = Vec::with_capacity(chunks.len());
+	let mut failures = Vec::new();
+	for (i, chunk) in chunks.iter().enumerate() {
+		match embed_with_retry(embedder, chunk, "chunk", i).await {
+			Ok(v) => vecs.push(v),
+			Err(fail) => {
+				failures.push(fail);
+				vecs.push(Vec::new());
+			}
+		}
+	}
+	(vecs, failures)
+}
+
+pub(crate) async fn embed_with_retry(
+	embedder: &LlmClient,
+	text: &str,
+	scope: &str,
+	chunk_index: usize,
+) -> Result<Vec<f32>, FailureReport> {
+	let mut last_err = None;
+
+	for delay_ms in RETRY_DELAYS_MS.iter() {
+		match embedder.embed(text).await {
+			Ok(v) => return Ok(v),
+			Err(e) => {
+				if !is_transient(&e) {
+					return Err(FailureReport {
+						scope: scope.into(),
+						chunk_index,
+						class: "permanent".into(),
+						error: e.to_string(),
+					});
+				}
+				last_err = Some(e);
+				tokio::time::sleep(std::time::Duration::from_millis(*delay_ms)).await;
+			}
+		}
+	}
+
+	Err(FailureReport {
+		scope: scope.into(),
+		chunk_index,
+		class: "transient".into(),
+		error: last_err.map(|e| e.to_string()).unwrap_or_default(),
+	})
+}
+
+// ==== [split] ====
+
+pub fn split(text: &str, hint: &str, llm: Option<&dyn Fn(&str) -> String>) -> Vec<String> {
+	if let Some(llm_fn) = llm {
+		let result = llm_split(text, hint, llm_fn);
+		if !result.is_empty() {
+			return result;
+		}
+	}
+	paragraph_split(text)
+}
+
+pub(crate) fn llm_split(text: &str, hint: &str, llm: &dyn Fn(&str) -> String) -> Vec<String> {
+	let context = if hint.is_empty() {
+		String::new()
+	} else {
+		format!(" This text describes {hint}.")
+	};
+	let prompt = format!(
+		"Extract the key factual statements from the following text.{context} \
+		 One statement per line. No numbering. No commentary.\n\n{text}"
+	);
+	let response = llm(&prompt);
+	if response.is_empty() {
+		return Vec::new();
+	}
+	trim_nonempty(response.lines())
+}
+
+pub(crate) fn paragraph_split(text: &str) -> Vec<String> {
+	let chunks = trim_nonempty(text.split("\n\n"));
+	if !chunks.is_empty() {
+		return chunks;
+	}
+	let trimmed = text.trim();
+	if trimmed.is_empty() {
+		Vec::new()
+	} else {
+		vec![trimmed.to_string()]
+	}
+}
+
+fn trim_nonempty<'a>(parts: impl Iterator<Item = &'a str>) -> Vec<String> {
+	parts
+		.map(|p| p.trim().to_string())
+		.filter(|p| !p.is_empty())
+		.collect()
 }
 
 #[cfg(test)]
@@ -932,5 +1118,206 @@ mod tests {
 
 		let g = graph.read();
 		assert_eq!(g.all().iter().map(|k| k.entities.len()).sum::<usize>(), 0);
+	}
+}
+
+#[cfg(test)]
+mod outcome_tests {
+	use super::*;
+
+	#[test]
+	fn status_as_str_is_the_lowercase_label() {
+		assert_eq!(OutcomeStatus::Committed.as_str(), "committed");
+		assert_eq!(OutcomeStatus::Partial.as_str(), "partial");
+		assert_eq!(OutcomeStatus::Failed.as_str(), "failed");
+		assert_eq!(OutcomeStatus::Deduped.as_str(), "deduped");
+	}
+
+	#[test]
+	fn failed_zeroes_every_counter_and_carries_the_failures() {
+		let f = FailureReport::document_permanent("boom");
+		let o = Outcome::failed("nothing processed", vec![f]);
+		assert_eq!(o.status, OutcomeStatus::Failed);
+		assert!(o.doc_id.is_empty(), "no document committed");
+		assert_eq!(
+			(
+				o.total_chunks,
+				o.embedded_chunks,
+				o.failed_chunks,
+				o.transient_failures,
+				o.permanent_failures
+			),
+			(0, 0, 0, 0, 0),
+			"all counters zero on a wholly-failed outcome"
+		);
+		assert_eq!(o.failures.len(), 1, "failure detail preserved");
+		assert_eq!(o.message, "nothing processed");
+	}
+
+	#[test]
+	fn document_permanent_has_the_canonical_shape() {
+		let f = FailureReport::document_permanent("lock poisoned");
+		assert_eq!(f.scope, "document");
+		assert_eq!(f.chunk_index, 0);
+		assert_eq!(f.class, "permanent");
+		assert_eq!(f.error, "lock poisoned");
+	}
+}
+
+#[cfg(test)]
+mod embed_tests {
+	use super::*;
+	use serde_json::{json, Value};
+
+	fn echo_count_app() -> axum::Router {
+		axum::Router::new().route(
+			"/api/embed",
+			axum::routing::post(|body: axum::Json<Value>| async move {
+				let n = body
+					.0
+					.get("input")
+					.and_then(|v| v.as_array())
+					.map(|a| a.len())
+					.unwrap_or(1);
+				let embs: Vec<Vec<f32>> = (0..n).map(|_| vec![0.1, 0.2, 0.3]).collect();
+				axum::Json(json!({ "embeddings": embs }))
+			}),
+		)
+	}
+
+	#[tokio::test]
+	async fn embed_chunks_short_circuits_on_the_batch_path_when_counts_match() {
+		let (url, _server) = crate::test_support::spawn_http(echo_count_app()).await;
+		let client = LlmClient::new_embed_only(&url, "m", "");
+		let (vecs, fails) = embed_chunks(&client, &["a".into(), "b".into()]).await;
+		assert_eq!(vecs.len(), 2);
+		assert!(
+			vecs.iter().all(|v| !v.is_empty()),
+			"both embedded via the batch call"
+		);
+		assert!(fails.is_empty());
+	}
+
+	#[tokio::test]
+	async fn embed_chunks_falls_back_to_per_item_on_a_count_mismatch() {
+		let app = axum::Router::new().route(
+			"/api/embed",
+			axum::routing::post(|| async { axum::Json(json!({ "embeddings": [[0.5, 0.6]] })) }),
+		);
+		let (url, _server) = crate::test_support::spawn_http(app).await;
+		let client = LlmClient::new_embed_only(&url, "m", "");
+		let (vecs, fails) = embed_chunks(&client, &["a".into(), "b".into()]).await;
+		assert_eq!(vecs.len(), 2);
+		assert!(
+			vecs.iter().all(|v| !v.is_empty()),
+			"per-item fallback embedded each chunk"
+		);
+		assert!(fails.is_empty());
+	}
+
+	#[tokio::test]
+	async fn embed_with_retry_treats_an_empty_response_as_permanent() {
+		let app = axum::Router::new().route(
+			"/api/embed",
+			axum::routing::post(|| async { axum::Json(json!({ "embeddings": [] })) }),
+		);
+		let (url, _server) = crate::test_support::spawn_http(app).await;
+		let client = LlmClient::new_embed_only(&url, "m", "");
+		let fail = embed_with_retry(&client, "x", "chunk", 0)
+			.await
+			.unwrap_err();
+		assert_eq!(fail.class, "permanent");
+		assert_eq!(fail.scope, "chunk");
+	}
+
+	#[tokio::test]
+	async fn embed_with_retry_treats_a_connection_failure_as_transient() {
+		let client = LlmClient::new_embed_only("http://127.0.0.1:1", "m", "");
+		let fail = embed_with_retry(&client, "x", "document", 3)
+			.await
+			.unwrap_err();
+		assert_eq!(fail.class, "transient");
+		assert_eq!(fail.chunk_index, 3);
+	}
+
+	#[tokio::test]
+	async fn embed_chunks_empty_input_short_circuits_to_empty() {
+		let (url, _server) = crate::test_support::spawn_http(echo_count_app()).await;
+		let client = LlmClient::new_embed_only(&url, "m", "");
+		let (vecs, fails) = embed_chunks(&client, &[]).await;
+		assert!(vecs.is_empty() && fails.is_empty());
+	}
+}
+
+#[cfg(test)]
+mod split_tests {
+	use super::*;
+
+	#[test]
+	fn paragraph_split_single_and_multi() {
+		assert_eq!(
+			paragraph_split("one paragraph"),
+			vec!["one paragraph".to_string()]
+		);
+		assert_eq!(
+			paragraph_split("first\n\nsecond"),
+			vec!["first".to_string(), "second".to_string()]
+		);
+		assert_eq!(
+			paragraph_split("  a  \n\n\n\n  b  "),
+			vec!["a".to_string(), "b".to_string()]
+		);
+	}
+
+	#[test]
+	fn whitespace_or_empty_input_yields_no_chunks() {
+		assert!(paragraph_split("").is_empty(), "empty -> no chunks");
+		assert!(
+			paragraph_split("   \n\n \t ").is_empty(),
+			"whitespace-only -> no bogus chunk"
+		);
+	}
+
+	#[test]
+	fn split_uses_llm_statements_when_present() {
+		let llm = |_p: &str| "stmt one\nstmt two".to_string();
+		assert_eq!(
+			split("raw", "", Some(&llm)),
+			vec!["stmt one".to_string(), "stmt two".to_string()]
+		);
+	}
+
+	#[test]
+	fn split_falls_back_to_paragraphs_when_llm_returns_empty() {
+		let llm = |_p: &str| String::new();
+		assert_eq!(
+			split("para a\n\npara b", "", Some(&llm)),
+			vec!["para a".to_string(), "para b".to_string()],
+			"empty LLM response -> paragraph fallback"
+		);
+	}
+
+	#[test]
+	fn split_without_llm_uses_paragraph_split() {
+		assert_eq!(
+			split("x\n\ny", "", None),
+			vec!["x".to_string(), "y".to_string()]
+		);
+	}
+
+	#[test]
+	fn llm_split_folds_hint_into_the_prompt() {
+		let seen = std::cell::RefCell::new(String::new());
+		let llm = |p: &str| {
+			*seen.borrow_mut() = p.to_string();
+			"s".to_string()
+		};
+		let _ = llm_split("body", "rust code", &llm);
+		assert!(
+			seen.borrow().contains("describes rust code"),
+			"hint is named in the prompt"
+		);
+		let _ = llm_split("body", "", &llm);
+		assert!(!seen.borrow().contains("describes"));
 	}
 }

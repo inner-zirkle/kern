@@ -6,7 +6,7 @@ use std::path::Path;
 use crate::base_constants::AGENT_SOURCE;
 use crate::base_types::{EntityKind, Scoping, Source};
 use crate::ingest::Worker;
-use crate::ingest_outcome::OutcomeStatus;
+use crate::ingest_worker::OutcomeStatus;
 use crate::util;
 
 use serde::{Deserialize, Serialize};

@@ -9,7 +9,7 @@ use std::time::{Duration, SystemTime};
 use crate::base_types::{EntityKind, Source};
 use crate::ingest::Worker;
 use crate::ingest_distill::{distill, Claim};
-use crate::ingest_outcome::OutcomeStatus;
+use crate::ingest_worker::OutcomeStatus;
 use crate::llm::LlmFunc;
 
 pub type ClaimKindsFn = Arc<dyn Fn() -> Vec<String> + Send + Sync>;
@@ -69,7 +69,7 @@ pub fn archive(path: &Path, done_dir: &Path) {
 }
 
 // The queue dir is the file's parent; sidecars live in `<queue>/errors/`.
-fn record_intake_failure(path: &Path, outcome: &crate::ingest_outcome::Outcome) {
+fn record_intake_failure(path: &Path, outcome: &crate::ingest_worker::Outcome) {
 	let first = outcome
 		.failures
 		.first()

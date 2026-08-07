@@ -1325,8 +1325,8 @@ async fn start_gossip(
 				crate::gossip_handler::start_contract_sync(deps.clone(), cfg.gossip.sync_interval_secs);
 			}
 			if cfg.gossip.discovery {
-				crate::gossip_discovery::start_broadcast(&node, cfg.gossip.discovery_port);
-				crate::gossip_discovery::start_listen(&node, cfg.gossip.discovery_port);
+				crate::gossip_node::start_broadcast(&node, cfg.gossip.discovery_port);
+				crate::gossip_node::start_listen(&node, cfg.gossip.discovery_port);
 			}
 			let pulse_node = node.clone();
 			let broadcast_pulse: BroadcastPulseFn = Arc::new(move |kern_id: &str, strength: f64| {

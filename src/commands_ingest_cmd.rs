@@ -139,7 +139,7 @@ async fn run_once(
 	conf: f64,
 	cfg: &crate::config::Config,
 	valid_until: Option<std::time::SystemTime>,
-) -> crate::ingest::outcome::Outcome {
+) -> crate::ingest::Outcome {
 	worker
 		.run(
 			text.to_string(),

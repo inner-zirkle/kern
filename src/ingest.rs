@@ -13,22 +13,19 @@
 //! stable spelling for the rest of the crate.
 
 pub use crate::ingest_config::{review_for, valid_until_from_retention, Config, ReviewPolicy};
-pub use crate::ingest_outcome::{FailureReport, Outcome, OutcomeStatus};
 pub(crate) use crate::ingest_worker::Job;
 pub use crate::ingest_worker::Worker;
+pub use crate::ingest_worker::{FailureReport, Outcome, OutcomeStatus};
 pub use crate::llm::LlmFunc;
 
 pub use crate::ingest_config as config;
 pub use crate::ingest_dedup as dedup;
 pub use crate::ingest_direct as direct;
 pub use crate::ingest_distill as distill;
-pub use crate::ingest_embed as embed;
 pub use crate::ingest_file_watcher as file_watcher;
 pub use crate::ingest_intake as intake;
 pub use crate::ingest_intake_status as intake_status;
-pub use crate::ingest_outcome as outcome;
 pub use crate::ingest_place as place;
-pub use crate::ingest_split as split;
 pub use crate::ingest_worker as worker;
 
 #[cfg(test)]
