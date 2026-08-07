@@ -621,11 +621,11 @@ mod standalone_tests {
 		let BindOutcome::Bound(listener) = bind_kern_listener(endpoint).await.expect("bind") else {
 			panic!("scratch endpoint already bound");
 		};
-		let handler = crate::rpc_kern_rpc_server::KernRpcHandler::new(
+		let handler = crate::rpc::KernRpcHandler::new(
 			Arc::new(crate::test_support::mcp_server()),
 			Arc::new(tokio::sync::Notify::new()),
 		);
-		tokio::spawn(crate::rpc_kern_rpc_server::serve_kern_rpc_loop(
+		tokio::spawn(crate::rpc::serve_kern_rpc_loop(
 			listener,
 			handler,
 			crate::test_support::TEST_TOKEN.to_string(),

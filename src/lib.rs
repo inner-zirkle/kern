@@ -159,7 +159,6 @@ pub mod retrieval_query;
 pub mod retrieval_score;
 pub mod retrieval_seed;
 pub mod rpc;
-pub mod rpc_kern_rpc_server;
 pub mod search;
 pub mod store;
 pub mod takeover;
