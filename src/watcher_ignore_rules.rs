@@ -1,5 +1,5 @@
-//! Gitignore-style filtering of watched paths, plus the built-in ignores
-//! (.git, target, node_modules) every root gets.
+//! Filtering of watched paths by each root's own `.gitignore`, with `.git`
+//! itself always skipped — its internal churn is bursty and never knowledge.
 
 use std::path::{Path, PathBuf};
 

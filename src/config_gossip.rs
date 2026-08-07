@@ -1,4 +1,5 @@
-//! The `[gossip]` section: network id, ports, keys, and hosted contracts.
+//! The `[gossip]` section: enable flag, bind address, discovery, network id,
+//! and hosted contracts.
 
 use serde::{Deserialize, Serialize};
 

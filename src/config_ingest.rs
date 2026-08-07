@@ -1,4 +1,5 @@
-//! The `[ingest]` section: queue sizes, clamps, dedup, and review policy.
+//! The `[ingest]` section: dedup thresholds (global and per entity kind) and
+//! the review policy. Most keys are preset-owned — see `config_preset`.
 
 use serde::{Deserialize, Serialize};
 

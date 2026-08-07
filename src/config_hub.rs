@@ -1,4 +1,5 @@
-//! The `[hub]` section: machine-hub socket and idle-unload policy.
+//! The `[hub]` section: whether `kern mcp` auto-starts a machine hub and
+//! whether stale daemons auto-restart on attach.
 
 use serde::{Deserialize, Serialize};
 

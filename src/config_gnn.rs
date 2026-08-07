@@ -1,4 +1,5 @@
-//! The `[gnn]` section: propagation depth, training cadence, and layer sizes.
+//! The `[gnn]` section: propagation self/min weights, the snapshot size floor,
+//! and training epochs/learning rate.
 
 use serde::{Deserialize, Serialize};
 

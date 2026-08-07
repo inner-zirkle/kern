@@ -1,4 +1,5 @@
-//! The `[intake]` section: drop-dir location and poll cadence.
+//! The `[intake]` section: drop-dir location, poll cadence, done-archive
+//! retention, and the TTL stamped on everything this queue ingests.
 
 use serde::{Deserialize, Serialize};
 

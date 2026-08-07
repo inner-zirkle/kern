@@ -1,4 +1,5 @@
-//! The `[reason]` section: edge-generation thresholds and LLM usage.
+//! The `[reason]` section: the reasoning LLM endpoint (url/model/key) and its
+//! completion timeout.
 
 use serde::{Deserialize, Serialize};
 

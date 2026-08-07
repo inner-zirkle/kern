@@ -1,4 +1,5 @@
-//! The `[tick]` section: background-loop cadence and task toggles.
+//! The `[tick]` section: loop interval (0 disables the driver), queue
+//! capacity, cluster sample cap, and the kern idle timeout.
 
 use serde::{Deserialize, Serialize};
 

@@ -1,4 +1,5 @@
-//! The `[embed]` section: embedding endpoint, model, and dimensions.
+//! The `[embed]` section: embedding endpoint, model, API key, and the
+//! Ollama-native tuning knobs (ignored, with a boot warning, on `/v1`).
 
 use serde::{Deserialize, Serialize};
 

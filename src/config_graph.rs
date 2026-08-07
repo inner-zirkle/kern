@@ -1,4 +1,5 @@
-//! The `[graph]` section: resident-kern caps, disk thresholds, and heat.
+//! The `[graph]` section: resident-kern cap, ledger cap, and the disk
+//! threshold that moves a kern's index out of RAM.
 
 use serde::{Deserialize, Serialize};
 
