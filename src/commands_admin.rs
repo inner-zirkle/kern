@@ -638,7 +638,7 @@ async fn claim_kind_at(
 					&name,
 					&description,
 					parent.as_deref(),
-					&crate::ingest::distill::DEFAULT_KINDS,
+					&ingest::distill::DEFAULT_KINDS,
 				) {
 					refused = Some(e);
 				}

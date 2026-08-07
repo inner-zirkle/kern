@@ -270,7 +270,7 @@ mod tests {
 	#[tokio::test]
 	async fn drain_direct_once_clamps_against_the_payloads_tag_not_a_fixed_principal() {
 		let (url, _server) =
-			crate::test_support::spawn_http(crate::test_support::fixed_vec_embed_app()).await;
+			test_support::spawn_http(test_support::fixed_vec_embed_app()).await;
 		let graph = Arc::new(RwLock::new(GraphGnn::new()));
 		let embedder = llm::Client::new_embed_only(&url, "m", "");
 		let worker = Worker::new(graph.clone(), embedder, None, None, None);

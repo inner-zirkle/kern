@@ -234,7 +234,7 @@ pub(crate) async fn cmd_profile(cfg: &config::Config, text: &str, no_llm: bool) 
 
 		let t = Instant::now();
 		let claims =
-			crate::ingest::distill::distill(DISTILL_SAMPLE, &[], &*llm_fn, std::time::SystemTime::now());
+			ingest::distill::distill(DISTILL_SAMPLE, &[], &*llm_fn, std::time::SystemTime::now());
 		let n = claims.map(|c| c.len()).unwrap_or(0);
 		profiles.push(flat(&format!("distill ({n} claims)"), ms(t)));
 	}

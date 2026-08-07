@@ -186,7 +186,7 @@ impl Server {
 					&p.name,
 					&p.description,
 					parent,
-					&crate::ingest::distill::DEFAULT_KINDS,
+					&ingest::distill::DEFAULT_KINDS,
 				) {
 					return tool_error(&e);
 				}
@@ -272,13 +272,13 @@ impl Server {
 		let dir = std::env::current_dir()
 			.unwrap_or_else(|_| std::path::PathBuf::from("."))
 			.join(&self.cfg.intake.dir);
-		let llm_fn: Option<crate::ingest::LlmFunc> = match &self.llm {
+		let llm_fn: Option<ingest::LlmFunc> = match &self.llm {
 			Some(c) if c.has_reason() => Some(std::sync::Arc::new(c.complete_func())),
 			_ => None,
 		};
 		let extra_kinds: Vec<String> = self.graph.read().root.claim_kinds.keys().cloned().collect();
 
-		let archived = llm::block_on_in_place(crate::ingest::intake::drain_now(
+		let archived = llm::block_on_in_place(ingest::intake::drain_now(
 			&dir,
 			&self.worker,
 			llm_fn.as_ref(),

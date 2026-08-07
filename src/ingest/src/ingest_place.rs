@@ -858,7 +858,7 @@ mod tests {
 		let sid = util::content_hash(SURVIVOR);
 		hide_from_gate_one(&g, &sid);
 
-		let (url, _server) = crate::test_support::spawn_http(fixed_vec_app()).await;
+		let (url, _server) = test_support::spawn_http(fixed_vec_app()).await;
 		let embedder = LlmClient::new_embed_only(&url, "m", "");
 		let doc_id = util::content_hash(NEAR_DUP);
 		let (id, fail) = place_document(&g, &embedder, &job(NEAR_DUP, 1.0), &doc_id, 0.95, None).await;

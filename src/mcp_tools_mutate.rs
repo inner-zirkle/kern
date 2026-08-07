@@ -3,7 +3,6 @@
 
 use serde::Deserialize;
 
-use crate::ingest;
 use base::base_constants::AGENT_SOURCE;
 use base::base_types::{Scoping, Source};
 use graph::reason::move_entity;
@@ -293,7 +292,7 @@ impl Server {
 				.unwrap_or_else(|_| std::path::PathBuf::from("."))
 				.join(&self.cfg.intake.dir)
 				.join("direct");
-			let job = crate::ingest::direct::DirectJob {
+			let job = ingest::direct::DirectJob {
 				text: p.text.clone(),
 				source: src.clone(),
 				kind,
@@ -306,7 +305,7 @@ impl Server {
 				source_tag: AGENT_SOURCE.to_string(),
 				scoping: scoping.clone(),
 			};
-			match crate::ingest::direct::intake_direct(&direct_dir, &job) {
+			match ingest::direct::intake_direct(&direct_dir, &job) {
 				Ok(doc_id) => {
 					return tool_result_json(&serde_json::json!({
 						"status": "accepted",

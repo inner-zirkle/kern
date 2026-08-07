@@ -1,0 +1,29 @@
+[package]
+name = "ingest"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+base = { path = "../base" }
+graph = { path = "../graph" }
+ingest_config = { path = "../ingest_config" }
+llm = { path = "../llm" }
+math = { path = "../math" }
+util = { path = "../util" }
+serde.workspace = true
+serde_json.workspace = true
+parking_lot.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+notify = "8"
+ignore = "0.4"
+async-trait = "0.1"
+axum.workspace = true
+
+[dev-dependencies]
+test_support = { path = "../test_support" }
+tempfile = "3"
+
+[lints]
+workspace = true

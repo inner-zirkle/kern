@@ -143,7 +143,7 @@ impl Server {
 			return Ok(());
 		}
 		let g = self.graph.read();
-		let known = crate::ingest::distill::DEFAULT_KINDS.contains(&p.claim_kind.as_str())
+		let known = ingest::distill::DEFAULT_KINDS.contains(&p.claim_kind.as_str())
 			|| g.root.claim_kinds.contains_key(&p.claim_kind);
 		if !known {
 			return Err(format!("unknown claim kind: {}", p.claim_kind));
@@ -706,7 +706,7 @@ mod id_filter_tests {
 				"rust-fact",
 				"rust facts",
 				Some("code-fact"),
-				&crate::ingest::distill::DEFAULT_KINDS,
+				&ingest::distill::DEFAULT_KINDS,
 			)
 			.expect("builtin parent registers");
 

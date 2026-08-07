@@ -450,7 +450,7 @@ async fn run_standalone(cfg: &config::Config) {
 		crate::commands::save_graph_guarded(&save_g, &save_cfg);
 	});
 	let q = Arc::new(crate::tick_queue::Queue::new(512));
-	let defer: crate::ingest::worker::DeferQuestionsFn = {
+	let defer: ingest::worker::DeferQuestionsFn = {
 		let defer_q = q.clone();
 		Arc::new(move |entity_id: &str| {
 			let _ = defer_q.enqueue(crate::tick_queue::task_extra(
@@ -460,7 +460,7 @@ async fn run_standalone(cfg: &config::Config) {
 			));
 		})
 	};
-	let defer_contradiction: crate::ingest::worker::DeferContradictionFn = {
+	let defer_contradiction: ingest::worker::DeferContradictionFn = {
 		let contra_q = q.clone();
 		Arc::new(move |kern_id: &str, reason_id: &str| {
 			let _ = contra_q.enqueue(crate::tick_queue::task_extra(
@@ -470,7 +470,7 @@ async fn run_standalone(cfg: &config::Config) {
 			));
 		})
 	};
-	let worker = Arc::new(crate::ingest::Worker::new(
+	let worker = Arc::new(ingest::Worker::new(
 		g.clone(),
 		llm_client.clone(),
 		Some(defer),

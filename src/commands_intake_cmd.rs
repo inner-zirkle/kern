@@ -5,7 +5,7 @@ use std::time::{Duration, SystemTime};
 
 use parking_lot::RwLock;
 
-use crate::ingest::intake_status::{scan, Report};
+use ingest::intake_status::{scan, Report};
 use store::base_store::FlushOutcome;
 
 use crate::commands::{load_graph, Client, Endpoint, IntakeAction};
@@ -143,7 +143,7 @@ async fn drain_locally(
 		Endpoint::new(embed_url, embed_model, &cfg.embed.key),
 	)
 	.with_timeout_secs(cfg.reason.timeout_secs);
-	let llm_fn: Option<crate::ingest::LlmFunc> = if reason_url.is_empty() {
+	let llm_fn: Option<ingest::LlmFunc> = if reason_url.is_empty() {
 		// Only worth saying when something in the queue actually needs it —
 		// documents drain fine with no reason model at all.
 		if before.pending.iter().any(|p| p.name.ends_with(".txt")) {
@@ -159,9 +159,9 @@ async fn drain_locally(
 		}))
 	};
 	let extra_kinds: Vec<String> = g.read().root.claim_kinds.keys().cloned().collect();
-	let worker = crate::ingest::Worker::new(g.clone(), llm_client, None, None, None);
+	let worker = ingest::Worker::new(g.clone(), llm_client, None, None, None);
 
-	let archived = crate::ingest::intake::drain_now(
+	let archived = ingest::intake::drain_now(
 		dir,
 		&worker,
 		llm_fn.as_ref(),
@@ -213,7 +213,7 @@ fn flush(g: &Arc<RwLock<graph::graph::GraphGnn>>, cfg: &config::Config) {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::ingest::intake_status::Pending;
+	use ingest::intake_status::Pending;
 
 	#[test]
 	fn ages_read_in_the_largest_unit_that_fits() {

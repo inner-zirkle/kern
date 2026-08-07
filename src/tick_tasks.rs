@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use parking_lot::RwLock;
 
-use crate::ingest::place::build_chunk_entity;
+use ingest::place::build_chunk_entity;
 use base::base_constants::{
 	DEFAULT_SEED_K, KERN_INNER_RADIUS, KERN_OUTER_RADIUS, PROVENANCE_SCORE,
 	QUESTION_RESOLVE_THRESHOLD,

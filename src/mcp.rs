@@ -15,7 +15,7 @@ use parking_lot::RwLock;
 use serde::Serialize;
 use serde_json::value::RawValue;
 
-use crate::ingest;
+use ingest;
 use config::Config;
 use graph::graph::GraphGnn;
 

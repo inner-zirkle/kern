@@ -94,8 +94,7 @@ pub fn ingest_queue_refused() -> u64 {
 // `QUEUE_REFUSED` is process-global, so every test that fills a queue and
 // asserts on the counter must hold this lock, or a parallel sibling's refusals
 // land in its delta.
-#[cfg(test)]
-pub(crate) fn queue_refused_test_lock() -> &'static tokio::sync::Mutex<()> {
+pub fn queue_refused_test_lock() -> &'static tokio::sync::Mutex<()> {
 	static LOCK: std::sync::OnceLock<tokio::sync::Mutex<()>> = std::sync::OnceLock::new();
 	LOCK.get_or_init(|| tokio::sync::Mutex::new(()))
 }
@@ -662,7 +661,7 @@ mod tests {
 
 		let _serial = queue_refused_test_lock().lock().await;
 		let (url, _server) =
-			crate::test_support::spawn_http(crate::test_support::hanging_embed_app()).await;
+			test_support::spawn_http(test_support::hanging_embed_app()).await;
 		let embedder = LlmClient::new_embed_only(&url, "m", "");
 		let worker = Worker::new(
 			Arc::new(RwLock::new(GraphGnn::new())),
@@ -740,7 +739,7 @@ mod tests {
 	async fn queue_depth_reads_the_parked_jobs_and_falls_after_drain() {
 		const PARKED: usize = 5;
 		let gate = Arc::new(tokio::sync::Semaphore::new(0));
-		let (url, _server) = crate::test_support::spawn_http(gated_embed_app(gate.clone())).await;
+		let (url, _server) = test_support::spawn_http(gated_embed_app(gate.clone())).await;
 		let worker = Worker::new(
 			Arc::new(RwLock::new(GraphGnn::new())),
 			LlmClient::new_embed_only(&url, "m", ""),
@@ -862,7 +861,7 @@ mod tests {
 	async fn a_second_gate_dedup_reports_deduped_and_the_surviving_id() {
 		let graph = Arc::new(RwLock::new(GraphGnn::new()));
 		let (url, _server) =
-			crate::test_support::spawn_http(crate::test_support::fixed_vec_embed_app()).await;
+			test_support::spawn_http(test_support::fixed_vec_embed_app()).await;
 		let embedder = LlmClient::new_embed_only(&url, "m", "");
 
 		let first = job_for("alpha beta gamma");
@@ -973,7 +972,7 @@ mod tests {
 	async fn every_public_entry_point_walks_through_the_clamp() {
 		let graph = Arc::new(RwLock::new(GraphGnn::new()));
 		let (url, _server) =
-			crate::test_support::spawn_http(crate::test_support::fixed_vec_embed_app()).await;
+			test_support::spawn_http(test_support::fixed_vec_embed_app()).await;
 		let worker = Worker::new(
 			graph.clone(),
 			LlmClient::new_embed_only(&url, "m", ""),
@@ -1186,7 +1185,7 @@ mod embed_tests {
 
 	#[tokio::test]
 	async fn embed_chunks_short_circuits_on_the_batch_path_when_counts_match() {
-		let (url, _server) = crate::test_support::spawn_http(echo_count_app()).await;
+		let (url, _server) = test_support::spawn_http(echo_count_app()).await;
 		let client = LlmClient::new_embed_only(&url, "m", "");
 		let (vecs, fails) = embed_chunks(&client, &["a".into(), "b".into()]).await;
 		assert_eq!(vecs.len(), 2);
@@ -1203,7 +1202,7 @@ mod embed_tests {
 			"/api/embed",
 			axum::routing::post(|| async { axum::Json(json!({ "embeddings": [[0.5, 0.6]] })) }),
 		);
-		let (url, _server) = crate::test_support::spawn_http(app).await;
+		let (url, _server) = test_support::spawn_http(app).await;
 		let client = LlmClient::new_embed_only(&url, "m", "");
 		let (vecs, fails) = embed_chunks(&client, &["a".into(), "b".into()]).await;
 		assert_eq!(vecs.len(), 2);
@@ -1220,7 +1219,7 @@ mod embed_tests {
 			"/api/embed",
 			axum::routing::post(|| async { axum::Json(json!({ "embeddings": [] })) }),
 		);
-		let (url, _server) = crate::test_support::spawn_http(app).await;
+		let (url, _server) = test_support::spawn_http(app).await;
 		let client = LlmClient::new_embed_only(&url, "m", "");
 		let fail = embed_with_retry(&client, "x", "chunk", 0)
 			.await
@@ -1241,7 +1240,7 @@ mod embed_tests {
 
 	#[tokio::test]
 	async fn embed_chunks_empty_input_short_circuits_to_empty() {
-		let (url, _server) = crate::test_support::spawn_http(echo_count_app()).await;
+		let (url, _server) = test_support::spawn_http(echo_count_app()).await;
 		let client = LlmClient::new_embed_only(&url, "m", "");
 		let (vecs, fails) = embed_chunks(&client, &[]).await;
 		assert!(vecs.is_empty() && fails.is_empty());

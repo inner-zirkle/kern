@@ -4,10 +4,7 @@
 //! `test_support` crate and are re-exported here so existing `crate::test_support`
 //! call sites keep working.
 
-pub(crate) use test_support::{
-	alloc_probe, edge, entity, entity_vec, fixed_vec_embed_app, hanging_embed_app, spawn_http,
-	tool_text,
-};
+pub(crate) use test_support::{alloc_probe, edge, entity, entity_vec, hanging_embed_app, spawn_http, tool_text};
 
 // A dead port: nothing in the default rig should reach an embedder.
 pub(crate) fn mcp_server() -> crate::mcp::Server {
@@ -21,7 +18,7 @@ pub(crate) fn mcp_server_with_embed_url(url: &str) -> crate::mcp::Server {
 	use std::sync::Arc;
 	let graph = Arc::new(RwLock::new(graph::graph::GraphGnn::new()));
 	let embedder = llm::Client::new_embed_only(url, "test", "");
-	let worker = Arc::new(crate::ingest::Worker::new(
+	let worker = Arc::new(ingest::Worker::new(
 		graph.clone(),
 		embedder,
 		None,

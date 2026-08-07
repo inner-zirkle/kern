@@ -10,7 +10,7 @@ use std::sync::Arc;
 use parking_lot::{Mutex, RwLock};
 use std::time::Instant;
 
-use crate::ingest::Worker;
+use ingest::Worker;
 use crate::tick_queue::Queue;
 use crate::tick_tasks::{BroadcastQuestionFunc, EmbedFunc, LlmFunc as TickLlmFunc};
 use config::Config;
@@ -98,7 +98,7 @@ impl Registry {
 		let tick_q = Arc::new(Queue::new(cfg.tick.queue_capacity.max(1)));
 
 		let defer_q = tick_q.clone();
-		let defer: crate::ingest::worker::DeferQuestionsFn = Arc::new(move |entity_id: &str| {
+		let defer: ingest::worker::DeferQuestionsFn = Arc::new(move |entity_id: &str| {
 			let _ = defer_q.enqueue(crate::tick_queue::task_extra(
 				crate::tick_queue::TaskKind::SeedQuestions,
 				"",
@@ -107,7 +107,7 @@ impl Registry {
 		});
 
 		let contra_q = tick_q.clone();
-		let defer_contradiction: crate::ingest::worker::DeferContradictionFn =
+		let defer_contradiction: ingest::worker::DeferContradictionFn =
 			Arc::new(move |kern_id: &str, reason_id: &str| {
 				let _ = contra_q.enqueue(crate::tick_queue::task_extra(
 					crate::tick_queue::TaskKind::ClassifyContradiction,

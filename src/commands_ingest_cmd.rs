@@ -51,7 +51,7 @@ pub(crate) async fn cmd_ingest(
 	}
 
 	// Resolved once, before the retry loop: a retry must not push the deadline out.
-	let valid_until = match crate::ingest::valid_until_from_retention(retention_secs) {
+	let valid_until = match ingest::valid_until_from_retention(retention_secs) {
 		Ok(v) => v,
 		Err(e) => {
 			eprintln!("{e}");
@@ -69,7 +69,7 @@ pub(crate) async fn cmd_ingest(
 	.with_reason_keep_alive(&cfg.reason.keep_alive)
 	.with_embed_num_ctx(cfg.embed.num_ctx)
 	.with_embed_keep_alive(&cfg.embed.keep_alive);
-	let worker = crate::ingest::Worker::new(g.clone(), llm_client, None, None, None);
+	let worker = ingest::Worker::new(g.clone(), llm_client, None, None, None);
 
 	let (conf, kind) = clamp_confidence(1.0, "user");
 	// Identity per ingest, not a shared constant: a constant hash made every
@@ -131,7 +131,7 @@ pub(crate) async fn cmd_ingest(
 
 #[allow(clippy::too_many_arguments)]
 async fn run_once(
-	worker: &crate::ingest::Worker,
+	worker: &ingest::Worker,
 	_g: &Arc<RwLock<graph::graph::GraphGnn>>,
 	text: &str,
 	src: &Source,
@@ -139,7 +139,7 @@ async fn run_once(
 	conf: f64,
 	cfg: &config::Config,
 	valid_until: Option<std::time::SystemTime>,
-) -> crate::ingest::Outcome {
+) -> ingest::Outcome {
 	worker
 		.run(
 			text.to_string(),
@@ -159,8 +159,8 @@ async fn run_once(
 fn ingest_config(
 	cfg: &config::Config,
 	valid_until: Option<std::time::SystemTime>,
-) -> crate::ingest::Config {
-	crate::ingest::Config {
+) -> ingest::Config {
+	ingest::Config {
 		dedup_threshold: cfg.ingest.dedup_threshold,
 		dedup_threshold_by_kind: cfg.ingest.dedup_threshold_by_kind,
 		valid_until,
@@ -183,7 +183,7 @@ mod tests {
 			"dedup_threshold comes from the user config"
 		);
 		assert_eq!(ic.dedup_threshold, 0.87);
-		let default_dedup = crate::ingest::Config::default().dedup_threshold;
+		let default_dedup = ingest::Config::default().dedup_threshold;
 		assert_ne!(
 			0.87, default_dedup,
 			"test value differs from the default, so the assertion is meaningful"

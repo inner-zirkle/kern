@@ -471,7 +471,7 @@ mod tests {
 	// through the health stats and the MCP payload to the RPC DTO an operator polls.
 	#[tokio::test]
 	async fn a_refused_ingest_reaches_the_rpc_health_surface() {
-		let _serial = crate::ingest::worker::queue_refused_test_lock()
+		let _serial = ingest::worker::queue_refused_test_lock()
 			.lock()
 			.await;
 		let (url, _server) =
@@ -491,7 +491,7 @@ mod tests {
 				String::new(),
 				1.0,
 				"inline",
-				crate::ingest::Config::default(),
+				ingest::Config::default(),
 				base::base_types::Scoping::default(),
 			)
 			.is_some()

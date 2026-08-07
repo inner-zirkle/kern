@@ -748,7 +748,7 @@ pub(crate) async fn bootstrap(cli: &Cli, cfg: &config::Config) -> EngineHandle {
 	};
 	let llm_client = server_llm_client(cfg, &reason_url, &reason_model);
 
-	let llm_fn: Option<crate::ingest::LlmFunc> = if !reason_url.is_empty() {
+	let llm_fn: Option<ingest::LlmFunc> = if !reason_url.is_empty() {
 		Some(Arc::new(llm_client.complete_func()))
 	} else {
 		None
@@ -1122,11 +1122,11 @@ fn watcher_denied_paths(cfg: &config::Config, cwd: &std::path::Path) -> Vec<std:
 	]
 }
 
-fn spawn_file_watcher(cfg: &config::Config, worker: &Arc<crate::ingest::Worker>) {
+fn spawn_file_watcher(cfg: &config::Config, worker: &Arc<ingest::Worker>) {
 	if !cfg.watcher.enabled {
 		return;
 	}
-	use crate::ingest::file_watcher::{run as run_file_watcher, KernFileWatcherSink};
+	use ingest::file_watcher::{run as run_file_watcher, KernFileWatcherSink};
 	use util::watcher::IgnoreRules;
 	let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
 	let roots = cfg.watcher.effective_roots(&cwd);
@@ -1160,8 +1160,8 @@ fn spawn_file_watcher(cfg: &config::Config, worker: &Arc<crate::ingest::Worker>)
 
 fn spawn_intake(
 	cfg: &config::Config,
-	worker: &Arc<crate::ingest::Worker>,
-	llm_fn: &Option<crate::ingest::LlmFunc>,
+	worker: &Arc<ingest::Worker>,
+	llm_fn: &Option<ingest::LlmFunc>,
 	g: &SharedGraph,
 ) {
 	if !cfg.intake.enabled {
@@ -1181,9 +1181,9 @@ fn spawn_intake(
 	let poll = std::time::Duration::from_secs(cfg.intake.poll_secs);
 	let done_retention = std::time::Duration::from_secs(cfg.intake.done_retention_secs);
 	let g_c = g.clone();
-	let claim_kinds: crate::ingest::intake::ClaimKindsFn =
+	let claim_kinds: ingest::intake::ClaimKindsFn =
 		Arc::new(move || g_c.read().root.claim_kinds.keys().cloned().collect());
-	tokio::spawn(crate::ingest::intake::run(
+	tokio::spawn(ingest::intake::run(
 		intake,
 		worker_c,
 		llm_fn.clone(),
