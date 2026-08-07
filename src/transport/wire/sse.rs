@@ -1,3 +1,5 @@
+//! SSE wire server: serves a [`super::Dispatch`] over this transport.
+
 // Server-sent events over HTTP: POST a JSON-RPC frame, the answer streams back
 // as text/event-stream — one `data: {"token":...}` event per token, then a
 // final `data: <response frame>` event, then the connection closes. Closing

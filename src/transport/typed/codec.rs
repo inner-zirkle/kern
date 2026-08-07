@@ -1,3 +1,5 @@
+//! The [`Codec`] seam and the JSON envelope codec the RPC surfaces use.
+
 use bytes::BytesMut;
 use serde_json::Value;
 use tokio_util::codec::{Decoder, Encoder};

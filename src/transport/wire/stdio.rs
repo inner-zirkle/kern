@@ -1,3 +1,5 @@
+//! STDIO wire server: serves a [`super::Dispatch`] over this transport.
+
 // Newline-delimited JSON-RPC over stdin/stdout: MCP's own framing, and how a
 // parent process spawns this surface as a child. One frame per line in, one
 // response line out; a notification (no id) answers with silence. Serial by

@@ -1,3 +1,5 @@
+//! UNIX wire server: serves a [`super::Dispatch`] over this transport.
+
 // Newline-delimited JSON-RPC over a Unix domain socket: local IPC, no network
 // exposure, same line framing as tcp. A stale socket file from a prior run is
 // removed before binding. Thread-per-connection, dispatcher shared by Arc.

@@ -1,3 +1,5 @@
+//! UDP wire server: serves a [`super::Dispatch`] over this transport.
+
 // Datagram UDP: one datagram in is one JSON-RPC frame, one datagram back is the
 // response frame. No streaming — a datagram has no stream — so tokens are
 // dropped and the response frame carries the whole. An answer past 65507 bytes

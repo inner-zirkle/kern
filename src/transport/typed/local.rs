@@ -1,3 +1,7 @@
+//! Local endpoints: per-cwd unix sockets (and the Windows named-pipe analog)
+//! with connect/listen adapters — how kern processes on one machine find each
+//! other.
+
 #[cfg(unix)]
 use std::path::{Path, PathBuf};
 

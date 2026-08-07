@@ -1,3 +1,6 @@
+//! The [`Adapter`] seam — byte-frame send/receive — with an in-process
+//! implementation for tests.
+
 use std::pin::Pin;
 use std::task::{Context as TaskContext, Poll};
 

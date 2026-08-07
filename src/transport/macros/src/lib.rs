@@ -1,3 +1,7 @@
+//! The `service!` proc-macro: from one service definition, generate the
+//! request/response enums, a typed client, and a dispatch impl — kept as its
+//! own crate because Rust forbids proc-macros in a lib crate.
+
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};

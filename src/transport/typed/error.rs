@@ -1,3 +1,6 @@
+//! Adapter and codec error types, kept separate so a wire failure is
+//! distinguishable from a decode failure.
+
 use thiserror::Error;
 
 #[derive(Debug, Error)]

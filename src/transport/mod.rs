@@ -1,3 +1,7 @@
+//! The transport layer: wire adapters (`wire`), typed channels (`typed`), the
+//! MCP JSON-RPC envelope (`mcp`), and the HTTP server glue (`http`), plus the
+//! `hub_rpc`/`kern_rpc` namespaces re-exported from the crate root.
+
 pub(crate) mod http;
 // The portable transport layer, copied byte-for-byte into every project:
 //   wire  — seven framings of one JSON-RPC contract

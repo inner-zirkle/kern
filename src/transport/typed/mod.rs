@@ -1,3 +1,6 @@
+//! Typed request/response channels over any adapter: a `service!`-generated
+//! client/server pair speaks through these without knowing the wire.
+
 pub mod adapter;
 pub mod channel;
 pub mod codec;

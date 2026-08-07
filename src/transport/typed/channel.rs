@@ -1,3 +1,6 @@
+//! The typed channel: pair an adapter with a codec into a request/response
+//! call surface.
+
 use futures::{SinkExt, StreamExt};
 use tokio_util::codec::{Decoder, Encoder, FramedRead, FramedWrite};
 

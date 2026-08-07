@@ -1,3 +1,5 @@
+//! TCP wire server: serves a [`super::Dispatch`] over this transport.
+
 // Newline-delimited JSON-RPC over TCP: one frame per line, one response line
 // back. Each accepted connection is served on its own thread, so frames from
 // different clients dispatch in parallel; the dispatcher is shared by Arc.

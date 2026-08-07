@@ -1,3 +1,6 @@
+//! Axum glue for MCP over HTTP: bearer-token auth (constant-time compare) in
+//! front of the JSON-RPC dispatch endpoint.
+
 use std::sync::Arc;
 
 use axum::extract::State;

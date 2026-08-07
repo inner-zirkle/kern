@@ -1,3 +1,5 @@
+//! HTTP wire server: serves a [`super::Dispatch`] over this transport.
+
 // HTTP/1.1 on std::net: POST a JSON-RPC frame, receive its response frame as
 // the body. No streaming — one request, one response. Thread-per-connection;
 // the dispatcher is shared by Arc. 405 for anything but POST, 400 for a body

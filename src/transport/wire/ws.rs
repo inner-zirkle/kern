@@ -1,3 +1,5 @@
+//! WS wire server: serves a [`super::Dispatch`] over this transport.
+
 // WebSocket (RFC 6455) on std::net, no dependencies: SHA-1 and base64 for the
 // handshake are hand-rolled below. A client text frame is a JSON-RPC request;
 // the answer streams back as one {"token":...} text frame per token, closed by

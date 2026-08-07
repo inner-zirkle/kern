@@ -1,3 +1,6 @@
+//! The MCP JSON-RPC envelope types: requests, responses, tool schemas and
+//! results — the shapes, not the server behaviour (that is `crate::mcp`).
+
 // The MCP envelope over the master wire: the JSON-RPC 2.0 method routing
 // (initialize, tools/list, tools/call, shutdown), the `McpServer` a surface
 // fills, and the bridge that serves it over any framing in `wire`. Zero-dep

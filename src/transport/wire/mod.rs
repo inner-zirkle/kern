@@ -1,3 +1,6 @@
+//! Wire servers: one [`Dispatch`] trait served over tcp/unix/stdio/http/sse/
+//! ws/udp, so a surface picks transports by listing them.
+
 // One transport family for every surface in the system. kern, ctrl and the
 // agent each speak JSON-RPC 2.0 already — kern/ctrl as MCP tools, the agent as
 // a single "chat" method — so the wire that carries a JSON-RPC frame is the wire
