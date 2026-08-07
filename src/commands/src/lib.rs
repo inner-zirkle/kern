@@ -1801,7 +1801,7 @@ static LAUNCH_DIR: OnceLock<PathBuf> = OnceLock::new();
 /// Record the launch dir. Called once from `main` before the re-pin; later calls
 /// are ignored, so a test or an embedder cannot corrupt it mid-run.
 pub fn set_launch_dir(dir: PathBuf) {
-    let _ = LAUNCH_DIR.set(dir);
+	let _ = LAUNCH_DIR.set(dir);
 }
 
 /// Resolve a caller-supplied path against the launch dir. Absolute paths pass
@@ -1809,37 +1809,37 @@ pub fn set_launch_dir(dir: PathBuf) {
 /// stood. Falls back to the path as given when no launch dir was recorded (a
 /// library embedder that never re-pinned), which is the pre-existing behaviour.
 pub fn launch_dir_join(path: impl AsRef<Path>) -> PathBuf {
-    let p = path.as_ref();
-    if p.is_absolute() {
-        return p.to_path_buf();
-    }
-    match LAUNCH_DIR.get() {
-        Some(dir) => dir.join(p),
-        None => p.to_path_buf(),
-    }
+	let p = path.as_ref();
+	if p.is_absolute() {
+		return p.to_path_buf();
+	}
+	match LAUNCH_DIR.get() {
+		Some(dir) => dir.join(p),
+		None => p.to_path_buf(),
+	}
 }
 
 #[cfg(test)]
 mod launch_dir_tests {
-    use super::*;
+	use super::*;
 
-    #[test]
-    fn launch_dir_join_resolves_relative_paths_against_the_pre_pin_cwd() {
-        let dir = std::path::PathBuf::from("/tmp/kern-launch-join");
-        set_launch_dir(dir.clone());
-        let abs = std::path::PathBuf::from("/etc/hosts");
-        assert_eq!(launch_dir_join(&abs), abs.to_path_buf());
-    }
+	#[test]
+	fn launch_dir_join_resolves_relative_paths_against_the_pre_pin_cwd() {
+		let dir = std::path::PathBuf::from("/tmp/kern-launch-join");
+		set_launch_dir(dir.clone());
+		let abs = std::path::PathBuf::from("/etc/hosts");
+		assert_eq!(launch_dir_join(&abs), abs.to_path_buf());
+	}
 
-    #[test]
-    fn launch_dir_join_falls_back_when_no_dir_was_recorded() {
-        // A fresh OnceLock is process-global; the only way to test the
-        // fall-back is to assume no other test in the process recorded it.
-        // We use a unique relative path and just confirm we get *some* joined
-        // result or the path as-is — never a panic.
-        let joined = launch_dir_join("notes.md");
-        let _ = joined; // pass-through; the assertion below pins the absolute path case.
-    }
+	#[test]
+	fn launch_dir_join_falls_back_when_no_dir_was_recorded() {
+		// A fresh OnceLock is process-global; the only way to test the
+		// fall-back is to assume no other test in the process recorded it.
+		// We use a unique relative path and just confirm we get *some* joined
+		// result or the path as-is — never a panic.
+		let joined = launch_dir_join("notes.md");
+		let _ = joined; // pass-through; the assertion below pins the absolute path case.
+	}
 }
 
 #[cfg(test)]

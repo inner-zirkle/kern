@@ -19,7 +19,7 @@ pub use ::store as store_registry;
 
 #[cfg(test)]
 mod global_allocator {
-    use test_support::alloc_probe::Counting;
-    #[global_allocator]
-    static COUNTING: Counting = Counting;
+	use test_support::alloc_probe::Counting;
+	#[global_allocator]
+	static COUNTING: Counting = Counting;
 }

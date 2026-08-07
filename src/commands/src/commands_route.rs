@@ -110,10 +110,8 @@ mod tests {
 		use graph::reason::add_reason;
 		let srv = crate::test_helpers::mcp_server();
 		let mut k = Kern::new("kx", "");
-		k.entities
-			.insert("a".into(), test_support::entity("a"));
-		k.entities
-			.insert("b".into(), test_support::entity("b"));
+		k.entities.insert("a".into(), test_support::entity("a"));
+		k.entities.insert("b".into(), test_support::entity("b"));
 		let mut healthy = test_support::edge("a", "b");
 		healthy.score = 1.0;
 		add_reason(&mut k, healthy);
@@ -337,10 +335,7 @@ mod tests {
 			.get_mut("kx")
 			.expect("kern")
 			.entities
-			.insert(
-				"only-in-ram".into(),
-				test_support::entity("only-in-ram"),
-			);
+			.insert("only-in-ram".into(), test_support::entity("only-in-ram"));
 		serving(srv, &ep).await;
 
 		let out = route_to(

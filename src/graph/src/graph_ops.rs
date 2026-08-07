@@ -2,11 +2,13 @@
 //! by the CLI and MCP surfaces. They take a `GraphGnn` by `&mut` and return
 //! counts; the daemon-side wiring (route/load/persist) lives in `commands`.
 
-use base::base_constants::{DEGRADE_DECAY_BASE, DEGRADE_DECAY_POW, DEGRADE_FLOOR, DEGRADE_MIN_THRESHOLD};
-use base::base_types::{Reason, ReasonKind, ReviewState};
 use crate::graph::{GraphGnn, PendingDelta};
 use crate::reason::{add_reason, remove_entity, remove_reason};
 use crate::search::find_entity;
+use base::base_constants::{
+	DEGRADE_DECAY_BASE, DEGRADE_DECAY_POW, DEGRADE_FLOOR, DEGRADE_MIN_THRESHOLD,
+};
+use base::base_types::{Reason, ReasonKind, ReviewState};
 use math::{average_vec, reason_id};
 use util::short_id;
 
@@ -28,11 +30,7 @@ pub struct SourceForget {
 // single section of a document and leave the rest. Reaches exactly as far as
 // `forget_entity` does — the resident kerns; an unloaded kern is out of reach.
 
-pub fn forget_entity(
-	g: &mut GraphGnn,
-	id: &str,
-	force: bool,
-) -> Result<usize, &'static str> {
+pub fn forget_entity(g: &mut GraphGnn, id: &str, force: bool) -> Result<usize, &'static str> {
 	let (thought, kern_id) = find_entity(g, id).ok_or("thought not found")?;
 	// A remote Fact is a peer's assertion, not durable local knowledge — forgettable.
 	if thought.is_fact() && !force && !crate::merge::is_remote_kern_id(&kern_id) {
@@ -225,7 +223,8 @@ mod tests {
 			&[9.0, 9.0, 9.0],
 		);
 		assert_eq!(
-			v, vec![1.0, 2.0, 3.0],
+			v,
+			vec![1.0, 2.0, 3.0],
 			"an embedded reason wins over the midpoint"
 		);
 	}
@@ -233,7 +232,15 @@ mod tests {
 	#[test]
 	fn link_vector_falls_back_to_endpoint_midpoint() {
 		let v = link_vector(None, &[0.0, 2.0], &[4.0, 6.0]);
-		assert_eq!(v, vec![2.0, 4.0], "no embedding -> midpoint of the two endpoints");
-		assert_eq!(v, vec![2.0, 4.0], "no embedding -> midpoint of the two endpoints");
+		assert_eq!(
+			v,
+			vec![2.0, 4.0],
+			"no embedding -> midpoint of the two endpoints"
+		);
+		assert_eq!(
+			v,
+			vec![2.0, 4.0],
+			"no embedding -> midpoint of the two endpoints"
+		);
 	}
 }

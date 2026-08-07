@@ -472,8 +472,7 @@ mod tests {
 	#[tokio::test]
 	async fn a_refused_ingest_reaches_the_rpc_health_surface() {
 		let _serial = ingest::worker::queue_refused_test_lock().lock().await;
-		let (url, _server) =
-			test_support::spawn_http(test_support::hanging_embed_app()).await;
+		let (url, _server) = test_support::spawn_http(test_support::hanging_embed_app()).await;
 		let srv = mcp::test_helpers::mcp_server_with_embed_url(&url);
 
 		let mut offered = 0;

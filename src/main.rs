@@ -3,8 +3,8 @@
 
 use clap::Parser;
 
-use config::Config;
 use commands::{dispatch, run_server, Cli, Commands};
+use config::Config;
 
 // sysexits(3) EX_CONFIG: distinguishes "your settings are wrong" from a crash.
 const EXIT_CONFIG: i32 = 78;

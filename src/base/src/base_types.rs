@@ -975,12 +975,13 @@ mod tests {
 		let mut e = mk_entity("e", "x", 0.0, EntityKind::Fact);
 		assert!(e.updated_at.is_none(), "fresh entity has no updated_at");
 		e.observe_support(0.5);
-		let support_stamp = e.updated_at;
-		assert!(support_stamp.is_some(), "observe_support stamps updated_at");
-		std::thread::sleep(std::time::Duration::from_millis(2));
+		assert!(e.updated_at.is_some(), "observe_support stamps updated_at");
+		// A sentinel beats sleeping on the wall clock: SystemTime is not
+		// monotonic, so `now() > now()` is a race, not an assertion.
+		e.updated_at = Some(SystemTime::UNIX_EPOCH);
 		e.observe_contradict(0.5);
 		assert!(
-			e.updated_at > support_stamp,
+			e.updated_at > Some(SystemTime::UNIX_EPOCH),
 			"observe_contradict stamps updated_at afresh"
 		);
 	}

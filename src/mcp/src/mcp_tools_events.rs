@@ -218,9 +218,9 @@ mod tests {
 	use super::EventCursor;
 	use crate::tools::is_error;
 	use crate::Server;
-	use test_support::tool_text as text;
 	use base::base_types::{Entity, EntityKind, EntityStatus, Kern, Source};
 	use std::time::{Duration, UNIX_EPOCH};
+	use test_support::tool_text as text;
 
 	fn at(secs: u64) -> std::time::SystemTime {
 		UNIX_EPOCH + Duration::from_secs(secs)

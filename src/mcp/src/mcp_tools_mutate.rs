@@ -841,12 +841,8 @@ mod tests {
 	fn move_server() -> Server {
 		let srv = make_server();
 		let mut src = Kern::new("src", "");
-		src
-			.entities
-			.insert("a".into(), test_support::entity("a"));
-		src
-			.entities
-			.insert("b".into(), test_support::entity("b"));
+		src.entities.insert("a".into(), test_support::entity("a"));
+		src.entities.insert("b".into(), test_support::entity("b"));
 		add_reason(&mut src, test_support::edge("a", "b"));
 		insert_kern(&srv, src);
 		insert_kern(&srv, Kern::new("dst", ""));

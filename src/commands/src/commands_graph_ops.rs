@@ -2,14 +2,14 @@
 //! degrade, promote, move — the per-thought reads and writes shared by the
 //! CLI and MCP surfaces.
 
-use retrieval::id_detail::entity_detail_by_id;
 use base::base_types::{EntityKind, Kern, ReasonKind, Source};
 use graph::graph::GraphGnn;
 use graph::search::find_entity;
+use retrieval::id_detail::entity_detail_by_id;
 use util::{explain_relationship_prompt, short_id, truncate};
 
-use crate::{load_graph, with_graph, Client, Endpoint};
 use crate::commands_route::{array_field, f64_field, route, str_field, u64_field, Routed};
+use crate::{load_graph, with_graph, Client, Endpoint};
 
 fn print_kern(kern: &Kern, g: &GraphGnn, depth: usize) {
 	let indent = "  ".repeat(depth);
@@ -148,8 +148,8 @@ pub(crate) async fn cmd_forget(cfg: &config::Config, id: &str) {
 // (Implementation lives in `graph::graph_ops`; these re-exports keep the call
 // sites in the `cmd_*` wrappers below unchanged.)
 pub(crate) use graph::graph_ops::{
-	SourceForget, degrade_entity_reasons, forget_by_source, forget_entity, link_entities,
-	promote_entity,
+	degrade_entity_reasons, forget_by_source, forget_entity, link_entities, promote_entity,
+	SourceForget,
 };
 
 fn print_promote(id: &str, promoted: bool) {
@@ -361,14 +361,16 @@ pub(crate) async fn cmd_degrade(cfg: &config::Config, id: &str) {
 mod tests {
 	use super::*;
 	#[allow(unused_imports)]
-	use base::base_constants::{DEGRADE_DECAY_BASE, DEGRADE_DECAY_POW, DEGRADE_FLOOR, DEGRADE_MIN_THRESHOLD};
+	use base::base_constants::{
+		DEGRADE_DECAY_BASE, DEGRADE_DECAY_POW, DEGRADE_FLOOR, DEGRADE_MIN_THRESHOLD,
+	};
+	use base::base_types::{Entity, Kern};
 	#[allow(unused_imports)]
 	use base::base_types::{Reason, ReasonKind, ReviewState};
 	#[allow(unused_imports)]
 	use graph::reason::{add_reason, remove_entity, remove_reason};
 	#[allow(unused_imports)]
 	use math::{average_vec, reason_id};
-	use base::base_types::{Entity, Kern};
 
 	fn edge(from: &str, to: &str, score: f64) -> Reason {
 		Reason {

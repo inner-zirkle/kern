@@ -1,12 +1,12 @@
 //! The `query` subcommand: recall from the graph with the full filter surface
 //! and render results for a terminal reader.
 
-use retrieval::id_detail::base_entity_json;
 use graph::search::{find_entity, search_all_unlocked};
+use retrieval::id_detail::base_entity_json;
 use util::{short_id, truncate};
 
-use crate::{load_graph, Client};
 use crate::commands_route::{array_field, f64_field, route, str_field, Routed};
+use crate::{load_graph, Client};
 
 pub(crate) struct QueryParams<'a> {
 	pub(crate) text: &'a str,

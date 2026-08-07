@@ -77,8 +77,7 @@ pub(crate) async fn serving(srv: mcp::Server, endpoint: &transport::typed::Endpo
 	let BindOutcome::Bound(listener) = bind_kern_listener(endpoint).await.expect("bind") else {
 		panic!("scratch endpoint already bound");
 	};
-	let handler =
-		rpc::KernRpcHandler::new(Arc::new(srv), Arc::new(tokio::sync::Notify::new()));
+	let handler = rpc::KernRpcHandler::new(Arc::new(srv), Arc::new(tokio::sync::Notify::new()));
 	tokio::spawn(rpc::serve_kern_rpc_loop(
 		listener,
 		handler,

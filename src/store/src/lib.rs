@@ -12,5 +12,5 @@ pub use self::registry::{Registry, StoreEntry, StoreKey};
 
 pub use store_core::lock;
 
-pub use store_core::Store;
 pub use store_core::lock::WriterLock;
+pub use store_core::Store;

@@ -5,12 +5,12 @@
 pub mod mcp_prompt;
 pub mod mcp_resources;
 pub mod mcp_tools;
-pub mod mcp_tools_query;
+pub mod mcp_tools_admin;
+pub mod mcp_tools_delegate;
 pub mod mcp_tools_events;
 pub mod mcp_tools_mutate;
-pub mod mcp_tools_admin;
+pub mod mcp_tools_query;
 pub mod mcp_tools_setup;
-pub mod mcp_tools_delegate;
 
 pub use self::mcp_prompt as prompt;
 pub use self::mcp_resources as resources;
@@ -27,7 +27,6 @@ use serde_json::value::RawValue;
 
 use config::Config;
 use graph::graph::GraphGnn;
-
 
 #[derive(Serialize)]
 pub(crate) struct Response {

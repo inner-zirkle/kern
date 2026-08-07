@@ -380,8 +380,8 @@ impl Server {
 
 #[cfg(test)]
 mod envelope_shape_tests {
-	use retrieval::id_detail::base_entity_json as build_entity_json;
 	use base::base_types::{ChunkPart, ChunkPartKind, Entity, EntityKind, EntityStatus, Source};
+	use retrieval::id_detail::base_entity_json as build_entity_json;
 
 	fn entity_with(kind: EntityKind, status: EntityStatus, source: Source) -> Entity {
 		Entity {
@@ -479,8 +479,8 @@ mod envelope_shape_tests {
 mod id_filter_tests {
 	use crate::tools::is_error;
 	use crate::Server;
-	use test_support::tool_text as text;
 	use base::base_types::{Entity, EntityKind, Kern, Source};
+	use test_support::tool_text as text;
 
 	fn server_with(thought: Entity) -> Server {
 		let srv = crate::test_helpers::mcp_server();

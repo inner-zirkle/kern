@@ -168,9 +168,7 @@ mod tests {
 	fn stored_graph(dir: &std::path::Path) -> GraphGnn {
 		let mut g = GraphGnn::new();
 		g.data_dir = dir.to_string_lossy().into_owned();
-		g.set_store(Arc::new(
-			store_core::Store::open(&g.data_dir).unwrap(),
-		));
+		g.set_store(Arc::new(store_core::Store::open(&g.data_dir).unwrap()));
 		g
 	}
 

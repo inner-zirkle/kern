@@ -876,9 +876,7 @@ mod proxy_method_tests {
 			"the carrier added no tool"
 		);
 		assert!(
-			!listed
-				.iter()
-				.any(|t| t.name == ::mcp::RESOURCE_READ_TOOL),
+			!listed.iter().any(|t| t.name == ::mcp::RESOURCE_READ_TOOL),
 			"`{}` is on the agent tool surface",
 			::mcp::RESOURCE_READ_TOOL
 		);

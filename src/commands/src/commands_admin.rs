@@ -9,11 +9,11 @@ use transport::typed::Endpoint;
 
 use util::short_id;
 
+use crate::commands_route::{route_to, Routed};
 use crate::{
 	load_graph, save_graph_unguarded, with_graph, ClaimKindAction, Client, GravitonAction,
 	UnnamedAction,
 };
-use crate::commands_route::{route_to, Routed};
 
 pub(crate) fn cmd_compress(src: &str, mode_str: &str, out: Option<&str>) {
 	let Some(mode) = math::quant::QuantizationMode::parse(mode_str) else {
@@ -834,15 +834,13 @@ pub(crate) async fn cmd_hub(action: Option<crate::HubAction>, idle_unload_secs: 
 			}
 		}
 		Some(crate::HubAction::Merge { src, dst }) => cmd_hub_merge(&src, &dst).await,
-		Some(crate::HubAction::Stop) => {
-			match HubRpcClient::<JsonEnvelopeCodec>::connect_hub().await {
-				Ok(client) => match client.stop().await {
-					Ok(_) => println!("hub stopped (nodes stay up)"),
-					Err(e) => eprintln!("hub stop: {e}"),
-				},
-				Err(e) => eprintln!("hub: not running ({e})"),
-			}
-		}
+		Some(crate::HubAction::Stop) => match HubRpcClient::<JsonEnvelopeCodec>::connect_hub().await {
+			Ok(client) => match client.stop().await {
+				Ok(_) => println!("hub stopped (nodes stay up)"),
+				Err(e) => eprintln!("hub stop: {e}"),
+			},
+			Err(e) => eprintln!("hub: not running ({e})"),
+		},
 	}
 }
 
