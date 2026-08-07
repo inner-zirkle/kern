@@ -1,3 +1,5 @@
+//! The `[gnn]` section: propagation depth, training cadence, and layer sizes.
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]

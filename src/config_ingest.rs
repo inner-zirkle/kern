@@ -1,3 +1,5 @@
+//! The `[ingest]` section: queue sizes, clamps, dedup, and review policy.
+
 use serde::{Deserialize, Serialize};
 
 use crate::base_constants::INGEST_DEDUP_THRESHOLD;

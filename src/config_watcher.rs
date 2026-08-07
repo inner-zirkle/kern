@@ -1,3 +1,5 @@
+//! The `[watcher]` section: watched roots and ignore rules.
+
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};

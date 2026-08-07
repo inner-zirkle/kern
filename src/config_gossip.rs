@@ -1,3 +1,5 @@
+//! The `[gossip]` section: network id, ports, keys, and hosted contracts.
+
 use serde::{Deserialize, Serialize};
 
 use crate::base_constants::{GOSSIP_MAX_PEERS, GOSSIP_SEED_ADDR};

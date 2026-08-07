@@ -1,3 +1,5 @@
+//! The watcher's event vocabulary: create/modify/remove/rename with paths.
+
 use std::path::PathBuf;
 use std::time::SystemTime;
 

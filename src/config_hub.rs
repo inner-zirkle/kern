@@ -1,3 +1,5 @@
+//! The `[hub]` section: machine-hub socket and idle-unload policy.
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]

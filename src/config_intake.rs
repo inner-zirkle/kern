@@ -1,3 +1,5 @@
+//! The `[intake]` section: drop-dir location and poll cadence.
+
 use serde::{Deserialize, Serialize};
 
 // `dir` MUST stay cwd-relative and independent of `data_dir`:

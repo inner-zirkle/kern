@@ -1,3 +1,8 @@
+//! The tuning presets (relaxed / medium / tight): each fixes heat half-life,
+//! dedup threshold, and retrieval breadth as one coherent bundle — the
+//! `[heat]`/`[ingest]`/`[retrieval]` sections are refused in favour of picking
+//! a preset, so the knobs cannot be mixed incoherently.
+
 use serde::{Deserialize, Serialize};
 
 use crate::config::Config;

@@ -1,3 +1,5 @@
+//! The `[serve]` section: sockets, HTTP addresses, and the MCP bearer token.
+
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 

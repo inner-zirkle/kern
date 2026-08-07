@@ -1,3 +1,5 @@
+//! The `[tick]` section: background-loop cadence and task toggles.
+
 use serde::{Deserialize, Serialize};
 
 use crate::base_constants::{

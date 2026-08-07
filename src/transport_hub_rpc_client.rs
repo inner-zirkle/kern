@@ -1,3 +1,6 @@
+//! The hub RPC client with connect retries — how CLI and daemons reach the
+//! machine hub.
+
 use std::time::Duration;
 
 use crate::transport::typed::{connect_kern, AdapterError, Channel, Endpoint, JsonEnvelopeCodec};

@@ -1,3 +1,5 @@
+//! The `[graph]` section: resident-kern caps, disk thresholds, and heat.
+
 use serde::{Deserialize, Serialize};
 
 use crate::base_constants::KERN_CAP_DISABLED;

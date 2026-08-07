@@ -1,3 +1,5 @@
+//! The `[embed]` section: embedding endpoint, model, and dimensions.
+
 use serde::{Deserialize, Serialize};
 
 pub const DEFAULT_EMBED_URL: &str = "http://localhost:11434";

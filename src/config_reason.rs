@@ -1,3 +1,5 @@
+//! The `[reason]` section: edge-generation thresholds and LLM usage.
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

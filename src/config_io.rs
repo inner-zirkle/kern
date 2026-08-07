@@ -1,3 +1,7 @@
+//! Config loading: find `.kern/kern.toml` by `.git`-first root resolution,
+//! deep-merge the global scope under the project scope per key, and surface
+//! parse errors with their file path.
+
 use std::path::Path;
 
 use thiserror::Error;

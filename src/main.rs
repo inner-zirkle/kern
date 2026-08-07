@@ -1,3 +1,6 @@
+//! The `kern` binary: parse the CLI, capture the launch dir before re-pinning
+//! cwd to the project root, and dispatch into `commands`.
+
 use clap::Parser;
 
 use kern::commands::{dispatch, run_server, Cli, Commands};

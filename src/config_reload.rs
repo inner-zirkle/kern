@@ -1,3 +1,5 @@
+//! The `[reload]` section: hot-reload polling of the daemon's own binary.
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]

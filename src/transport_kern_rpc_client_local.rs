@@ -1,3 +1,6 @@
+//! The local KernRpc client: attach to the per-cwd socket, detect a stale
+//! daemon build, and trigger the auto-restart handshake.
+
 use std::time::Duration;
 
 use crate::transport::typed::{connect_kern, AdapterError, Channel, Endpoint, JsonEnvelopeCodec};

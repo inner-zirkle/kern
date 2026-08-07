@@ -1,3 +1,6 @@
+//! KernRpc auth: token presentation and constant-time comparison for the
+//! per-cwd socket surface.
+
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 

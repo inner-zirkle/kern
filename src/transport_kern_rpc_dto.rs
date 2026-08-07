@@ -1,3 +1,7 @@
+//! KernRpc DTOs. Decode stays TOLERANT (defaults on missing fields) by
+//! design: the live attach → detect-stale → auto-restart handshake must be
+//! able to talk to an already-running daemon from an older build.
+
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 

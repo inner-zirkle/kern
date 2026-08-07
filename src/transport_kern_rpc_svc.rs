@@ -1,3 +1,5 @@
+//! The kern RPC service definition (`service!`-generated).
+
 use crate::transport_kern_rpc_dto::{
 	CallToolReq, CallToolRes, HealthRes, ListToolsReq, ListToolsRes, ShutdownRes,
 };

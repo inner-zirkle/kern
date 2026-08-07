@@ -1,3 +1,6 @@
+//! The watcher pipeline: filter events through the ignore rules, cap file
+//! size, and hand surviving paths to the sink.
+
 use std::path::Path;
 
 use tokio::sync::mpsc;

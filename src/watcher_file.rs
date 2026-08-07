@@ -1,3 +1,6 @@
+//! The notify-backed file watcher: debounce raw filesystem events into the
+//! pipeline's vocabulary, surviving editor rename-and-replace patterns.
+
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::mpsc as std_mpsc;

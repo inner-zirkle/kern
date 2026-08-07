@@ -1,3 +1,6 @@
+//! Gitignore-style filtering of watched paths, plus the built-in ignores
+//! (.git, target, node_modules) every root gets.
+
 use std::path::{Path, PathBuf};
 
 use ignore::gitignore::{Gitignore, GitignoreBuilder};

@@ -1,3 +1,6 @@
+//! The `[retrieval]` section: per-mode fusion weights, boosts, floors, and
+//! diversification knobs.
+
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
