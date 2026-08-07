@@ -101,7 +101,7 @@ pub async fn spawn(root: &Path) -> Result<NodeHandle, String> {
 	// The hub-first path is the default posture, so THIS is the daemon whose
 	// silence hides every fail-open defect. A config we cannot read must not
 	// stop the spawn — fall back to the conventional `.kern/data/logs`.
-	let (out, err) = crate::config_detached_log::stdio(&node_log_dir(root), "--daemon");
+	let (out, err) = crate::config::stdio(&node_log_dir(root), "--daemon");
 	let child = Command::new(exe)
 		.arg("--daemon")
 		.current_dir(root)
