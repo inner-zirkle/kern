@@ -1,0 +1,22 @@
+[package]
+name = "hub"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+config = { path = "../config" }
+gossip = { path = "../gossip" }
+rpc = { path = "../rpc" }
+transport = { path = "../transport" }
+util = { path = "../util" }
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tempfile = "3"
+
+[lints]
+workspace = true

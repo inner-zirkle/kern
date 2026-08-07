@@ -54,7 +54,7 @@ mod commands_query;
 mod commands_reembed;
 mod commands_route;
 pub use ::mcp;
-pub mod hub;
+pub use ::hub;
 pub use ::rpc;
 
 

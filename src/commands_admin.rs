@@ -771,7 +771,7 @@ pub(crate) async fn cmd_hub(action: Option<crate::commands::HubAction>, idle_unl
 	use transport::typed::JsonEnvelopeCodec;
 
 	match action {
-		None => crate::hub::run_hub(idle_unload_secs).await,
+		None => ::hub::run_hub(idle_unload_secs).await,
 		Some(crate::commands::HubAction::Resolve { root }) => {
 			let root = root.unwrap_or_else(default_root);
 			let client = match HubRpcClient::<JsonEnvelopeCodec>::connect_hub().await {
@@ -887,7 +887,7 @@ async fn cmd_hub_merge(src: &str, dst: &str) {
 		}
 	}
 	for root in [&src_root, &dst_root] {
-		if crate::hub::probe(root).await {
+		if ::hub::probe(root).await {
 			eprintln!(
 				"merge: a daemon still serves {} — stop it first",
 				root.display()
