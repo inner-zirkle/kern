@@ -180,10 +180,6 @@ pub mod util;
 pub mod validate;
 pub mod vector_backend;
 pub mod watcher;
-pub mod watcher_event;
-pub mod watcher_file;
-pub mod watcher_ignore_rules;
-pub mod watcher_pipeline;
 
 #[cfg(test)]
 mod test_support;
