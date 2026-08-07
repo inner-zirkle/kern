@@ -6,7 +6,7 @@ use serde_json::value::RawValue;
 use graph::search::{find_entity, find_reason};
 use util::truncate;
 
-use crate::mcp::{err_resp, ok, Response, Server, ERR_INVALID_REQ, ERR_NOT_FOUND};
+use crate::{err_resp, ok, Response, Server, ERR_INVALID_REQ, ERR_NOT_FOUND};
 
 pub fn resource_definitions() -> Vec<serde_json::Value> {
 	vec![
@@ -213,12 +213,12 @@ fn resource_content(uri: &str, text: &str) -> serde_json::Value {
 mod tests {
 	use super::*;
 
-	use crate::mcp::Server;
+	use crate::Server;
 	use base::base_types::{Entity, Kern, Reason};
 	use graph::reason::add_reason;
 
 	fn make_server() -> Server {
-		crate::test_support::mcp_server()
+		crate::test_helpers::inner::mcp_server()
 	}
 
 	fn seed(server: &Server) {

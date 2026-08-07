@@ -53,17 +53,8 @@ mod commands_mcp_cmd;
 mod commands_query;
 mod commands_reembed;
 mod commands_route;
+pub use ::mcp;
 pub mod hub;
-pub mod mcp;
-pub mod mcp_prompt;
-pub mod mcp_resources;
-pub mod mcp_tools;
-pub(crate) mod mcp_tools_admin;
-pub(crate) mod mcp_tools_delegate;
-pub(crate) mod mcp_tools_events;
-pub(crate) mod mcp_tools_mutate;
-pub(crate) mod mcp_tools_query;
-pub(crate) mod mcp_tools_setup;
 pub mod rpc;
 
 

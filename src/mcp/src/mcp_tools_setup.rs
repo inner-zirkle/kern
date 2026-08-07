@@ -1,7 +1,7 @@
 //! The `setup` tool: returns wiring instructions for the calling agent with
 //! already-done steps marked; kern never writes a host's config itself.
 
-use crate::mcp::tool_result_json;
+use crate::tool_result_json;
 
 // The agent-facing installer. kern never writes into a host's config itself —
 // the host layout is the agent's domain — so `setup` returns instructions and
@@ -143,7 +143,7 @@ pub(crate) fn render_setup(s: &SetupState) -> String {
 	out
 }
 
-impl crate::mcp::Server {
+impl crate::Server {
 	pub(crate) fn tool_setup(&self) -> serde_json::Value {
 		let (gravitons, thoughts, claim_kinds) = {
 			let g = self.graph.read();

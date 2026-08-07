@@ -3,7 +3,7 @@
 
 use serde::Deserialize;
 
-use crate::mcp::{tool_error, tool_result_json, Server};
+use crate::{tool_error, tool_result_json, Server};
 
 #[derive(Deserialize, Default)]
 struct GravitonArgs {
@@ -91,7 +91,7 @@ pub(crate) fn tool_schemas() -> Vec<serde_json::Value> {
 }
 
 impl Server {
-	pub(crate) fn tool_health(&self) -> serde_json::Value {
+	pub fn tool_health(&self) -> serde_json::Value {
 		tool_result_json(&self.health_stats())
 	}
 
@@ -306,20 +306,20 @@ mod claim_kind_tests {
 		Arc,
 	};
 
-	use crate::mcp::Server;
+	use crate::Server;
 
 	fn make_server() -> (Server, Arc<AtomicUsize>) {
 		let counter = Arc::new(AtomicUsize::new(0));
 		let c2 = counter.clone();
-		let mut server = crate::test_support::mcp_server();
+		let mut server = crate::test_helpers::inner::mcp_server();
 		server.save_fn = Arc::new(move || {
 			c2.fetch_add(1, Ordering::SeqCst);
 		});
 		(server, counter)
 	}
 
-	use crate::mcp::tools::is_error;
-	use crate::test_support::tool_text as text;
+	use crate::tools::is_error;
+	use test_support::tool_text as text;
 
 	#[tokio::test]
 	async fn health_stats_aggregates_entities_and_claim_kinds() {

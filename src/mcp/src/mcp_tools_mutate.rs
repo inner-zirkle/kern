@@ -111,7 +111,7 @@ pub(crate) fn tool_schemas() -> Vec<serde_json::Value> {
 	]
 }
 
-use crate::mcp::{tool_error, tool_result_json, Server};
+use crate::{tool_error, tool_result_json, Server};
 
 #[derive(Deserialize, Default)]
 struct IngestArgs {
@@ -392,7 +392,7 @@ impl Server {
 		};
 
 		let mut g = self.graph.write();
-		let res = crate::commands_graph_ops::link_entities(
+		let res = graph::graph_ops::link_entities(
 			&mut g,
 			&p.from,
 			&p.to,
@@ -418,7 +418,7 @@ impl Server {
 		};
 
 		let mut g = self.graph.write();
-		let res = crate::commands_graph_ops::forget_entity(&mut g, &p.id, false);
+		let res = graph::graph_ops::forget_entity(&mut g, &p.id, false);
 		drop(g);
 
 		match res {
@@ -448,7 +448,7 @@ impl Server {
 		}
 
 		let mut g = self.graph.write();
-		let out = crate::commands_graph_ops::forget_by_source(&mut g, scheme, &p.object_id, p.force);
+		let out = graph::graph_ops::forget_by_source(&mut g, scheme, &p.object_id, p.force);
 		drop(g);
 
 		if out.removed_entities > 0 {
@@ -474,7 +474,7 @@ impl Server {
 		};
 
 		let (decayed, removed) =
-			crate::commands_graph_ops::degrade_entity_reasons(&mut g, &kern_id, &p.query_id);
+			graph::graph_ops::degrade_entity_reasons(&mut g, &kern_id, &p.query_id);
 		drop(g);
 		(self.save_fn)();
 
@@ -523,7 +523,7 @@ impl Server {
 		let mut g = self.graph.write();
 		// An id nothing resolves is an error, never a quiet success: a caller
 		// curating a typo would otherwise be told the row was released.
-		let promoted = match crate::commands_graph_ops::promote_entity(&mut g, &p.id) {
+		let promoted = match graph::graph_ops::promote_entity(&mut g, &p.id) {
 			Ok(v) => v,
 			Err(e) => return tool_error(&format!("{e}: {}", p.id)),
 		};
@@ -542,16 +542,16 @@ impl Server {
 
 #[cfg(test)]
 mod tests {
-	use crate::mcp::tools::is_error;
-	use crate::mcp::Server;
+	use crate::tools::is_error;
+	use crate::Server;
 	use base::base_types::{Entity, EntityKind, Kern, Reason};
 	use graph::reason::add_reason;
 
 	fn make_server() -> Server {
-		crate::test_support::mcp_server()
+		crate::test_helpers::inner::mcp_server()
 	}
 
-	use crate::test_support::tool_text as text;
+	use test_support::tool_text as text;
 	fn body(out: &serde_json::Value) -> serde_json::Value {
 		serde_json::from_str(&text(out)).expect("success body is json")
 	}
@@ -843,11 +843,11 @@ mod tests {
 		let mut src = Kern::new("src", "");
 		src
 			.entities
-			.insert("a".into(), crate::test_support::entity("a"));
+			.insert("a".into(), test_support::entity("a"));
 		src
 			.entities
-			.insert("b".into(), crate::test_support::entity("b"));
-		add_reason(&mut src, crate::test_support::edge("a", "b"));
+			.insert("b".into(), test_support::entity("b"));
+		add_reason(&mut src, test_support::edge("a", "b"));
 		insert_kern(&srv, src);
 		insert_kern(&srv, Kern::new("dst", ""));
 		srv

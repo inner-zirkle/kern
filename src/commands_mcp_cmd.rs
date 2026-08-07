@@ -309,7 +309,7 @@ impl McpServer for ProxyServer {
 				.into_iter()
 				.filter_map(|v| transport::ToolSchema::from_value(&v))
 				.collect(),
-			_ => crate::mcp::tools::typed_tool_schemas(),
+			_ => ::mcp::tools::typed_tool_schemas(),
 		}
 	}
 
@@ -348,7 +348,7 @@ impl McpServer for ProxyServer {
 			message: format!("kern_rpc call_tool: {e}"),
 		})?;
 
-		Ok(crate::mcp::value_to_tool_result(&res.envelope))
+		Ok(::mcp::value_to_tool_result(&res.envelope))
 	}
 
 	fn extra_capabilities(&self) -> serde_json::Value {
@@ -369,14 +369,14 @@ impl McpServer for ProxyServer {
 		method: &str,
 		params: serde_json::Value,
 	) -> Option<Result<serde_json::Value, McpError>> {
-		if let Some(r) = crate::mcp::handle_graphless_method(method, &params) {
+		if let Some(r) = ::mcp::handle_graphless_method(method, &params) {
 			return Some(r);
 		}
 		match method {
 			"resources/read" => Some(
 				self
-					.call_tool(crate::mcp::RESOURCE_READ_TOOL, &params)
-					.and_then(|r| crate::mcp::decode_resource_read(&r)),
+					.call_tool(::mcp::RESOURCE_READ_TOOL, &params)
+					.and_then(|r| ::mcp::decode_resource_read(&r)),
 			),
 			_ => None,
 		}
@@ -505,7 +505,7 @@ async fn run_standalone(cfg: &config::Config) {
 		},
 	);
 
-	let server = crate::mcp::Server {
+	let server = ::mcp::Server {
 		graph: g,
 		worker,
 		llm: Some(llm_client),
@@ -854,7 +854,7 @@ mod proxy_method_tests {
 		assert_eq!(out.len(), 1);
 		assert_eq!(
 			out[0].pointer("/error/code").and_then(Value::as_i64),
-			Some(crate::mcp::ERR_NOT_FOUND as i64),
+			Some(::mcp::ERR_NOT_FOUND as i64),
 			"not a generic -32000: {:?}",
 			out[0]
 		);
@@ -872,15 +872,15 @@ mod proxy_method_tests {
 		let listed = proxy.tools_list();
 		assert_eq!(
 			listed.len(),
-			crate::mcp::tools::typed_tool_schemas().len(),
+			::mcp::tools::typed_tool_schemas().len(),
 			"the carrier added no tool"
 		);
 		assert!(
 			!listed
 				.iter()
-				.any(|t| t.name == crate::mcp::RESOURCE_READ_TOOL),
+				.any(|t| t.name == ::mcp::RESOURCE_READ_TOOL),
 			"`{}` is on the agent tool surface",
-			crate::mcp::RESOURCE_READ_TOOL
+			::mcp::RESOURCE_READ_TOOL
 		);
 	}
 
@@ -901,7 +901,7 @@ mod proxy_method_tests {
 			),
 		];
 		for (method, params) in cases {
-			let shared = crate::mcp::handle_graphless_method(method, &params)
+			let shared = ::mcp::handle_graphless_method(method, &params)
 				.unwrap_or_else(|| panic!("{method} unserved"))
 				.expect(method);
 			let direct = standalone

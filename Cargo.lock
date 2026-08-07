@@ -1410,6 +1410,7 @@ dependencies = [
  "libc",
  "llm",
  "math",
+ "mcp",
  "memmap2",
  "notify",
  "parking_lot",
@@ -1562,6 +1563,36 @@ dependencies = [
  "base",
  "serde",
  "serde_json",
+ "util",
+]
+
+[[package]]
+name = "mcp"
+version = "1.3.0"
+dependencies = [
+ "axum",
+ "base",
+ "blake3",
+ "bytes",
+ "config",
+ "gossip",
+ "graph",
+ "health",
+ "ingest",
+ "llm",
+ "math",
+ "parking_lot",
+ "retrieval",
+ "serde",
+ "serde_json",
+ "store",
+ "tempfile",
+ "test_support",
+ "tick",
+ "tick_loop",
+ "tokio",
+ "tracing",
+ "transport",
  "util",
 ]
 

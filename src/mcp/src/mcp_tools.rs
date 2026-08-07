@@ -11,7 +11,7 @@ pub fn tool_definitions() -> Vec<serde_json::Value> {
 	defs
 }
 
-pub(crate) fn typed_tool_schemas() -> Vec<transport::ToolSchema> {
+pub fn typed_tool_schemas() -> Vec<transport::ToolSchema> {
 	tool_definitions()
 		.into_iter()
 		.filter_map(|v| transport::ToolSchema::from_value(&v))
@@ -88,7 +88,7 @@ mod tests {
 			1,
 			"intake_drain must appear in tool_schemas() exactly once"
 		);
-		let dispatch = include_str!("mcp.rs");
+		let dispatch = include_str!("lib.rs");
 		assert_eq!(
 			dispatch.matches("\"intake_drain\" =>").count(),
 			1,
@@ -108,7 +108,7 @@ mod tests {
 			1,
 			"promote must appear in tool_schemas() exactly once"
 		);
-		let dispatch = include_str!("mcp.rs");
+		let dispatch = include_str!("lib.rs");
 		assert_eq!(
 			dispatch.matches("\"promote\" =>").count(),
 			1,

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["src/util", "src/base", "src/math", "src/store", "src/store_core", "src/bootstrap", "src/graph", "src/ingest_config", "src/llm", "src/config", "src/gnn", "src/retrieval", "src/ingest", "src/tick", "src/gossip", "src/tick_loop", "src/test_support", "src/transport", "src/transport/macros", "src/health"]
+members = ["src/util", "src/base", "src/math", "src/store", "src/store_core", "src/bootstrap", "src/graph", "src/ingest_config", "src/llm", "src/config", "src/gnn", "src/retrieval", "src/ingest", "src/tick", "src/gossip", "src/tick_loop", "src/test_support", "src/transport", "src/transport/macros", "src/health", "src/mcp"]
 
 [workspace.package]
 version = "1.3.0"
@@ -50,6 +50,7 @@ tick_loop = { path = "src/tick_loop" }
 test_support = { path = "src/test_support" }
 health = { path = "src/health" }
 store_core = { path = "src/store_core" }
+mcp = { path = "src/mcp" }
 bootstrap = { path = "src/bootstrap" }
 
 [workspace.lints.rust]
@@ -115,6 +116,7 @@ base = { path = "src/base" }
 math = { path = "src/math" }
 store = { path = "src/store" }
 store_core = { path = "src/store_core" }
+mcp = { path = "src/mcp" }
 bootstrap = { path = "src/bootstrap" }
 graph = { path = "src/graph" }
 ingest_config = { path = "src/ingest_config" }

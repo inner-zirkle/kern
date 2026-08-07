@@ -5,7 +5,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::Deserialize;
 
-use crate::mcp::{tool_error, tool_result_json, Server};
+use crate::{tool_error, tool_result_json, Server};
 
 // A default cap so a first poll of a large graph does not return every event
 // ever recorded in one payload; the returned `cursor` resumes the rest. A
@@ -216,9 +216,9 @@ impl Server {
 #[cfg(test)]
 mod tests {
 	use super::EventCursor;
-	use crate::mcp::tools::is_error;
-	use crate::mcp::Server;
-	use crate::test_support::tool_text as text;
+	use crate::tools::is_error;
+	use crate::Server;
+	use test_support::tool_text as text;
 	use base::base_types::{Entity, EntityKind, EntityStatus, Kern, Source};
 	use std::time::{Duration, UNIX_EPOCH};
 
@@ -250,7 +250,7 @@ mod tests {
 	}
 
 	fn server_with(entities: Vec<Entity>) -> Server {
-		let srv = crate::test_support::mcp_server();
+		let srv = crate::test_helpers::inner::mcp_server();
 		let mut k = Kern::new("kx", "");
 		for e in entities {
 			k.entities.insert(e.id.clone(), e);

@@ -42,7 +42,7 @@ pub(crate) fn tool_schemas() -> Vec<serde_json::Value> {
 	})]
 }
 
-use crate::mcp::{tool_error, tool_result_json, Server};
+use crate::{tool_error, tool_result_json, Server};
 
 fn parse_time_filter(field: &str, value: &str) -> Result<Option<std::time::SystemTime>, String> {
 	if value.is_empty() {
@@ -477,13 +477,13 @@ mod envelope_shape_tests {
 
 #[cfg(test)]
 mod id_filter_tests {
-	use crate::mcp::tools::is_error;
-	use crate::mcp::Server;
-	use crate::test_support::tool_text as text;
+	use crate::tools::is_error;
+	use crate::Server;
+	use test_support::tool_text as text;
 	use base::base_types::{Entity, EntityKind, Kern, Source};
 
 	fn server_with(thought: Entity) -> Server {
-		let srv = crate::test_support::mcp_server();
+		let srv = crate::test_helpers::inner::mcp_server();
 		let mut k = Kern::new("kx", "");
 		k.entities.insert(thought.id.clone(), thought);
 		srv.graph.write().kerns.insert("kx".into(), k);
@@ -608,7 +608,7 @@ mod id_filter_tests {
 		let mut k = Kern::new("kx", "");
 		k.entities.insert("f1".into(), fact("f1"));
 		k.entities.insert("f2".into(), fact("f2"));
-		let srv = crate::test_support::mcp_server();
+		let srv = crate::test_helpers::inner::mcp_server();
 		srv.graph.write().kerns.insert("kx".into(), k);
 
 		let out = srv.tool_query(&serde_json::json!({"ids": ["f1", "f2", "ghost"]}));
@@ -639,7 +639,7 @@ mod id_filter_tests {
 		let mut claim = fact("c1");
 		claim.kind = EntityKind::Claim;
 		k.entities.insert("c1".into(), claim);
-		let srv = crate::test_support::mcp_server();
+		let srv = crate::test_helpers::inner::mcp_server();
 		srv.graph.write().kerns.insert("kx".into(), k);
 
 		let out = srv.tool_query(&serde_json::json!({"ids": ["f1", "c1"], "kind": "fact"}));
@@ -709,7 +709,7 @@ mod id_filter_tests {
 
 #[cfg(test)]
 mod cold_tier_filter_tests {
-	use crate::mcp::tools::is_error;
+	use crate::tools::is_error;
 	use base::base_types::{Entity, EntityKind, Source};
 
 	fn spilled(id: &str, kind: EntityKind) -> Entity {
@@ -738,14 +738,14 @@ mod cold_tier_filter_tests {
 				axum::Json(serde_json::json!({ "embeddings": [[1.0, 0.0, 0.0]] }))
 			}),
 		);
-		let (url, _server) = crate::test_support::spawn_http(app).await;
-		let mut srv = crate::test_support::mcp_server_with_embed_url(&url);
+		let (url, _server) = test_support::spawn_http(app).await;
+		let mut srv = crate::test_helpers::inner::mcp_server_with_embed_url(&url);
 		// The ranked path embeds the query itself, so this rig needs the server's
 		// own client, not just the worker's.
 		srv.llm = Some(llm::Client::new_embed_only(&url, "test", ""));
 
 		let dir = tempfile::tempdir().expect("tmpdir");
-		let store = store_core::Store::open(&dir.path().to_string_lossy()).expect("store");
+		let store = store::Store::open(&dir.path().to_string_lossy()).expect("store");
 		store
 			.cold_put_all(&[
 				spilled("cold_fact", EntityKind::Fact),
@@ -756,7 +756,7 @@ mod cold_tier_filter_tests {
 
 		let ids = |out: &serde_json::Value| -> Vec<String> {
 			let body: serde_json::Value =
-				serde_json::from_str(&crate::test_support::tool_text(out)).expect("json body");
+				serde_json::from_str(&test_support::tool_text(out)).expect("json body");
 			body["entities"]
 				.as_array()
 				.cloned()

@@ -3,7 +3,7 @@
 
 use serde_json::value::RawValue;
 
-use crate::mcp::{err_resp, ok, Response, ERR_INVALID_REQ, ERR_NOT_FOUND};
+use crate::{err_resp, ok, Response, ERR_INVALID_REQ, ERR_NOT_FOUND};
 
 // Guarded by `research_prompt_names_are_real_tools` against renames in `tools.rs`.
 const QUERY_TOOL: &str = "query";
@@ -146,7 +146,7 @@ mod tests {
 
 	#[test]
 	fn research_prompt_names_are_real_tools() {
-		let names: Vec<String> = crate::mcp::tools::tool_definitions()
+		let names: Vec<String> = crate::tools::tool_definitions()
 			.iter()
 			.filter_map(|d| d.get("name").and_then(|n| n.as_str()).map(String::from))
 			.collect();

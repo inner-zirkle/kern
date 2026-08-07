@@ -517,7 +517,7 @@ pub async fn dispatch(cmd: Commands, cfg: &config::Config) {
 }
 
 pub(crate) struct EngineHandle {
-	pub server: std::sync::Arc<crate::mcp::Server>,
+	pub server: std::sync::Arc<::mcp::Server>,
 	pub task_q: std::sync::Arc<tick::tick_queue::Queue>,
 	// Guarded persist closure: the shutdown flush never overwrites a grown disk.
 	pub save_fn: std::sync::Arc<dyn Fn() + Send + Sync>,
@@ -659,7 +659,7 @@ pub(crate) async fn bootstrap(cli: &Cli, cfg: &config::Config) -> EngineHandle {
 		*shared_bq.write() = Some(bq);
 	}
 
-	let mcp_server = std::sync::Arc::new(crate::mcp::Server {
+	let mcp_server = std::sync::Arc::new(::mcp::Server {
 		graph: g.clone(),
 		worker: worker.clone(),
 		llm: Some(llm_client.clone()),
@@ -792,7 +792,7 @@ pub async fn run_server(cli: &Cli, cfg: &config::Config) {
 		if !mcp_addr.is_empty() {
 			let mcp_s = mcp_server.clone();
 			tokio::spawn(async move {
-				if let Err(e) = crate::mcp::run_sse(mcp_s, &mcp_addr).await {
+				if let Err(e) = ::mcp::run_sse(mcp_s, &mcp_addr).await {
 					tracing::error!(target: "kern.mcp_sse", error = %e, "MCP-over-HTTP server exited");
 				}
 			});
@@ -1212,7 +1212,7 @@ fn spawn_maintenance_tick(
 	cfg: &config::Config,
 	g: &SharedGraph,
 	q: &Arc<tick::tick_queue::Queue>,
-	broadcast_pulse: Option<crate::mcp::PulseBroadcast>,
+	broadcast_pulse: Option<::mcp::PulseBroadcast>,
 ) {
 	if cfg.tick.interval_secs == 0 {
 		return;

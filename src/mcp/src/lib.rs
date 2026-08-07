@@ -2,9 +2,20 @@
 //! resource surfaces in the `mcp_*` modules. One [`Server`] per transport,
 //! sharing the store registry.
 
-pub use crate::mcp_prompt as prompt;
-pub use crate::mcp_resources as resources;
-pub use crate::mcp_tools as tools;
+pub mod mcp_prompt;
+pub mod mcp_resources;
+pub mod mcp_tools;
+pub mod mcp_tools_query;
+pub mod mcp_tools_events;
+pub mod mcp_tools_mutate;
+pub mod mcp_tools_admin;
+pub mod mcp_tools_setup;
+pub mod mcp_tools_delegate;
+
+pub use self::mcp_prompt as prompt;
+pub use self::mcp_resources as resources;
+pub use self::mcp_tools as tools;
+pub use self::mcp_tools_query as tools_query;
 
 use std::io::{BufReader, Read, Write};
 use std::sync::Arc;
@@ -35,8 +46,8 @@ pub(crate) struct RpcError {
 	pub(crate) message: String,
 }
 
-pub(crate) const ERR_INVALID_REQ: i32 = -32600;
-pub(crate) const ERR_NOT_FOUND: i32 = -32601;
+pub const ERR_INVALID_REQ: i32 = -32600;
+pub const ERR_NOT_FOUND: i32 = -32601;
 
 pub type PulseBroadcast = Arc<dyn Fn(&str, f64) + Send + Sync>;
 
@@ -303,13 +314,13 @@ impl transport::McpServer for Server {
 
 /// The `call_tool` name that carries `resources/read` from the proxy to the
 /// daemon. Deliberately not a tool schema; see [`encode_resource_read`].
-pub(crate) const RESOURCE_READ_TOOL: &str = "resource_read";
+pub const RESOURCE_READ_TOOL: &str = "resource_read";
 
 /// Every advertised MCP method that answers without touching the graph.
 /// The standalone server and the `kern mcp` proxy both dispatch through this,
 /// so the two surfaces cannot drift: they are not two implementations that
 /// agree, they are one.
-pub(crate) fn handle_graphless_method(
+pub fn handle_graphless_method(
 	method: &str,
 	params: &serde_json::Value,
 ) -> Option<Result<serde_json::Value, transport::McpError>> {
@@ -348,7 +359,7 @@ pub(crate) fn encode_resource_read(resp: Response) -> serde_json::Value {
 }
 
 /// The inverse of [`encode_resource_read`], run by the proxy.
-pub(crate) fn decode_resource_read(
+pub fn decode_resource_read(
 	result: &transport::ToolResult,
 ) -> Result<serde_json::Value, transport::McpError> {
 	let text = result
@@ -373,7 +384,7 @@ pub(crate) fn decode_resource_read(
 	Ok(parsed)
 }
 
-pub(crate) fn value_to_tool_result(v: &serde_json::Value) -> transport::ToolResult {
+pub fn value_to_tool_result(v: &serde_json::Value) -> transport::ToolResult {
 	let is_error = v
 		.get("isError")
 		.and_then(serde_json::Value::as_bool)
@@ -493,7 +504,7 @@ mod tests {
 		use std::sync::Arc;
 		use tick::tick_queue::{task, Queue, TaskKind};
 
-		let mut srv = crate::test_support::mcp_server();
+		let mut srv = crate::test_helpers::inner::mcp_server();
 		let q = Arc::new(Queue::new(8));
 		srv.task_q = Some(q.clone());
 
@@ -513,7 +524,7 @@ mod tests {
 		use std::sync::Arc;
 		use tick::tick_queue::{task, Queue, TaskKind};
 
-		let mut srv = crate::test_support::mcp_server();
+		let mut srv = crate::test_helpers::inner::mcp_server();
 		let q = Arc::new(Queue::new(8));
 		srv.task_q = Some(q.clone());
 
@@ -537,7 +548,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn health_carries_the_store_signals_to_the_mcp_surface() {
-		let srv = crate::test_support::mcp_server();
+		let srv = crate::test_helpers::inner::mcp_server();
 		let h = srv.health_stats();
 		for key in [
 			"cold_evicted",
@@ -562,3 +573,4 @@ mod tests {
 		assert_eq!(h["embed_mismatch"], false);
 	}
 }
+pub mod test_helpers;

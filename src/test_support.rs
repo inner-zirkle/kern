@@ -4,6 +4,7 @@
 //! `test_support` crate and are re-exported here so existing `crate::test_support`
 //! call sites keep working.
 
+#[allow(unused_imports)]
 pub(crate) use test_support::{
 	alloc_probe, edge, entity, hanging_embed_app, spawn_http, tool_text,
 };
@@ -41,6 +42,8 @@ pub(crate) fn mcp_server_with_embed_url(url: &str) -> crate::mcp::Server {
 
 // The default rig with a caller-shaped config — for tools that resolve paths
 // (peer key, intake dir) off cfg rather than the graph.
+#[cfg(test)]
+#[allow(dead_code)]
 pub(crate) fn mcp_server_with_config(cfg: config::Config) -> crate::mcp::Server {
 	let mut s = mcp_server();
 	s.cfg = std::sync::Arc::new(cfg);

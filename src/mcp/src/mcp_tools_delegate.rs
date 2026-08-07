@@ -2,7 +2,7 @@
 //! never leaves the process) and `contract_grant` (owner-signed contract
 //! amendment) — the federation operations a host asks the daemon to perform.
 
-use crate::mcp::{tool_error, tool_result_json, Server};
+use crate::{tool_error, tool_result_json, Server};
 use gossip::gossip_contract::{
 	contract_id, params_from_config, tombstone_digest, WritePolicy, SIGNED_CRDT_V0_TAG,
 };
@@ -139,7 +139,7 @@ mod tests {
 	use super::*;
 	use gossip::gossip_identity::verify_sig_by;
 
-	use crate::mcp::tools::is_error;
+	use crate::tools::is_error;
 
 	fn body(v: &serde_json::Value) -> serde_json::Value {
 		let text = v["content"][0]["text"].as_str().expect("text content");
@@ -149,7 +149,7 @@ mod tests {
 	fn server_in(dir: &std::path::Path) -> Server {
 		let mut cfg = config::Config::default_in(dir);
 		cfg.data_dir = dir.to_string_lossy().to_string();
-		crate::test_support::mcp_server_with_config(cfg)
+		crate::test_helpers::inner::mcp_server_with_config(cfg)
 	}
 
 	// tokio tests: the default rig's Worker spawns onto the runtime.

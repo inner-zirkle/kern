@@ -105,7 +105,7 @@ mod tests {
 	use super::*;
 	use crate::test_support::{scratch_endpoint, serving, test_caller};
 
-	fn kern_with_edge() -> crate::mcp::Server {
+	fn kern_with_edge() -> ::mcp::Server {
 		use base::base_types::Kern;
 		use graph::reason::add_reason;
 		let srv = crate::test_support::mcp_server();
