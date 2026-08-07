@@ -713,20 +713,20 @@ mod degradation_lines_tests {
 		// Non-default retrieval block -> the four lines carry it daemon-sourced.
 		let cfg = HealthRes {
 			ok: true,
-			retrieval: crate::transport::kern_rpc::dto::RetrievalHealth {
+			retrieval: crate::transport::kern_rpc::RetrievalHealth {
 				rrf_k: 60.0,
 				rrf_global_weight: 0.5,
-				weights_content: crate::transport::kern_rpc::dto::ModeWeightsHealth {
+				weights_content: crate::transport::kern_rpc::ModeWeightsHealth {
 					content: 0.7,
 					reason: 0.2,
 					edge: 0.1,
 				},
-				weights_reason: crate::transport::kern_rpc::dto::ModeWeightsHealth {
+				weights_reason: crate::transport::kern_rpc::ModeWeightsHealth {
 					content: 0.1,
 					reason: 0.8,
 					edge: 0.1,
 				},
-				weights_hybrid: crate::transport::kern_rpc::dto::ModeWeightsHealth {
+				weights_hybrid: crate::transport::kern_rpc::ModeWeightsHealth {
 					content: 0.5,
 					reason: 0.3,
 					edge: 0.2,

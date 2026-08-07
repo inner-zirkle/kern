@@ -257,7 +257,7 @@ impl KernRpc for KernRpcHandler {
 				qbst_recency_half_life_secs: u64_at("qbst_recency_half_life_secs"),
 				retrieval: {
 					let r = payload.get("retrieval");
-					let mw = |key: &str| crate::transport::kern_rpc::dto::ModeWeightsHealth {
+					let mw = |key: &str| crate::transport::kern_rpc::ModeWeightsHealth {
 						content: r
 							.and_then(|r| r.get(key))
 							.and_then(|w| w.get("content"))
@@ -274,7 +274,7 @@ impl KernRpc for KernRpcHandler {
 							.and_then(|v| v.as_f64())
 							.unwrap_or(0.0),
 					};
-					crate::transport::kern_rpc::dto::RetrievalHealth {
+					crate::transport::kern_rpc::RetrievalHealth {
 						rrf_k: r
 							.and_then(|r| r.get("rrf_k"))
 							.and_then(|v| v.as_f64())
