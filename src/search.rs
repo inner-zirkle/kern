@@ -1,3 +1,8 @@
+//! Raw ANN search over the whole graph: entity and reason k-NN with the
+//! dimension guard in front (an off-model query vector is dropped and counted,
+//! never scored as noise). Retrieval's seeding and fusion build on these hits;
+//! this layer knows vectors, not ranking policy.
+
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use super::graph::GraphGnn;

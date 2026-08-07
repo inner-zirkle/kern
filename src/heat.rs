@@ -1,3 +1,8 @@
+//! Stigmergic access heat: every retrieval deposits [`HeatConfig::deposit_access`]
+//! on the entities it touched, and heat decays exponentially with the configured
+//! half-life. GC reads the decayed value to pick cold-tier victims, so "still
+//! used" is measured, not declared.
+
 use std::time::SystemTime;
 
 use serde::{Deserialize, Serialize};

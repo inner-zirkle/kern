@@ -1,3 +1,10 @@
+//! The resident graph. [`GraphGnn`] owns every loaded [`Kern`], the ANN and
+//! lexical indices over their entities, the source/entity/reason routing maps,
+//! and the LMDB store handle — one instance per data dir, shared behind an
+//! `RwLock`. Mutation policy (accept, supersede, merge) lives in `accept`/
+//! `reason`/`merge`; this file holds the structure, caches, and load/unload
+//! mechanics they operate on.
+
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::SystemTime;

@@ -1,3 +1,8 @@
+//! The LMDB persistence layer: bincode-encoded kerns, quantized vectors, the
+//! FIFO-capped cold tier, and the store stamp (format version + embedding
+//! model). `FORMAT_VERSION` gates every open — a mismatched store is rejected
+//! and wiped by the operator, never migrated (alpha policy).
+
 use std::collections::HashMap;
 use std::path::Path;
 

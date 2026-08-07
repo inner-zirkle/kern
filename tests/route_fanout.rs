@@ -13,8 +13,8 @@
 // and takes minutes in release, unbounded in debug.
 use kern::accept::accept_with_dedup;
 use kern::base_constants::{KERN_INNER_RADIUS, KERN_OUTER_RADIUS};
-use kern::graph::GraphGnn;
 use kern::base_types::{ChunkPart, ChunkPartKind, Entity, EntityKind, Kern};
+use kern::graph::GraphGnn;
 use std::time::Instant;
 
 const DIM: usize = 384;

@@ -1,3 +1,8 @@
+//! The two CRDT primitives federation converges on: a per-replica [`GCounter`]
+//! for counts that only grow, and [`lww_wins`] — last-writer-wins ordered by
+//! `(lamport, replica id)` — for everything that overwrites. Both are
+//! commutative, so gossip delivery order cannot change the merged result.
+
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 

@@ -97,9 +97,6 @@ pub fn qbst(cfg: &RetrievalConfig, access_count: i32, accessed_at: Option<System
 	(access + recency).min(cfg.qbst_cap)
 }
 
-// SECURITY: the fact bonus is withheld from remote entities. The kind is PRESERVED —
-// a remote Fact still reports and renders as a Fact — but a peer picks its own kind,
-// so it must not buy rank the local node cannot verify.
 /// Late-fusion BM25 bonus: add `cfg.lexical_top_boost * (bm25 / max_bm25)` to
 /// each delivered result's score, using the query's own BM25 ranking over the
 /// corpus. Normalized by the top BM25 score so the bonus is 0..1 * weight and
@@ -134,6 +131,10 @@ pub fn apply_lexical_boost<T: Scored>(
 	}
 }
 
+/// Scale each result by its confidence and add the flat fact bonus.
+// SECURITY: the fact bonus is withheld from remote entities. The kind is PRESERVED —
+// a remote Fact still reports and renders as a Fact — but a peer picks its own kind,
+// so it must not buy rank the local node cannot verify.
 pub fn apply_boosts<T: Scored>(g: &GraphGnn, cfg: &RetrievalConfig, results: &mut [T]) {
 	for r in results.iter_mut() {
 		let e = r.entity();

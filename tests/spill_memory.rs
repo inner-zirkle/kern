@@ -14,8 +14,8 @@
 //
 // `KERN_SPILL_N` overrides the corpus size.
 use kern::base_constants::KERN_CAP_DISABLED;
-use kern::graph::GraphGnn;
 use kern::base_types::{ChunkPart, ChunkPartKind, Entity, EntityKind, Kern, Reason};
+use kern::graph::GraphGnn;
 use kern::vector_backend::VectorBackend;
 
 const DIM: usize = 384;

@@ -1,3 +1,10 @@
+//! Load and flush the graph against its LMDB store: [`load_dir`] opens a data
+//! dir into a [`GraphGnn`], [`reload_from_disk`] re-reads through the already-
+//! open env (a same-process double-open can SIGSEGV), and [`flush_guarded`]
+//! writes back only when the store's flush epoch still matches the caller's
+//! snapshot — the losing side of a write race is refused, not silently
+//! overwritten.
+
 use super::graph::GraphGnn;
 use super::util;
 use crate::base_types::Kern;

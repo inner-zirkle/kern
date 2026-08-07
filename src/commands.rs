@@ -139,7 +139,7 @@ pub enum Commands {
 	/// Forget one thought by ID, or a whole source with --source.
 	Forget {
 		id: Option<String>,
-		/// Forget every thought from one source instead: <scheme>://<object_id>.
+		/// Forget every thought from one source instead: `<scheme>://<object_id>`.
 		#[arg(long, conflicts_with = "id")]
 		source: Option<String>,
 		/// Also remove local Facts. The only bypass of the Fact guard, and never

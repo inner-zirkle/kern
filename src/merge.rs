@@ -1,3 +1,8 @@
+//! Convergent merge of remote (gossiped) state into the local graph. Remote
+//! rows land in `remote-*` phantom kerns, merge by CRDT rules (`crdt`), and are
+//! stripped of every peer-settable ranking signal at the boundary — heat,
+//! access, and confidence are earned locally or not at all.
+
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::log_throttle::LogThrottle;

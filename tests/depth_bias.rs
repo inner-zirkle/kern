@@ -12,9 +12,9 @@
 // `used` re-accessed every 6h through the whole run, `unused` accessed once at
 // t=0 — so any survival difference between depths is depth, and nothing else.
 use kern::base_constants::{COLD_GC_AGE, COLD_HEAT_THRESHOLD, PULSE_DECAY, PULSE_THRESHOLD};
+use kern::base_types::{Entity, EntityKind, Kern};
 use kern::graph::GraphGnn;
 use kern::heat::HeatConfig;
-use kern::base_types::{Entity, EntityKind, Kern};
 use kern::retrieval::score::commit_access_ids;
 use kern::tick_pulse::pulse;
 use kern::tick_queue::Queue;

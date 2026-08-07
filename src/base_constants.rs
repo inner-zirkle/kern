@@ -1,3 +1,7 @@
+//! Compile-time tuning constants: retrieval weights, dedup thresholds, tick
+//! cadences, and cold-tier caps. Anything an operator should change at runtime
+//! belongs in `config`, not here; these are the fixed points the tests pin.
+
 use std::time::Duration;
 
 // The balanced hybrid mix: ModeWeights::default() and RetrievalConfig.weights_hybrid.

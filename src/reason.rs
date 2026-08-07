@@ -1,3 +1,8 @@
+//! Reason-edge upkeep: add/remove edges with their `by_from`/`by_to` index
+//! maintenance, walk supersede ancestry, and move or remove entities with
+//! their incident edges — the low-level graph surgery `accept` and the
+//! commands build on.
+
 use super::graph::GraphGnn;
 use crate::base_types::{Kern, Reason, ReasonKind};
 use std::collections::HashSet;

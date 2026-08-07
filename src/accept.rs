@@ -1,3 +1,9 @@
+//! The write path: [`accept`] places a new entity in the best-fit kern,
+//! [`accept_with_dedup`] first checks the ANN index for a near-duplicate to
+//! merge into, and the supersede family stamps replaced revisions and wires
+//! the `Supersedes` edges. Everything that adds knowledge to the graph funnels
+//! through here so placement, dedup, and bitemporal stamping stay consistent.
+
 use super::graph::GraphGnn;
 use super::math::{average_vec, cosine_distance, reason_id};
 use super::reason::{add_reason, superseded_ancestors};

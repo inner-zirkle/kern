@@ -1,3 +1,9 @@
+//! The domain types the whole crate shares: [`Entity`] (a thought, with its
+//! bitemporal validity window and CRDT counters), [`Reason`] (a typed edge),
+//! [`Kern`] (one cluster of entities plus its indices), and the kind/status/
+//! source enums. Serialized with bincode into the store, so field changes here
+//! are format changes — see the alpha policy in `base_store`.
+
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::SystemTime;
