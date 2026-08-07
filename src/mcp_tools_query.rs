@@ -50,7 +50,7 @@ fn parse_time_filter(field: &str, value: &str) -> Result<Option<std::time::Syste
 	if value.is_empty() {
 		return Ok(None);
 	}
-	crate::time::parse_rfc3339(value)
+	crate::util::parse_rfc3339(value)
 		.map(Some)
 		.map_err(|()| format!("invalid `{field}` timestamp: {value}"))
 }
@@ -802,7 +802,7 @@ mod id_filter_tests {
 	#[tokio::test]
 	async fn bare_id_read_still_serves_an_expired_row_flagged() {
 		let mut e = fact("f1");
-		let deadline = crate::time::parse_rfc3339("2020-01-01T00:00:00Z").expect("fixed ts");
+		let deadline = crate::util::parse_rfc3339("2020-01-01T00:00:00Z").expect("fixed ts");
 		e.valid_until = Some(deadline);
 		let srv = server_with(e);
 

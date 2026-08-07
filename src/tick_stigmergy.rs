@@ -8,7 +8,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::SystemTime;
 
-use crate::log_throttle::LogThrottle;
+use crate::util::LogThrottle;
 
 use parking_lot::RwLock;
 

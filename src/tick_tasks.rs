@@ -29,7 +29,7 @@ use crate::tick_cluster::{
 };
 use crate::tick_queue::{task, task_extra, Queue, TaskKind};
 
-pub use crate::types::{EmbedFunc, LlmFunc};
+pub use crate::llm::{EmbedFunc, LlmFunc};
 pub type BroadcastQuestionFunc = Arc<dyn Fn(&str, &[f32], &str) + Send + Sync>;
 
 fn strip_name_prefixes(raw: &str) -> String {

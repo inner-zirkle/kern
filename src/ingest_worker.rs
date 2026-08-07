@@ -9,9 +9,9 @@ use crate::ingest_embed::embed_chunks;
 use crate::ingest_outcome::{FailureReport, Outcome, OutcomeStatus};
 use crate::ingest_place::{document_kind, place_chunks, place_document};
 use crate::llm::Client as LlmClient;
-use crate::log_throttle::LogThrottle;
 use crate::math::clamp_confidence;
 use crate::util;
+use crate::util::LogThrottle;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 

@@ -261,7 +261,7 @@ fn topic_entity(t: usize, i: usize) -> Entity {
 #[test]
 #[ignore = "drives the real cluster+name+promote loop; minutes in release"]
 fn root_width_growth() {
-	use kern::types::{EmbedFunc, LlmFunc};
+	use kern::llm::{EmbedFunc, LlmFunc};
 	use parking_lot::RwLock;
 	use std::sync::Arc;
 

@@ -16,7 +16,7 @@ pub use crate::ingest_config::{review_for, valid_until_from_retention, Config, R
 pub use crate::ingest_outcome::{FailureReport, Outcome, OutcomeStatus};
 pub(crate) use crate::ingest_worker::Job;
 pub use crate::ingest_worker::Worker;
-pub use crate::types::LlmFunc;
+pub use crate::llm::LlmFunc;
 
 pub use crate::ingest_config as config;
 pub use crate::ingest_dedup as dedup;

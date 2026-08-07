@@ -10,7 +10,7 @@ use crate::math::clamp_confidence;
 use crate::reason::move_entity;
 use crate::search::find_entity;
 use crate::util::explain_relationship_prompt;
-use crate::validate::validate_conf;
+use crate::util::validate_conf;
 
 pub(crate) fn tool_schemas() -> Vec<serde_json::Value> {
 	vec![

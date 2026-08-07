@@ -3,7 +3,7 @@
 //! counters the health surface reports. Callers get strings and vectors, not
 //! HTTP details.
 
-use crate::log_throttle::LogThrottle;
+use crate::util::LogThrottle;
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -705,6 +705,12 @@ fn strip_think(s: &str) -> String {
 	};
 	clean.trim().to_string()
 }
+
+/// Infallible by convention: an outage arrives as `""` — callers treat `""` as "skip".
+pub type LlmFunc = Arc<dyn Fn(&str) -> String + Send + Sync>;
+
+/// Fallible embedding call; the error string is surfaced to the caller's log.
+pub type EmbedFunc = Arc<dyn Fn(&str) -> Result<Vec<f32>, String> + Send + Sync>;
 
 #[cfg(test)]
 mod tests {

@@ -68,7 +68,7 @@ pub fn distill(
 	// Inline 1-based turn markers so the model can cite which turns a claim is
 	// drawn from; the citation populates Source::Session.section at ingest.
 	let turns = split_turns(conversation);
-	let today = crate::time::date_string(now);
+	let today = crate::util::date_string(now);
 	// Turn-batched chunking: a conversation longer than DISTILL_CHUNK_TURNS is
 	// split into batches of that many turns, each distilled through its own
 	// prompt, so a long delta stops truncating past the model context window
@@ -175,7 +175,7 @@ pub(crate) fn parse_claims(raw: &str, extra_kinds: &[String]) -> Option<Vec<Clai
 			.and_then(|v| v.as_str())
 			.map(str::trim)
 			.filter(|s| !s.is_empty())
-			.and_then(|s| crate::time::parse_rfc3339(s).ok());
+			.and_then(|s| crate::util::parse_rfc3339(s).ok());
 		// 1-based turn citations from the marked transcript; non-integer or < 1
 		// entries are dropped, so a malformed `turns` degrades to empty (uncited),
 		// never to a panic or a wrong turn.
@@ -432,7 +432,7 @@ mod tests {
 			*captured.lock().unwrap() = p.to_string();
 			r#"[{"text":"x","kind":"fact"}]"#.to_string()
 		};
-		let now = crate::time::parse_rfc3339("2026-07-22T00:00:00").unwrap();
+		let now = crate::util::parse_rfc3339("2026-07-22T00:00:00").unwrap();
 		let _ = distill("some conversation about last Tuesday", &[], &llm, now);
 		let prompt = captured.into_inner().unwrap();
 		assert!(

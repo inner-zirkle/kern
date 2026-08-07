@@ -10,7 +10,7 @@ use crate::base_types::{EntityKind, Source};
 use crate::ingest::Worker;
 use crate::ingest_distill::{distill, Claim};
 use crate::ingest_outcome::OutcomeStatus;
-use crate::types::LlmFunc;
+use crate::llm::LlmFunc;
 
 pub type ClaimKindsFn = Arc<dyn Fn() -> Vec<String> + Send + Sync>;
 

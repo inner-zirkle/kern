@@ -509,7 +509,7 @@ pub(crate) fn resolve<'a>(arg: &'a Option<String>, fallback: &'a str) -> &'a str
 
 pub(crate) use crate::llm::{Client, Endpoint};
 
-pub(crate) fn embed_fn(client: &Client) -> crate::types::EmbedFunc {
+pub(crate) fn embed_fn(client: &Client) -> crate::llm::EmbedFunc {
 	let c = client.clone();
 	std::sync::Arc::new(move |text: &str| -> Result<Vec<f32>, String> {
 		let c = c.clone();
@@ -697,7 +697,7 @@ pub(crate) async fn bootstrap(cli: &Cli, cfg: &crate::config::Config) -> EngineH
 	// here — post kern.sock win, pre env open — is the dir held exclusively.
 	// Skipped on takeover: the predecessor holds the env for a few more ms and
 	// just flushed cleanly, so there is nothing to heal and no exclusivity.
-	if !crate::takeover::is_takeover_boot() {
+	if !crate::identity::is_takeover_boot() {
 		maybe_self_heal_store(cfg);
 	}
 
@@ -886,7 +886,7 @@ pub async fn run_server(cli: &Cli, cfg: &crate::config::Config) {
 		let handler = crate::rpc::KernRpcHandler::new(mcp_server.clone(), shutdown.clone());
 		let endpoint = crate::transport::typed::Endpoint::kern();
 		#[cfg(unix)]
-		let bound = if crate::takeover::is_takeover_boot() {
+		let bound = if crate::identity::is_takeover_boot() {
 			match crate::transport::typed::adopt_kern_listener(&endpoint) {
 				Ok(listener) => {
 					tracing::info!(
@@ -963,7 +963,7 @@ pub async fn run_server(cli: &Cli, cfg: &crate::config::Config) {
 		let takeover = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
 		#[cfg(unix)]
 		if cfg.reload.enabled {
-			crate::takeover::spawn_self_watch(shutdown.clone(), takeover.clone(), cfg.reload.poll_secs);
+			crate::identity::spawn_self_watch(shutdown.clone(), takeover.clone(), cfg.reload.poll_secs);
 		}
 
 		println!("kern running in daemon mode (ctrl-c to stop)");
@@ -977,7 +977,7 @@ pub async fn run_server(cli: &Cli, cfg: &crate::config::Config) {
 
 		#[cfg(unix)]
 		if takeover.load(std::sync::atomic::Ordering::SeqCst) {
-			match handover_fd.take().map(crate::takeover::spawn_successor) {
+			match handover_fd.take().map(crate::identity::spawn_successor) {
 				Some(Ok(())) => {
 					eprintln!("handing over to new binary");
 					// exit() on purpose: a normal return runs LocalListener's

@@ -11,9 +11,9 @@ use crate::config::RetrievalConfig;
 use crate::graph::GraphGnn;
 use crate::heat::{self, HeatConfig};
 use crate::lexical::LexicalIndex;
-use crate::log_throttle::LogThrottle;
 use crate::retrieval::expand::{Scored, ScoredEntity};
 use crate::util::cmp_partial;
+use crate::util::LogThrottle;
 use std::collections::HashMap;
 use std::time::{Duration, SystemTime};
 

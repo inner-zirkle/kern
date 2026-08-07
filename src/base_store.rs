@@ -12,8 +12,8 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use crate::base_types::{Embedding, Entity, Kern};
-use crate::log_throttle::LogThrottle;
 use crate::quant::{QuantizationMode, QuantizedVec};
+use crate::util::LogThrottle;
 
 // Headroom is a DURABILITY requirement: a full env fails even the deletes that
 // would free space (MDB_MAP_FULL).

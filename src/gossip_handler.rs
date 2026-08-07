@@ -4,7 +4,7 @@
 
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use crate::log_throttle::LogThrottle;
+use crate::util::LogThrottle;
 use std::sync::Arc;
 use std::time::SystemTime;
 

@@ -5,7 +5,7 @@
 
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use crate::log_throttle::LogThrottle;
+use crate::util::LogThrottle;
 use std::time::SystemTime;
 
 use crate::base_constants as constants;
