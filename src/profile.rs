@@ -1,11 +1,16 @@
+//! Wall-clock phase timing for one operation: mark checkpoints as it runs,
+//! `finish` into per-phase durations for the status/debug surfaces.
+
 use std::time::Instant;
 
+/// One named phase and how long it took, in ms since the previous checkpoint.
 #[derive(Debug, Clone)]
 pub struct Checkpoint {
 	pub label: String,
 	pub elapsed_ms: f64,
 }
 
+/// A finished timing run: ordered phases plus the total.
 #[derive(Debug, Clone)]
 pub struct Profile {
 	pub name: String,
@@ -13,6 +18,7 @@ pub struct Profile {
 	pub total_ms: f64,
 }
 
+/// Collects checkpoints from construction until [`Profiler::finish`].
 pub struct Profiler {
 	name: String,
 	start: Instant,
@@ -28,10 +34,13 @@ impl Profiler {
 		}
 	}
 
+	/// Mark the end of the phase that ran since the previous checkpoint (or start).
 	pub fn checkpoint(&mut self, label: impl Into<String>) {
 		self.checkpoints.push((label.into(), Instant::now()));
 	}
 
+	/// Convert the marks into per-phase durations. Consumes the profiler; the
+	/// total is measured here, not at the last checkpoint.
 	pub fn finish(self) -> Profile {
 		let total = self.start.elapsed().as_secs_f64() * 1000.0;
 		let mut checkpoints = Vec::new();

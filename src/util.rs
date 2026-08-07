@@ -1,5 +1,7 @@
 use sha2::{Digest, Sha256};
 
+/// SHA-256 of the UTF-8 bytes as 64 lowercase hex chars — the stable content
+/// identity used for entity ids and dedup keys.
 pub fn content_hash(s: &str) -> String {
 	let hash = Sha256::digest(s.as_bytes());
 	hex::encode(hash)
@@ -8,6 +10,7 @@ pub fn content_hash(s: &str) -> String {
 pub mod hex {
 	const HEX_CHARS: &[u8; 16] = b"0123456789abcdef";
 
+	/// Encode bytes as lowercase hex, two chars per byte.
 	pub fn encode(bytes: impl AsRef<[u8]>) -> String {
 		let bytes = bytes.as_ref();
 		let mut s = String::with_capacity(bytes.len() * 2);
@@ -44,6 +47,8 @@ pub mod hex {
 	}
 }
 
+/// First 12 chars of an id for log/display use; char-boundary safe, shorter
+/// ids pass through unchanged.
 pub fn short_id(id: &str) -> &str {
 	match id.char_indices().nth(12) {
 		Some((byte_pos, _)) => &id[..byte_pos],
@@ -51,6 +56,8 @@ pub fn short_id(id: &str) -> &str {
 	}
 }
 
+/// Cap `s` at `max` chars, appending `...` only when something was cut;
+/// char-boundary safe.
 pub fn truncate(s: &str, max: usize) -> String {
 	match s.char_indices().nth(max) {
 		Some((byte_pos, _)) => format!("{}...", &s[..byte_pos]),
@@ -58,12 +65,14 @@ pub fn truncate(s: &str, max: usize) -> String {
 	}
 }
 
+/// Total-order shim over `PartialOrd`: incomparable pairs (NaN) compare Equal
+/// instead of panicking, so float sorts stay safe on degenerate scores.
 pub fn cmp_partial<T: PartialOrd>(a: &T, b: &T) -> std::cmp::Ordering {
 	a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)
 }
 
-// Score desc, id asc — the single ranking tiebreak; use at every ranking site
-// or top-k regresses to nondeterministic order.
+/// Score desc, id asc — the single ranking tiebreak; use at every ranking site
+/// or top-k regresses to nondeterministic order.
 pub fn cmp_rank<S: PartialOrd>(
 	a_score: S,
 	a_id: &str,
@@ -73,7 +82,8 @@ pub fn cmp_rank<S: PartialOrd>(
 	cmp_partial(&b_score, &a_score).then_with(|| a_id.cmp(b_id))
 }
 
-// Input must be ascending-sorted; p is a fraction in [0, 1].
+/// Nearest-rank percentile. Input must be ascending-sorted; `p` is a fraction
+/// in `[0, 1]` (clamped). `None` only on an empty slice.
 pub fn percentile_sorted<T: Copy>(sorted: &[T], p: f64) -> Option<T> {
 	if sorted.is_empty() {
 		return None;
@@ -88,6 +98,8 @@ pub fn percentile_sorted<T: Copy>(sorted: &[T], p: f64) -> Option<T> {
 	Some(sorted[rank.clamp(1, sorted.len()) - 1])
 }
 
+/// Nanoseconds since the Unix epoch; 0 on a clock-before-epoch rather than
+/// panicking.
 pub fn now_nanos() -> u128 {
 	std::time::SystemTime::now()
 		.duration_since(std::time::UNIX_EPOCH)
@@ -95,6 +107,7 @@ pub fn now_nanos() -> u128 {
 		.as_nanos()
 }
 
+/// Milliseconds since the Unix epoch; 0 on a clock-before-epoch.
 pub fn now_ms() -> u64 {
 	std::time::SystemTime::now()
 		.duration_since(std::time::UNIX_EPOCH)
@@ -102,6 +115,7 @@ pub fn now_ms() -> u64 {
 		.unwrap_or(0)
 }
 
+/// Seconds since the Unix epoch; 0 on a clock-before-epoch.
 pub fn now_secs() -> u64 {
 	std::time::SystemTime::now()
 		.duration_since(std::time::UNIX_EPOCH)
@@ -109,6 +123,8 @@ pub fn now_secs() -> u64 {
 		.unwrap_or(0)
 }
 
+/// The LLM prompt asking for the one-sentence reason text on an edge between
+/// two thoughts; both sides are capped at 500 chars to bound prompt size.
 pub fn explain_relationship_prompt(a: &str, b: &str) -> String {
 	format!(
 		"Write one sentence describing the specific connection between these two pieces of knowledge. \
@@ -120,6 +136,8 @@ pub fn explain_relationship_prompt(a: &str, b: &str) -> String {
 	)
 }
 
+/// A random RFC 4122 v4 UUID string, minted from the thread-local RNG —
+/// avoids a uuid-crate dependency for the one place ids are minted.
 pub fn uuid_v4() -> String {
 	use rand::RngExt;
 	let mut rng = rand::rng();

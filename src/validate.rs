@@ -1,4 +1,6 @@
+/// Inclusive lower bound of a confidence weight.
 pub const CONF_MIN: f64 = 0.0;
+/// Inclusive upper bound of a confidence weight.
 pub const CONF_MAX: f64 = 1.0;
 
 #[derive(Debug, thiserror::Error, PartialEq)]
@@ -7,6 +9,8 @@ pub enum ValidateError {
 	ConfOutOfRange(f64),
 }
 
+/// Accept a confidence weight iff it is a real number in `[0.0, 1.0]`;
+/// NaN is rejected, not clamped — a caller sending NaN has a bug to hear about.
 pub fn validate_conf(conf: f64) -> Result<f64, ValidateError> {
 	if conf.is_nan() || !(CONF_MIN..=CONF_MAX).contains(&conf) {
 		return Err(ValidateError::ConfOutOfRange(conf));
