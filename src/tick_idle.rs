@@ -1,3 +1,7 @@
+//! Idle-kern eviction: kerns unaccessed past the timeout are flushed and
+//! unloaded so the resident set tracks use, not history. A never-accessed kern
+//! is NOT idle — on a fresh boot that state describes the whole graph.
+
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 

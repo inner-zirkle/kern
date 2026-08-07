@@ -1,4 +1,6 @@
-// Not yet wired into the live search path.
+//! Vamana-style disk ANN: build a graph index into one file, mmap it, and
+//! search with O(1) resident memory — the disk half of [`crate::vector_backend`].
+//! Standalone build/open/search; not yet wired into the live search path.
 
 use std::collections::{BTreeSet, HashSet};
 use std::io::{self, Write};

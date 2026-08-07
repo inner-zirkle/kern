@@ -1,3 +1,9 @@
+//! Heat-driven GC: on the hourly cadence, decay each resident entity's access
+//! heat, spill cold victims to the store's cold tier (drop only when no store
+//! is bound — counted, not silent), and optionally decay Bayesian evidence
+//! toward the Jeffreys prior. Facts are immune; future-stamped entities are
+//! skipped and counted as clock skew.
+
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::SystemTime;

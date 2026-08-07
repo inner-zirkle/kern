@@ -1,3 +1,8 @@
+//! The query orchestrator: seed → expand → merge → boost → gravity → trust →
+//! filter → diversify, in that order, returning scored entities with their
+//! provenance chains. The one place the pipeline's stage order is spelled out;
+//! every stage lives in its own `retrieval_*` module.
+
 use crate::base_constants::QUERY_MAX_CHAINS;
 use crate::config::RetrievalConfig;
 use crate::graph::GraphGnn;

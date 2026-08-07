@@ -1,3 +1,7 @@
+//! The ANN index seam: a kern's vectors live either resident in an
+//! [`HnswIndex`] or behind a mmap'd [`DiskIndex`] snapshot with a small
+//! resident overlay — one enum so search and eviction never care which.
+
 use std::collections::HashSet;
 
 use super::diskann::DiskIndex;

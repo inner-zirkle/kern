@@ -1,3 +1,8 @@
+//! The blocking LLM and embedding HTTP client (OpenAI-compatible and Ollama
+//! endpoints): request shaping, auth, retry-on-transient, and the failure
+//! counters the health surface reports. Callers get strings and vectors, not
+//! HTTP details.
+
 use crate::log_throttle::LogThrottle;
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
 use serde::{Deserialize, Serialize};

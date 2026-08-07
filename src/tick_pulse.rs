@@ -1,3 +1,8 @@
+//! The pulse: a decaying activation wave that fans out from an active kern and
+//! enqueues cluster work for every kern it still reaches above threshold, plus
+//! the interval gates that piggyback on it (GC sweep, idle sweep, disk
+//! consolidation) — single-flighted so concurrent pulses cannot double-fire.
+
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 

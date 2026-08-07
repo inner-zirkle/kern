@@ -1,3 +1,7 @@
+//! In-memory HNSW index over cosine distance, storing vectors in the store's
+//! quantization mode so RAM cost matches disk cost. Deterministic level
+//! assignment (hash of the id, not RNG) keeps rebuilds reproducible.
+
 use super::math::cosine_distance;
 use super::util::{cmp_partial, content_hash};
 use crate::quant::{quantized_cosine_distance, QuantizationMode, QuantizedVec};

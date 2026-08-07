@@ -1,3 +1,7 @@
+//! Greedy cosine clustering of a kern's entities, sampled and parallelised —
+//! the shape detector behind kern splitting and naming: a cohesive-enough
+//! cluster earns a name; the core cluster stays with its graviton.
+
 use crate::base_constants::{
 	KERN_COHESION_THRESHOLD, KERN_NAMING_COHESION_THRESHOLD, KERN_NAMING_MIN_CLUSTER_SIZE,
 };

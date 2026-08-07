@@ -1,3 +1,7 @@
+//! Vector quantization: f32 embeddings stored as int8 with a per-vector scale
+//! (4x smaller, cosine error within rounding) or kept f32 — the mode is
+//! stamped into the store and must match at open.
+
 use serde::{Deserialize, Serialize};
 
 const INT8_MAX_ABS: f32 = 127.0;

@@ -1,3 +1,8 @@
+//! Scoring policy: the confidence/fact/lexical boosts, query-based stigmergy
+//! (access + recency), remote-trust down-weighting, the status/TTL/pending
+//! filters, and the sort options — every rule that turns a similarity into a
+//! deliverable rank.
+
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::base_constants::CONFIDENCE_BOUND_K;

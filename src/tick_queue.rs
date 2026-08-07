@@ -1,3 +1,7 @@
+//! The bounded, deduplicating tick task queue: one slot per `(kind, kern)` so
+//! a slow consumer coalesces repeat requests instead of queueing them, with
+//! fault counters per task kind for the health surface.
+
 use parking_lot::Mutex;
 use std::collections::HashMap;
 use std::time::Duration;

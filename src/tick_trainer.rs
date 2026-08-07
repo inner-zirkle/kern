@@ -1,3 +1,8 @@
+//! The single GNN training thread. Kerns submit snapshots through a small
+//! bounded channel; one trains at a time, repeats for a kern already waiting
+//! are coalesced, and overflow is refused and counted rather than queued —
+//! training is advisory, the tick loop must never block on it.
+
 use std::collections::HashSet;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{sync_channel, SyncSender};

@@ -1,3 +1,7 @@
+//! The BM25 lexical index over entity documents (an entity's statements plus
+//! its rephrase wordings), kept incrementally in sync with the graph — the
+//! exact-term recall leg that embedding similarity alone would miss.
+
 use super::graph::GraphGnn;
 use crate::base_types::{Entity, Kern, ReasonKind};
 use std::collections::HashMap;

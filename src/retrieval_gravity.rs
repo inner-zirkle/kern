@@ -1,3 +1,7 @@
+//! Graviton pull on ranking: results in kerns whose graviton the query is
+//! close to are boosted, with mass scaling the pull — the retrieval half of
+//! the focus-attractor feature (ingest routing is the other half).
+
 use crate::accept::root_graviton_ids;
 use crate::base_types::Kern;
 use crate::config::RetrievalConfig;

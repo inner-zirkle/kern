@@ -1,3 +1,7 @@
+//! Merge seed hits with walk-expanded results into one candidate list,
+//! softmax-normalising scores so direct hits and chain-reached entities
+//! compete on one scale without a raw-score cliff between them.
+
 use crate::graph::GraphGnn;
 use crate::math::OnlineSoftmax;
 use crate::retrieval::expand::{find_entity_ref_in_graph, ScoredRef};

@@ -1,3 +1,7 @@
+//! Vector and scoring math: SIMD-pathed cosine, vector averaging, online
+//! softmax, importance and radius scoring, and the deterministic reason-id
+//! mint — pure functions, no graph state.
+
 use super::util;
 use crate::base_constants::*;
 use crate::base_types::{EntityKind, ReasonKind};

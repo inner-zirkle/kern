@@ -1,3 +1,7 @@
+//! Weighted reciprocal-rank fusion: merge several ranked hit lists into one by
+//! summing `weight / (k + rank)` per entity — rank-based, so lists whose raw
+//! scores are not comparable (content vs GNN vs lexical) can still be fused.
+
 use crate::search::EntityHit;
 use std::collections::HashMap;
 

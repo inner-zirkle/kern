@@ -1,3 +1,8 @@
+//! The LLM-leg tick tasks: name a cohesive cluster, enrich an unnamed kern,
+//! seed open questions, classify contradictions into supersedes, and resolve
+//! questions against new knowledge. Each takes the graph lock briefly per
+//! step and treats an empty LLM reply as "skip", never as an error.
+
 use std::sync::Arc;
 
 use parking_lot::RwLock;

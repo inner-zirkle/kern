@@ -1,3 +1,7 @@
+//! Seeding: the first candidate set for a query, fused from the content index,
+//! the GNN-propagated index, and BM25 lexical hits per the mode's weights,
+//! with importance fallbacks so an empty ANN result still seeds a walk.
+
 use crate::config::RetrievalConfig;
 use crate::graph::GraphGnn;
 use crate::lexical::LexicalIndex;

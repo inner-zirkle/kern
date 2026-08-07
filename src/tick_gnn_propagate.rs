@@ -1,3 +1,7 @@
+//! The tick's GNN leg: snapshot a kern's entities and edges without holding
+//! the lock through training, hand the snapshot to the [`crate::tick_trainer::Trainer`], and fold
+//! the propagated embeddings back into the graph's GNN index when they return.
+
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 

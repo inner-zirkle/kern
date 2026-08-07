@@ -1,3 +1,8 @@
+//! The background loop. [`start`] spawns the consumer that drains the task
+//! [`Queue`] — clustering, naming, enrichment, question seeding, GNN
+//! propagation, GC — one task at a time against the shared graph; [`tick_sync`]
+//! runs the same drain inline for tests and one-shot commands.
+
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 

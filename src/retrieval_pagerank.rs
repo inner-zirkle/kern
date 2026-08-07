@@ -1,3 +1,7 @@
+//! Personalized PageRank over the reason graph, teleporting to the seed hits:
+//! an authority signal that rewards entities the graph itself keeps pointing
+//! at, fused into ranking alongside content and lexical scores.
+
 use crate::graph::GraphGnn;
 use crate::search::EntityHit;
 use std::cell::Cell;
