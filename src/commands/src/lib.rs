@@ -1,6 +1,6 @@
 //! The CLI: clap definitions and dispatch. Every subcommand body lives in a
-//! `commands_*` module; this file owns argument shapes and the shared
-//! client/daemon plumbing they call into.
+//! sibling `commands_*` submodule of this crate; this file owns argument
+//! shapes and the shared client/daemon plumbing they call into.
 
 pub mod commands_admin;
 pub(crate) mod commands_graph_ops;
