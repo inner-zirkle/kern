@@ -1,3 +1,6 @@
+//! A lock-free once-per-interval gate for warns on hot paths: the counters
+//! behind a throttled warn stay exact, only the printed line is rationed.
+
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 

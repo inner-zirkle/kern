@@ -1,3 +1,6 @@
+//! Minimal RFC 3339 parsing and rendering without a chrono dependency:
+//! Howard Hinnant's civil-date algorithms, round-tripping by construction.
+
 pub(crate) fn parse_rfc3339(s: &str) -> Result<std::time::SystemTime, ()> {
 	let s = s.trim();
 	// The fixed slices below read bytes 0..19: length must be checked AFTER the

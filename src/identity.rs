@@ -1,3 +1,8 @@
+//! Build and config identity: fingerprints of the running binary and resolved
+//! config, powering the attach-time staleness check and auto-restart. An
+//! unreadable executable yields an EMPTY id — unknown must never read as
+//! stale, or an unreadable /proc restarts the daemon on every attach.
+
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::OnceLock;
 

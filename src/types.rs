@@ -1,3 +1,5 @@
+//! The LLM/embed closure aliases shared by ingest, tick, and retrieval.
+
 use std::sync::Arc;
 
 /// Infallible by convention: an outage arrives as `""` — callers treat `""` as "skip".

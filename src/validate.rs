@@ -1,3 +1,6 @@
+//! Input validation shared by every write surface; reject, never clamp — a
+//! caller sending garbage has a bug to hear about.
+
 /// Inclusive lower bound of a confidence weight.
 pub const CONF_MIN: f64 = 0.0;
 /// Inclusive upper bound of a confidence weight.

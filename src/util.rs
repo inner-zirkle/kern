@@ -1,3 +1,7 @@
+//! Small shared utilities: content hashing, hex, id shortening, total-order
+//! float comparison, the ranking tiebreak, percentiles, clock reads, and the
+//! dependency-free UUID mint.
+
 use sha2::{Digest, Sha256};
 
 /// SHA-256 of the UTF-8 bytes as 64 lowercase hex chars — the stable content
