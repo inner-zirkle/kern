@@ -640,10 +640,10 @@ pub async fn dispatch(cmd: Commands, cfg: &crate::config::Config) {
 			.await
 		}
 
-		Commands::Status => crate::commands_status::cmd_status(cfg).await,
+		Commands::Status => crate::commands_admin::cmd_status(cfg).await,
 		Commands::Health => crate::commands_admin::cmd_health(cfg).await,
 		Commands::Profile { text, no_llm } => {
-			crate::commands_profile_cmd::cmd_profile(cfg, &text, no_llm).await
+			crate::commands_query::cmd_profile(cfg, &text, no_llm).await
 		}
 		Commands::Gc => crate::commands_admin::cmd_gc(cfg),
 		Commands::Compact => crate::commands_admin::cmd_compact(cfg),

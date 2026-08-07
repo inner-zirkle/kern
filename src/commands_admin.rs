@@ -405,6 +405,631 @@ fn llm_health_lines(h: Option<&crate::transport::kern_rpc::HealthRes>) -> Vec<St
 	}
 	lines
 }
+
+// Daemon must be stopped: a live daemon would race and re-persist the bloated graph.
+pub(crate) fn cmd_gc(cfg: &crate::config::Config) {
+	let _lock = match crate::lock::acquire(&cfg.data_dir, "gc") {
+		Ok(l) => l,
+		Err(e) => {
+			eprintln!("gc: {e}");
+			eprintln!("  stop it first — a live daemon re-persists the graph this reaped from");
+			return;
+		}
+	};
+	let mut g = load_graph(cfg);
+	let (before, reaped, after) = g.gc_empty_kerns_counted();
+	save_graph_unguarded(&g);
+	println!("gc: reaped {reaped} empty kerns ({before} -> {after})");
+
+	// Drop the graph FIRST to release its env handle: compact_dir closes its own
+	// env deterministically — a lazy drop on Windows leaves data.mdb mmap'd.
+	drop(g);
+	match crate::base_store::compact_dir(&cfg.data_dir) {
+		Ok((old, new)) => println!(
+			"gc: compacted data.mdb {} -> {} ({:.0}% reclaimed)",
+			human_bytes(old),
+			human_bytes(new),
+			if old > new && old > 0 {
+				(old - new) as f64 * 100.0 / old as f64
+			} else {
+				0.0
+			},
+		),
+		Err(e) => eprintln!("gc: compaction failed: {e}"),
+	}
+}
+
+// Daemon must be stopped: compaction swaps data.mdb underneath any open env.
+pub(crate) fn cmd_compact(cfg: &crate::config::Config) {
+	let _lock = match crate::lock::acquire(&cfg.data_dir, "compact") {
+		Ok(l) => l,
+		Err(e) => {
+			eprintln!("compact: {e}");
+			eprintln!("  stop it first — compaction renames data.mdb under any open environment");
+			return;
+		}
+	};
+	match crate::base_store::compact_dir(&cfg.data_dir) {
+		Ok((old, new)) => println!(
+			"compact: data.mdb {} -> {} ({:.0}% reclaimed)",
+			human_bytes(old),
+			human_bytes(new),
+			if old > 0 {
+				(old - new) as f64 * 100.0 / old as f64
+			} else {
+				0.0
+			},
+		),
+		Err(e) => eprintln!("compact: failed: {e}"),
+	}
+}
+
+fn human_bytes(n: u64) -> String {
+	const U: [&str; 5] = ["B", "KiB", "MiB", "GiB", "TiB"];
+	let mut v = n as f64;
+	let mut i = 0;
+	while v >= 1024.0 && i < U.len() - 1 {
+		v /= 1024.0;
+		i += 1;
+	}
+	if i == 0 {
+		format!("{n} B")
+	} else {
+		format!("{v:.1} {}", U[i])
+	}
+}
+
+fn print_graviton_added(name: &str, mass: f64) {
+	println!("graviton added: {name} (mass {mass})");
+}
+
+fn print_graviton_removed(name: &str) {
+	println!("graviton removed: {name}");
+}
+
+pub(crate) async fn cmd_graviton(cfg: &crate::config::Config, action: GravitonAction) {
+	graviton_at(cfg, &Endpoint::kern(), &crate::rpc::caller_of(cfg), action).await
+}
+
+// Routed first for the same reason as forget: `with_graph` writes the whole kern
+// map back unguarded, so a local graviton edit beside a serving daemon drops
+// everything that daemon has committed since this process loaded.
+async fn graviton_at(
+	cfg: &crate::config::Config,
+	endpoint: &Endpoint,
+	auth: &AuthReq,
+	action: GravitonAction,
+) {
+	match action {
+		GravitonAction::Add {
+			name,
+			text,
+			mass,
+			embed,
+		} => {
+			let mass = mass.unwrap_or(1.0);
+			// Routed before the embed: the daemon owns the vector it stores, and
+			// embedding here would be a second call to the same model for nothing.
+			match route_to(
+				endpoint,
+				auth,
+				"graviton",
+				serde_json::json!({"action": "add", "name": &name, "text": &text, "mass": mass}),
+			)
+			.await
+			{
+				Routed::Done(_) => return print_graviton_added(&name, mass),
+				Routed::Refused(e) => return eprintln!("{e}"),
+				Routed::NoDaemon => {}
+			}
+			let (url, model) = embed.resolve(cfg);
+			let llm_client = Client::new_embed_only(url, model, &cfg.embed.key);
+			// Multi-line seed = example statements, embedded separately and
+			// mean-pooled (see accept::seed_examples for the measurement).
+			let mut vecs = Vec::new();
+			for ex in crate::accept::seed_examples(&text) {
+				match llm_client.embed(&ex).await {
+					Ok(v) => vecs.push(v),
+					Err(e) => {
+						eprintln!("embed: {e}");
+						return;
+					}
+				}
+			}
+			let Some(vec) = crate::accept::mean_pool(&vecs) else {
+				eprintln!("embed: empty or mismatched embeddings");
+				return;
+			};
+			with_graph(cfg, |g| {
+				crate::accept::add_graviton_with_mass(g, &name, vec, mass)
+			});
+			print_graviton_added(&name, mass);
+		}
+		GravitonAction::List => {
+			let g = load_graph(cfg);
+			println!("gravitons:");
+			for r in graviton_rows(&g) {
+				println!(
+					"  {}  mass:{}  thoughts:{}  reasons:{}",
+					r.name, r.mass, r.thoughts, r.reasons,
+				);
+			}
+		}
+		GravitonAction::Remove { name } => {
+			match route_to(
+				endpoint,
+				auth,
+				"graviton",
+				serde_json::json!({"action": "remove", "name": &name}),
+			)
+			.await
+			{
+				Routed::Done(_) => return print_graviton_removed(&name),
+				Routed::Refused(e) => return eprintln!("{e}"),
+				Routed::NoDaemon => {}
+			}
+			let removed = with_graph(cfg, |g| crate::accept::remove_graviton(g, &name));
+			if removed {
+				print_graviton_removed(&name);
+			} else {
+				eprintln!("graviton not found: {name}");
+			}
+		}
+	}
+}
+
+pub(crate) struct GravitonRow {
+	pub(crate) name: String,
+	pub(crate) mass: f64,
+	pub(crate) thoughts: usize,
+	pub(crate) reasons: usize,
+}
+
+pub(crate) fn graviton_rows(g: &crate::graph::GraphGnn) -> Vec<GravitonRow> {
+	crate::accept::root_graviton_ids(g)
+		.iter()
+		.filter_map(|cid| g.loaded(cid))
+		.map(|c| GravitonRow {
+			name: c.graviton_text.clone(),
+			mass: c.mass,
+			thoughts: c.entities.len(),
+			reasons: c.reasons.len(),
+		})
+		.collect()
+}
+
+fn print_claim_kind_added(name: &str) {
+	println!("claim kind added: {name}");
+}
+
+fn print_claim_kind_removed(name: &str) {
+	println!("claim kind removed: {name}");
+}
+
+pub(crate) async fn cmd_claim_kind(cfg: &crate::config::Config, action: ClaimKindAction) {
+	claim_kind_at(cfg, &Endpoint::kern(), &crate::rpc::caller_of(cfg), action).await
+}
+
+async fn claim_kind_at(
+	cfg: &crate::config::Config,
+	endpoint: &Endpoint,
+	auth: &AuthReq,
+	action: ClaimKindAction,
+) {
+	match action {
+		ClaimKindAction::Add {
+			name,
+			description,
+			parent,
+		} => {
+			match route_to(
+				endpoint,
+				auth,
+				"claim_kind",
+				serde_json::json!({"action": "add", "name": &name, "description": &description, "parent": parent.as_deref().unwrap_or("")}),
+			)
+			.await
+			{
+				Routed::Done(_) => return print_claim_kind_added(&name),
+				Routed::Refused(e) => return eprintln!("{e}"),
+				Routed::NoDaemon => {}
+			}
+			let mut refused: Option<String> = None;
+			with_graph(cfg, |g| {
+				if let Err(e) = g.root.add_claim_kind(
+					&name,
+					&description,
+					parent.as_deref(),
+					&crate::ingest::distill::DEFAULT_KINDS,
+				) {
+					refused = Some(e);
+				}
+			});
+			match refused {
+				Some(e) => eprintln!("{e}"),
+				None => print_claim_kind_added(&name),
+			}
+		}
+		ClaimKindAction::Rm { name } => {
+			match route_to(
+				endpoint,
+				auth,
+				"claim_kind",
+				serde_json::json!({"action": "rm", "name": &name}),
+			)
+			.await
+			{
+				Routed::Done(_) => return print_claim_kind_removed(&name),
+				Routed::Refused(e) => return eprintln!("{e}"),
+				Routed::NoDaemon => {}
+			}
+			with_graph(cfg, |g| {
+				g.root.rm_claim_kind(&name);
+			});
+			print_claim_kind_removed(&name);
+		}
+	}
+}
+
+pub(crate) fn cmd_peers(cfg: &crate::config::Config) {
+	print!("{}", peers_summary(cfg));
+}
+
+fn peers_summary(cfg: &crate::config::Config) -> String {
+	let g = &cfg.gossip;
+	let mut out = String::new();
+	if !g.enabled {
+		out.push_str("gossip:  disabled\n");
+		out.push_str("  enable with [gossip] enabled = true in kern.toml\n");
+		return out;
+	}
+	out.push_str("gossip:     enabled\n");
+	out.push_str(&format!("addr:       {}\n", g.addr));
+	out.push_str(&format!(
+		"discovery:  {} (udp :{})\n",
+		if g.discovery { "on" } else { "off" },
+		g.discovery_port
+	));
+	if g.peers.is_empty() {
+		out.push_str("peers:      (none configured)\n");
+	} else {
+		out.push_str(&format!("peers ({}):\n", g.peers.len()));
+		for p in &g.peers {
+			out.push_str(&format!("  {p}\n"));
+		}
+	}
+	out.push_str("  (runtime-discovered peers visible in daemon logs)\n");
+	out
+}
+
+pub(crate) fn cmd_register(cfg: &crate::config::Config, path: &str) {
+	// The loaded graph is bound to the SOURCE store, so write into a freshly
+	// opened destination store — save_graph_unguarded would write back to the source.
+	match crate::persist::load_dir(path) {
+		Ok(g) => match crate::base_store::Store::open(&cfg.data_dir) {
+			Ok(dest) => {
+				let _ = crate::persist::save_graph_into(&dest, &g);
+				println!("registered {path}");
+			}
+			Err(e) => eprintln!("register: {e}"),
+		},
+		Err(e) => eprintln!("load: {e}"),
+	}
+}
+
+pub(crate) async fn cmd_unnamed(cfg: &crate::config::Config, action: UnnamedAction) {
+	match action {
+		UnnamedAction::List => {
+			let g = load_graph(cfg);
+			let mut found = false;
+			for k in g.all() {
+				if k.is_unnamed() {
+					println!(
+						"unnamed  id:{}  thoughts:{}",
+						short_id(&k.id),
+						k.entities.len()
+					);
+					found = true;
+				}
+			}
+			if !found {
+				println!("no unnamed kerns");
+			}
+		}
+		UnnamedAction::Promote {
+			id,
+			name,
+			text,
+			mass,
+			embed,
+		} => {
+			let mass = mass.unwrap_or(1.0);
+			let (url, model) = embed.resolve(cfg);
+			let llm_client = Client::new_embed_only(url, model, &cfg.embed.key);
+			let mut vecs = Vec::new();
+			for ex in crate::accept::seed_examples(&text) {
+				match llm_client.embed(&ex).await {
+					Ok(v) => vecs.push(v),
+					Err(e) => {
+						eprintln!("embed: {e}");
+						return;
+					}
+				}
+			}
+			let Some(vec) = crate::accept::mean_pool(&vecs) else {
+				eprintln!("embed: empty or mismatched embeddings");
+				return;
+			};
+			// Resolve a short id to the full kern id the way `kern unnamed` prints it.
+			let full = {
+				let g = load_graph(cfg);
+				g.all()
+					.into_iter()
+					.map(|k| k.id.clone())
+					.find(|kid| short_id(kid) == id || kid == &id)
+			};
+			let Some(full) = full else {
+				eprintln!("no unnamed kern matching id {id}");
+				return;
+			};
+			with_graph(cfg, |g| {
+				if let Err(e) = crate::accept::promote_unnamed(g, &full, &name, vec.clone(), mass) {
+					eprintln!("{e}");
+				}
+			});
+			println!("promoted unnamed {id} -> graviton {name} (mass {mass})");
+		}
+	}
+}
+
+fn default_root() -> String {
+	let cwd = std::env::current_dir().unwrap_or_default();
+	crate::config::Config::resolve_root(&cwd)
+		.display()
+		.to_string()
+}
+
+pub(crate) async fn cmd_hub(action: Option<crate::commands::HubAction>, idle_unload_secs: u64) {
+	use crate::transport::hub_rpc::{HubRpcClient, ResolveReq, UnloadReq};
+	use crate::transport::typed::JsonEnvelopeCodec;
+
+	match action {
+		None => crate::hub::run_hub(idle_unload_secs).await,
+		Some(crate::commands::HubAction::Resolve { root }) => {
+			let root = root.unwrap_or_else(default_root);
+			let client = match HubRpcClient::<JsonEnvelopeCodec>::connect_hub().await {
+				Ok(c) => c,
+				Err(e) => {
+					eprintln!("hub: not running ({e})");
+					return;
+				}
+			};
+			match client.resolve(ResolveReq { root: root.clone() }).await {
+				Ok(res) if res.ok => println!(
+					"{}  {}",
+					if res.spawned { "spawned" } else { "running" },
+					res.endpoint
+				),
+				Ok(res) => eprintln!("resolve {root}: {}", res.err),
+				Err(e) => eprintln!("hub resolve: {e}"),
+			}
+		}
+		Some(crate::commands::HubAction::Status) => {
+			let client = match HubRpcClient::<JsonEnvelopeCodec>::connect_hub().await {
+				Ok(c) => c,
+				Err(e) => {
+					eprintln!("hub: not running ({e})");
+					return;
+				}
+			};
+			match client.status().await {
+				Ok(res) => {
+					if res.nodes.is_empty() {
+						println!("hub: running, no nodes");
+					}
+					for n in res.nodes {
+						println!(
+							"{}  pid:{}  {}  {}",
+							if n.alive { "up  " } else { "dead" },
+							n.pid,
+							n.root,
+							n.endpoint
+						);
+					}
+				}
+				Err(e) => eprintln!("hub status: {e}"),
+			}
+		}
+		Some(crate::commands::HubAction::Unload { root }) => {
+			let root = root.unwrap_or_else(default_root);
+			let client = match HubRpcClient::<JsonEnvelopeCodec>::connect_hub().await {
+				Ok(c) => c,
+				Err(e) => {
+					eprintln!("hub: not running ({e})");
+					return;
+				}
+			};
+			match client.unload(UnloadReq { root: root.clone() }).await {
+				Ok(res) if res.ok && res.existed => println!("unloaded {root}"),
+				Ok(res) if res.ok => println!("no node for {root}"),
+				Ok(res) => eprintln!("unload {root}: {}", res.err),
+				Err(e) => eprintln!("hub unload: {e}"),
+			}
+		}
+		Some(crate::commands::HubAction::Merge { src, dst }) => cmd_hub_merge(&src, &dst).await,
+		Some(crate::commands::HubAction::Stop) => {
+			match HubRpcClient::<JsonEnvelopeCodec>::connect_hub().await {
+				Ok(client) => match client.stop().await {
+					Ok(_) => println!("hub stopped (nodes stay up)"),
+					Err(e) => eprintln!("hub stop: {e}"),
+				},
+				Err(e) => eprintln!("hub: not running ({e})"),
+			}
+		}
+	}
+}
+
+// Offline CRDT union: src's rows and topology join dst's store; src is never
+// written. Both daemons must be down — the store is single-writer and a live
+// daemon's flush would clobber the merge.
+async fn cmd_hub_merge(src: &str, dst: &str) {
+	use crate::transport::hub_rpc::{HubRpcClient, UnloadReq};
+	use crate::transport::typed::JsonEnvelopeCodec;
+
+	let canon = |s: &str| -> Option<std::path::PathBuf> {
+		let p = std::path::Path::new(s).canonicalize().ok()?;
+		Some(crate::config::Config::resolve_root(&p))
+	};
+	let Some(src_root) = canon(src) else {
+		eprintln!("merge: src {src} does not exist");
+		return;
+	};
+	let Some(dst_root) = canon(dst) else {
+		eprintln!("merge: dst {dst} does not exist");
+		return;
+	};
+	if src_root == dst_root {
+		eprintln!(
+			"merge: src and dst are the same root {}",
+			src_root.display()
+		);
+		return;
+	}
+	if !src_root.join(".kern").is_dir() {
+		eprintln!("merge: src {} has no .kern store", src_root.display());
+		return;
+	}
+
+	if let Ok(client) = HubRpcClient::<JsonEnvelopeCodec>::connect_hub().await {
+		for root in [&src_root, &dst_root] {
+			let _ = client
+				.unload(UnloadReq {
+					root: root.display().to_string(),
+				})
+				.await;
+		}
+	}
+	for root in [&src_root, &dst_root] {
+		if crate::hub::probe(root).await {
+			eprintln!(
+				"merge: a daemon still serves {} — stop it first",
+				root.display()
+			);
+			return;
+		}
+	}
+
+	// Fallback must stay pinned to the root: a bare `Config::default()` carries a
+	// cwd-relative data_dir and would read (and write!) whatever store the
+	// caller happens to stand in.
+	let src_cfg = match crate::config::Config::load(&src_root) {
+		Ok(c) => c,
+		Err(e) => {
+			eprintln!("merge: src config error: {e}");
+			return;
+		}
+	};
+	let dst_cfg = match crate::config::Config::load(&dst_root) {
+		Ok(c) => c,
+		Err(e) => {
+			eprintln!("merge: dst config error: {e}");
+			return;
+		}
+	};
+	let src_g = load_graph(&src_cfg);
+	let mut dst_g = load_graph(&dst_cfg);
+
+	let src_h = crate::health::graph_health_stats(&src_g);
+	if src_h.entities == 0 {
+		eprintln!("merge: src {} holds no entities", src_root.display());
+		return;
+	}
+	let before = crate::health::graph_health_stats(&dst_g);
+	let changed = crate::merge::absorb_graph(&mut dst_g, src_g);
+	save_graph_unguarded(&dst_g);
+	let after = crate::health::graph_health_stats(&dst_g);
+	println!(
+		"merged {} -> {}: {} rows joined, entities {} -> {}, kerns {} -> {} (src untouched)",
+		src_root.display(),
+		dst_root.display(),
+		changed,
+		before.entities,
+		after.entities,
+		before.kerns,
+		after.kerns,
+	);
+}
+
+use crate::transport::kern_rpc::KernRpcClient;
+use crate::transport::typed::JsonEnvelopeCodec;
+
+pub(crate) async fn cmd_status(cfg: &crate::config::Config) {
+	let kern_ep = Endpoint::kern();
+	let hub_ep = Endpoint::hub();
+
+	println!("data dir     {}", cfg.data_dir);
+	println!("kern socket  {}", kern_ep.display());
+
+	let caller = crate::rpc::caller_of(cfg);
+	let daemon = probe(&kern_ep, &caller).await;
+	match &daemon {
+		Some(h) => println!(
+			"daemon       serving  ({} kerns, {} entities, idle {}s)",
+			h.kerns,
+			h.entities,
+			h.idle_ms / 1000
+		),
+		None => println!("daemon       not serving this directory"),
+	}
+
+	match probe(&hub_ep, &caller).await {
+		Some(_) => println!("hub          running   {}", hub_ep.display()),
+		None => println!("hub          not running"),
+	}
+
+	// Read AFTER the probes: a daemon that answers but holds no lock is the
+	// state worth seeing, and it is exactly what an older binary produces.
+	match crate::lock::holder(&cfg.data_dir) {
+		Some(who) => {
+			println!("writer lock  held by {who}");
+			println!();
+			println!("Offline admin commands (reembed, compact, gc) will refuse while it is held.");
+		}
+		None => {
+			println!("writer lock  free");
+			if daemon.is_some() {
+				println!();
+				println!(
+					"A daemon is serving but holds no writer lock — it predates the lock, or could not \
+					 take it. Offline admin commands will NOT be refused; stop it before running one."
+				);
+			}
+		}
+	}
+}
+
+// One attempt, no retry: status must answer instantly when nothing is there.
+// A caller the daemon refuses reads as "not serving" here, the same as one that
+// found nothing — this line describes reachability, and an unreachable daemon is
+// unreachable either way. `route` is where the distinction has teeth.
+async fn probe(
+	ep: &Endpoint,
+	auth: &crate::transport::kern_rpc::AuthReq,
+) -> Option<crate::transport::kern_rpc::HealthRes> {
+	KernRpcClient::<JsonEnvelopeCodec>::connect_endpoint_with_retry(
+		ep,
+		auth,
+		1,
+		std::time::Duration::ZERO,
+	)
+	.await
+	.ok()?
+	.health()
+	.await
+	.ok()
+	.filter(|h| h.ok)
+}
+
 #[cfg(test)]
 mod degradation_lines_tests {
 	use super::*;
@@ -784,302 +1409,6 @@ mod degradation_lines_tests {
 	}
 }
 
-// Daemon must be stopped: a live daemon would race and re-persist the bloated graph.
-pub(crate) fn cmd_gc(cfg: &crate::config::Config) {
-	let _lock = match crate::lock::acquire(&cfg.data_dir, "gc") {
-		Ok(l) => l,
-		Err(e) => {
-			eprintln!("gc: {e}");
-			eprintln!("  stop it first — a live daemon re-persists the graph this reaped from");
-			return;
-		}
-	};
-	let mut g = load_graph(cfg);
-	let (before, reaped, after) = g.gc_empty_kerns_counted();
-	save_graph_unguarded(&g);
-	println!("gc: reaped {reaped} empty kerns ({before} -> {after})");
-
-	// Drop the graph FIRST to release its env handle: compact_dir closes its own
-	// env deterministically — a lazy drop on Windows leaves data.mdb mmap'd.
-	drop(g);
-	match crate::base_store::compact_dir(&cfg.data_dir) {
-		Ok((old, new)) => println!(
-			"gc: compacted data.mdb {} -> {} ({:.0}% reclaimed)",
-			human_bytes(old),
-			human_bytes(new),
-			if old > new && old > 0 {
-				(old - new) as f64 * 100.0 / old as f64
-			} else {
-				0.0
-			},
-		),
-		Err(e) => eprintln!("gc: compaction failed: {e}"),
-	}
-}
-
-// Daemon must be stopped: compaction swaps data.mdb underneath any open env.
-pub(crate) fn cmd_compact(cfg: &crate::config::Config) {
-	let _lock = match crate::lock::acquire(&cfg.data_dir, "compact") {
-		Ok(l) => l,
-		Err(e) => {
-			eprintln!("compact: {e}");
-			eprintln!("  stop it first — compaction renames data.mdb under any open environment");
-			return;
-		}
-	};
-	match crate::base_store::compact_dir(&cfg.data_dir) {
-		Ok((old, new)) => println!(
-			"compact: data.mdb {} -> {} ({:.0}% reclaimed)",
-			human_bytes(old),
-			human_bytes(new),
-			if old > 0 {
-				(old - new) as f64 * 100.0 / old as f64
-			} else {
-				0.0
-			},
-		),
-		Err(e) => eprintln!("compact: failed: {e}"),
-	}
-}
-
-fn human_bytes(n: u64) -> String {
-	const U: [&str; 5] = ["B", "KiB", "MiB", "GiB", "TiB"];
-	let mut v = n as f64;
-	let mut i = 0;
-	while v >= 1024.0 && i < U.len() - 1 {
-		v /= 1024.0;
-		i += 1;
-	}
-	if i == 0 {
-		format!("{n} B")
-	} else {
-		format!("{v:.1} {}", U[i])
-	}
-}
-
-fn print_graviton_added(name: &str, mass: f64) {
-	println!("graviton added: {name} (mass {mass})");
-}
-
-fn print_graviton_removed(name: &str) {
-	println!("graviton removed: {name}");
-}
-
-pub(crate) async fn cmd_graviton(cfg: &crate::config::Config, action: GravitonAction) {
-	graviton_at(cfg, &Endpoint::kern(), &crate::rpc::caller_of(cfg), action).await
-}
-
-// Routed first for the same reason as forget: `with_graph` writes the whole kern
-// map back unguarded, so a local graviton edit beside a serving daemon drops
-// everything that daemon has committed since this process loaded.
-async fn graviton_at(
-	cfg: &crate::config::Config,
-	endpoint: &Endpoint,
-	auth: &AuthReq,
-	action: GravitonAction,
-) {
-	match action {
-		GravitonAction::Add {
-			name,
-			text,
-			mass,
-			embed,
-		} => {
-			let mass = mass.unwrap_or(1.0);
-			// Routed before the embed: the daemon owns the vector it stores, and
-			// embedding here would be a second call to the same model for nothing.
-			match route_to(
-				endpoint,
-				auth,
-				"graviton",
-				serde_json::json!({"action": "add", "name": &name, "text": &text, "mass": mass}),
-			)
-			.await
-			{
-				Routed::Done(_) => return print_graviton_added(&name, mass),
-				Routed::Refused(e) => return eprintln!("{e}"),
-				Routed::NoDaemon => {}
-			}
-			let (url, model) = embed.resolve(cfg);
-			let llm_client = Client::new_embed_only(url, model, &cfg.embed.key);
-			// Multi-line seed = example statements, embedded separately and
-			// mean-pooled (see accept::seed_examples for the measurement).
-			let mut vecs = Vec::new();
-			for ex in crate::accept::seed_examples(&text) {
-				match llm_client.embed(&ex).await {
-					Ok(v) => vecs.push(v),
-					Err(e) => {
-						eprintln!("embed: {e}");
-						return;
-					}
-				}
-			}
-			let Some(vec) = crate::accept::mean_pool(&vecs) else {
-				eprintln!("embed: empty or mismatched embeddings");
-				return;
-			};
-			with_graph(cfg, |g| {
-				crate::accept::add_graviton_with_mass(g, &name, vec, mass)
-			});
-			print_graviton_added(&name, mass);
-		}
-		GravitonAction::List => {
-			let g = load_graph(cfg);
-			println!("gravitons:");
-			for r in graviton_rows(&g) {
-				println!(
-					"  {}  mass:{}  thoughts:{}  reasons:{}",
-					r.name, r.mass, r.thoughts, r.reasons,
-				);
-			}
-		}
-		GravitonAction::Remove { name } => {
-			match route_to(
-				endpoint,
-				auth,
-				"graviton",
-				serde_json::json!({"action": "remove", "name": &name}),
-			)
-			.await
-			{
-				Routed::Done(_) => return print_graviton_removed(&name),
-				Routed::Refused(e) => return eprintln!("{e}"),
-				Routed::NoDaemon => {}
-			}
-			let removed = with_graph(cfg, |g| crate::accept::remove_graviton(g, &name));
-			if removed {
-				print_graviton_removed(&name);
-			} else {
-				eprintln!("graviton not found: {name}");
-			}
-		}
-	}
-}
-
-pub(crate) struct GravitonRow {
-	pub(crate) name: String,
-	pub(crate) mass: f64,
-	pub(crate) thoughts: usize,
-	pub(crate) reasons: usize,
-}
-
-pub(crate) fn graviton_rows(g: &crate::graph::GraphGnn) -> Vec<GravitonRow> {
-	crate::accept::root_graviton_ids(g)
-		.iter()
-		.filter_map(|cid| g.loaded(cid))
-		.map(|c| GravitonRow {
-			name: c.graviton_text.clone(),
-			mass: c.mass,
-			thoughts: c.entities.len(),
-			reasons: c.reasons.len(),
-		})
-		.collect()
-}
-
-fn print_claim_kind_added(name: &str) {
-	println!("claim kind added: {name}");
-}
-
-fn print_claim_kind_removed(name: &str) {
-	println!("claim kind removed: {name}");
-}
-
-pub(crate) async fn cmd_claim_kind(cfg: &crate::config::Config, action: ClaimKindAction) {
-	claim_kind_at(cfg, &Endpoint::kern(), &crate::rpc::caller_of(cfg), action).await
-}
-
-async fn claim_kind_at(
-	cfg: &crate::config::Config,
-	endpoint: &Endpoint,
-	auth: &AuthReq,
-	action: ClaimKindAction,
-) {
-	match action {
-		ClaimKindAction::Add {
-			name,
-			description,
-			parent,
-		} => {
-			match route_to(
-				endpoint,
-				auth,
-				"claim_kind",
-				serde_json::json!({"action": "add", "name": &name, "description": &description, "parent": parent.as_deref().unwrap_or("")}),
-			)
-			.await
-			{
-				Routed::Done(_) => return print_claim_kind_added(&name),
-				Routed::Refused(e) => return eprintln!("{e}"),
-				Routed::NoDaemon => {}
-			}
-			let mut refused: Option<String> = None;
-			with_graph(cfg, |g| {
-				if let Err(e) = g.root.add_claim_kind(
-					&name,
-					&description,
-					parent.as_deref(),
-					&crate::ingest::distill::DEFAULT_KINDS,
-				) {
-					refused = Some(e);
-				}
-			});
-			match refused {
-				Some(e) => eprintln!("{e}"),
-				None => print_claim_kind_added(&name),
-			}
-		}
-		ClaimKindAction::Rm { name } => {
-			match route_to(
-				endpoint,
-				auth,
-				"claim_kind",
-				serde_json::json!({"action": "rm", "name": &name}),
-			)
-			.await
-			{
-				Routed::Done(_) => return print_claim_kind_removed(&name),
-				Routed::Refused(e) => return eprintln!("{e}"),
-				Routed::NoDaemon => {}
-			}
-			with_graph(cfg, |g| {
-				g.root.rm_claim_kind(&name);
-			});
-			print_claim_kind_removed(&name);
-		}
-	}
-}
-
-pub(crate) fn cmd_peers(cfg: &crate::config::Config) {
-	print!("{}", peers_summary(cfg));
-}
-
-fn peers_summary(cfg: &crate::config::Config) -> String {
-	let g = &cfg.gossip;
-	let mut out = String::new();
-	if !g.enabled {
-		out.push_str("gossip:  disabled\n");
-		out.push_str("  enable with [gossip] enabled = true in kern.toml\n");
-		return out;
-	}
-	out.push_str("gossip:     enabled\n");
-	out.push_str(&format!("addr:       {}\n", g.addr));
-	out.push_str(&format!(
-		"discovery:  {} (udp :{})\n",
-		if g.discovery { "on" } else { "off" },
-		g.discovery_port
-	));
-	if g.peers.is_empty() {
-		out.push_str("peers:      (none configured)\n");
-	} else {
-		out.push_str(&format!("peers ({}):\n", g.peers.len()));
-		for p in &g.peers {
-			out.push_str(&format!("  {p}\n"));
-		}
-	}
-	out.push_str("  (runtime-discovered peers visible in daemon logs)\n");
-	out
-}
-
 #[cfg(test)]
 mod peers_tests {
 	use super::*;
@@ -1362,264 +1691,6 @@ mod cmd_tests {
 			"healthy tick reports counts only: {lines:?}"
 		);
 	}
-}
-
-pub(crate) fn cmd_register(cfg: &crate::config::Config, path: &str) {
-	// The loaded graph is bound to the SOURCE store, so write into a freshly
-	// opened destination store — save_graph_unguarded would write back to the source.
-	match crate::persist::load_dir(path) {
-		Ok(g) => match crate::base_store::Store::open(&cfg.data_dir) {
-			Ok(dest) => {
-				let _ = crate::persist::save_graph_into(&dest, &g);
-				println!("registered {path}");
-			}
-			Err(e) => eprintln!("register: {e}"),
-		},
-		Err(e) => eprintln!("load: {e}"),
-	}
-}
-
-pub(crate) async fn cmd_unnamed(cfg: &crate::config::Config, action: UnnamedAction) {
-	match action {
-		UnnamedAction::List => {
-			let g = load_graph(cfg);
-			let mut found = false;
-			for k in g.all() {
-				if k.is_unnamed() {
-					println!(
-						"unnamed  id:{}  thoughts:{}",
-						short_id(&k.id),
-						k.entities.len()
-					);
-					found = true;
-				}
-			}
-			if !found {
-				println!("no unnamed kerns");
-			}
-		}
-		UnnamedAction::Promote {
-			id,
-			name,
-			text,
-			mass,
-			embed,
-		} => {
-			let mass = mass.unwrap_or(1.0);
-			let (url, model) = embed.resolve(cfg);
-			let llm_client = Client::new_embed_only(url, model, &cfg.embed.key);
-			let mut vecs = Vec::new();
-			for ex in crate::accept::seed_examples(&text) {
-				match llm_client.embed(&ex).await {
-					Ok(v) => vecs.push(v),
-					Err(e) => {
-						eprintln!("embed: {e}");
-						return;
-					}
-				}
-			}
-			let Some(vec) = crate::accept::mean_pool(&vecs) else {
-				eprintln!("embed: empty or mismatched embeddings");
-				return;
-			};
-			// Resolve a short id to the full kern id the way `kern unnamed` prints it.
-			let full = {
-				let g = load_graph(cfg);
-				g.all()
-					.into_iter()
-					.map(|k| k.id.clone())
-					.find(|kid| short_id(kid) == id || kid == &id)
-			};
-			let Some(full) = full else {
-				eprintln!("no unnamed kern matching id {id}");
-				return;
-			};
-			with_graph(cfg, |g| {
-				if let Err(e) = crate::accept::promote_unnamed(g, &full, &name, vec.clone(), mass) {
-					eprintln!("{e}");
-				}
-			});
-			println!("promoted unnamed {id} -> graviton {name} (mass {mass})");
-		}
-	}
-}
-
-fn default_root() -> String {
-	let cwd = std::env::current_dir().unwrap_or_default();
-	crate::config::Config::resolve_root(&cwd)
-		.display()
-		.to_string()
-}
-
-pub(crate) async fn cmd_hub(action: Option<crate::commands::HubAction>, idle_unload_secs: u64) {
-	use crate::transport::hub_rpc::{HubRpcClient, ResolveReq, UnloadReq};
-	use crate::transport::typed::JsonEnvelopeCodec;
-
-	match action {
-		None => crate::hub::run_hub(idle_unload_secs).await,
-		Some(crate::commands::HubAction::Resolve { root }) => {
-			let root = root.unwrap_or_else(default_root);
-			let client = match HubRpcClient::<JsonEnvelopeCodec>::connect_hub().await {
-				Ok(c) => c,
-				Err(e) => {
-					eprintln!("hub: not running ({e})");
-					return;
-				}
-			};
-			match client.resolve(ResolveReq { root: root.clone() }).await {
-				Ok(res) if res.ok => println!(
-					"{}  {}",
-					if res.spawned { "spawned" } else { "running" },
-					res.endpoint
-				),
-				Ok(res) => eprintln!("resolve {root}: {}", res.err),
-				Err(e) => eprintln!("hub resolve: {e}"),
-			}
-		}
-		Some(crate::commands::HubAction::Status) => {
-			let client = match HubRpcClient::<JsonEnvelopeCodec>::connect_hub().await {
-				Ok(c) => c,
-				Err(e) => {
-					eprintln!("hub: not running ({e})");
-					return;
-				}
-			};
-			match client.status().await {
-				Ok(res) => {
-					if res.nodes.is_empty() {
-						println!("hub: running, no nodes");
-					}
-					for n in res.nodes {
-						println!(
-							"{}  pid:{}  {}  {}",
-							if n.alive { "up  " } else { "dead" },
-							n.pid,
-							n.root,
-							n.endpoint
-						);
-					}
-				}
-				Err(e) => eprintln!("hub status: {e}"),
-			}
-		}
-		Some(crate::commands::HubAction::Unload { root }) => {
-			let root = root.unwrap_or_else(default_root);
-			let client = match HubRpcClient::<JsonEnvelopeCodec>::connect_hub().await {
-				Ok(c) => c,
-				Err(e) => {
-					eprintln!("hub: not running ({e})");
-					return;
-				}
-			};
-			match client.unload(UnloadReq { root: root.clone() }).await {
-				Ok(res) if res.ok && res.existed => println!("unloaded {root}"),
-				Ok(res) if res.ok => println!("no node for {root}"),
-				Ok(res) => eprintln!("unload {root}: {}", res.err),
-				Err(e) => eprintln!("hub unload: {e}"),
-			}
-		}
-		Some(crate::commands::HubAction::Merge { src, dst }) => cmd_hub_merge(&src, &dst).await,
-		Some(crate::commands::HubAction::Stop) => {
-			match HubRpcClient::<JsonEnvelopeCodec>::connect_hub().await {
-				Ok(client) => match client.stop().await {
-					Ok(_) => println!("hub stopped (nodes stay up)"),
-					Err(e) => eprintln!("hub stop: {e}"),
-				},
-				Err(e) => eprintln!("hub: not running ({e})"),
-			}
-		}
-	}
-}
-
-// Offline CRDT union: src's rows and topology join dst's store; src is never
-// written. Both daemons must be down — the store is single-writer and a live
-// daemon's flush would clobber the merge.
-async fn cmd_hub_merge(src: &str, dst: &str) {
-	use crate::transport::hub_rpc::{HubRpcClient, UnloadReq};
-	use crate::transport::typed::JsonEnvelopeCodec;
-
-	let canon = |s: &str| -> Option<std::path::PathBuf> {
-		let p = std::path::Path::new(s).canonicalize().ok()?;
-		Some(crate::config::Config::resolve_root(&p))
-	};
-	let Some(src_root) = canon(src) else {
-		eprintln!("merge: src {src} does not exist");
-		return;
-	};
-	let Some(dst_root) = canon(dst) else {
-		eprintln!("merge: dst {dst} does not exist");
-		return;
-	};
-	if src_root == dst_root {
-		eprintln!(
-			"merge: src and dst are the same root {}",
-			src_root.display()
-		);
-		return;
-	}
-	if !src_root.join(".kern").is_dir() {
-		eprintln!("merge: src {} has no .kern store", src_root.display());
-		return;
-	}
-
-	if let Ok(client) = HubRpcClient::<JsonEnvelopeCodec>::connect_hub().await {
-		for root in [&src_root, &dst_root] {
-			let _ = client
-				.unload(UnloadReq {
-					root: root.display().to_string(),
-				})
-				.await;
-		}
-	}
-	for root in [&src_root, &dst_root] {
-		if crate::hub::probe(root).await {
-			eprintln!(
-				"merge: a daemon still serves {} — stop it first",
-				root.display()
-			);
-			return;
-		}
-	}
-
-	// Fallback must stay pinned to the root: a bare `Config::default()` carries a
-	// cwd-relative data_dir and would read (and write!) whatever store the
-	// caller happens to stand in.
-	let src_cfg = match crate::config::Config::load(&src_root) {
-		Ok(c) => c,
-		Err(e) => {
-			eprintln!("merge: src config error: {e}");
-			return;
-		}
-	};
-	let dst_cfg = match crate::config::Config::load(&dst_root) {
-		Ok(c) => c,
-		Err(e) => {
-			eprintln!("merge: dst config error: {e}");
-			return;
-		}
-	};
-	let src_g = load_graph(&src_cfg);
-	let mut dst_g = load_graph(&dst_cfg);
-
-	let src_h = crate::health::graph_health_stats(&src_g);
-	if src_h.entities == 0 {
-		eprintln!("merge: src {} holds no entities", src_root.display());
-		return;
-	}
-	let before = crate::health::graph_health_stats(&dst_g);
-	let changed = crate::merge::absorb_graph(&mut dst_g, src_g);
-	save_graph_unguarded(&dst_g);
-	let after = crate::health::graph_health_stats(&dst_g);
-	println!(
-		"merged {} -> {}: {} rows joined, entities {} -> {}, kerns {} -> {} (src untouched)",
-		src_root.display(),
-		dst_root.display(),
-		changed,
-		before.entities,
-		after.entities,
-		before.kerns,
-		after.kerns,
-	);
 }
 
 #[cfg(test)]
