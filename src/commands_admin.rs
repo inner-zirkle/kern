@@ -2,6 +2,8 @@
 //! kinds, unnamed-kern triage, peers, hub control, and store registration —
 //! administration of the daemon and its graph, not recall or ingest.
 
+use graph::graph_ops::graviton_rows;
+
 use transport::kern_rpc::AuthReq;
 use transport::typed::Endpoint;
 
@@ -422,7 +424,7 @@ pub(crate) fn cmd_gc(cfg: &config::Config) {
 	// Drop the graph FIRST to release its env handle: compact_dir closes its own
 	// env deterministically — a lazy drop on Windows leaves data.mdb mmap'd.
 	drop(g);
-	match store::base_store::compact_dir(&cfg.data_dir) {
+	match store_core::compact_dir(&cfg.data_dir) {
 		Ok((old, new)) => println!(
 			"gc: compacted data.mdb {} -> {} ({:.0}% reclaimed)",
 			human_bytes(old),
@@ -447,7 +449,7 @@ pub(crate) fn cmd_compact(cfg: &config::Config) {
 			return;
 		}
 	};
-	match store::base_store::compact_dir(&cfg.data_dir) {
+	match store_core::compact_dir(&cfg.data_dir) {
 		Ok((old, new)) => println!(
 			"compact: data.mdb {} -> {} ({:.0}% reclaimed)",
 			human_bytes(old),
@@ -575,27 +577,6 @@ async fn graviton_at(
 		}
 	}
 }
-
-pub(crate) struct GravitonRow {
-	pub(crate) name: String,
-	pub(crate) mass: f64,
-	pub(crate) thoughts: usize,
-	pub(crate) reasons: usize,
-}
-
-pub(crate) fn graviton_rows(g: &graph::graph::GraphGnn) -> Vec<GravitonRow> {
-	graph::accept::root_graviton_ids(g)
-		.iter()
-		.filter_map(|cid| g.loaded(cid))
-		.map(|c| GravitonRow {
-			name: c.graviton_text.clone(),
-			mass: c.mass,
-			thoughts: c.entities.len(),
-			reasons: c.reasons.len(),
-		})
-		.collect()
-}
-
 fn print_claim_kind_added(name: &str) {
 	println!("claim kind added: {name}");
 }
@@ -704,7 +685,7 @@ pub(crate) fn cmd_register(cfg: &config::Config, path: &str) {
 	// The loaded graph is bound to the SOURCE store, so write into a freshly
 	// opened destination store — save_graph_unguarded would write back to the source.
 	match graph::persist::load_dir(path) {
-		Ok(g) => match store::base_store::Store::open(&cfg.data_dir) {
+		Ok(g) => match store_core::Store::open(&cfg.data_dir) {
 			Ok(dest) => {
 				let _ = graph::persist::save_graph_into(&dest, &g);
 				println!("registered {path}");
@@ -1708,7 +1689,7 @@ mod hub_merge_tests {
 		);
 		g.register(k);
 		// save_all silently no-ops without a store attached.
-		let store = store::base_store::Store::open(&g.data_dir).unwrap();
+		let store = store_core::Store::open(&g.data_dir).unwrap();
 		g.set_store(std::sync::Arc::new(store));
 		graph::persist::save_all(&g).unwrap();
 	}

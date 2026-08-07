@@ -15,7 +15,7 @@ use config::HeatConfig;
 use graph::graph::GraphGnn;
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
-use store::base_store::Store;
+use store_core::Store;
 use tick::tick_stigmergy::run_gc;
 
 const DIM: usize = 384;

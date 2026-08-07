@@ -214,3 +214,26 @@ mod tests {
 		assert_eq!(v, vec![2.0, 4.0], "no embedding -> midpoint of the two endpoints");
 	}
 }
+
+/// A snapshot row for the graviton admin view: name, mass, and the live counts
+/// of thoughts and edges it currently pulls in. Rendered as a flat array for
+/// the JSON-RPC client.
+pub struct GravitonRow {
+	pub name: String,
+	pub mass: f64,
+	pub thoughts: usize,
+	pub reasons: usize,
+}
+
+pub fn graviton_rows(g: &crate::graph::GraphGnn) -> Vec<GravitonRow> {
+	crate::accept::root_graviton_ids(g)
+		.iter()
+		.filter_map(|cid| g.loaded(cid))
+		.map(|c| GravitonRow {
+			name: c.graviton_text.clone(),
+			mass: c.mass,
+			thoughts: c.entities.len(),
+			reasons: c.reasons.len(),
+		})
+		.collect()
+}

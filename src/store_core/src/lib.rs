@@ -11,6 +11,8 @@ use heed::{CompactionOption, Database, Env, EnvOpenOptions};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
+pub mod lock;
+
 use base::base_types::{Embedding, Entity, Kern};
 use math::quant::{QuantizationMode, QuantizedVec};
 use util::LogThrottle;

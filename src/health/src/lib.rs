@@ -184,7 +184,7 @@ pub fn graph_health_stats(g: &GraphGnn) -> HealthStats {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use store::base_store::{EmbedStamp, Store};
+	use store_core::{EmbedStamp, Store};
 
 	#[test]
 	fn empty_graph_reports_no_entities_or_reasons() {

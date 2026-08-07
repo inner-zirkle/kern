@@ -7,7 +7,7 @@ license.workspace = true
 [dependencies]
 base = { path = "../base" }
 graph = { path = "../graph" }
-store = { path = "../store" }
+store_core = { path = "../store_core" }
 retrieval = { path = "../retrieval" }
 ingest = { path = "../ingest" }
 gnn = { path = "../gnn" }

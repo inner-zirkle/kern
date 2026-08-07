@@ -6,18 +6,21 @@ license.workspace = true
 
 [dependencies]
 base = { path = "../base" }
+config = { path = "../config" }
+graph = { path = "../graph" }
 math = { path = "../math" }
 util = { path = "../util" }
-heed = "0.20"
+store_core = { path = "../store_core" }
+ingest = { path = "../ingest" }
+llm = { path = "../llm" }
+tick = { path = "../tick" }
+tick_loop = { path = "../tick_loop" }
 serde.workspace = true
-bincode.workspace = true
-serde_json.workspace = true
 tracing.workspace = true
-thiserror.workspace = true
-zstd = "0.13"
+parking_lot.workspace = true
+tokio.workspace = true
 
 [dev-dependencies]
-tracing-subscriber.workspace = true
 tempfile = "3"
 
 [lints]

@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 graph = { path = "../graph" }
 store = { path = "../store" }
+store_core = { path = "../store_core" }
 base = { path = "../base" }
 tick = { path = "../tick" }
 ingest = { path = "../ingest" }

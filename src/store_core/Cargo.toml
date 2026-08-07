@@ -1,5 +1,5 @@
 [package]
-name = "graph"
+name = "store_core"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -7,22 +7,18 @@ license.workspace = true
 [dependencies]
 base = { path = "../base" }
 math = { path = "../math" }
-store_core = { path = "../store_core" }
 util = { path = "../util" }
-config = { path = "../config" }
+heed = "0.20"
 serde.workspace = true
 bincode.workspace = true
-serde_json.workspace = true
 tracing.workspace = true
-parking_lot.workspace = true
-rand.workspace = true
-rayon.workspace = true
-memmap2 = "0.9"
 thiserror.workspace = true
+zstd = "0.13"
+parking_lot.workspace = true
 
 [dev-dependencies]
+tracing-subscriber.workspace = true
 tempfile = "3"
-test_support = { path = "../test_support" }
 
 [lints]
 workspace = true

@@ -99,7 +99,7 @@ fn restamp(g: &graph::graph::GraphGnn, embed_model: &str, new_vecs: &HashMap<Str
 	let (Some(store), Some(dim)) = (g.store(), new_vecs.values().next().map(|v| v.len())) else {
 		return;
 	};
-	let stamp = store::base_store::EmbedStamp {
+	let stamp = store_core::EmbedStamp {
 		model: embed_model.to_string(),
 		dim,
 	};
@@ -136,7 +136,7 @@ async fn embed_all(
 // Atomic: commits only if every batch succeeds; old-dim cold vectors silently
 // drop from search otherwise.
 async fn reembed_cold(
-	store: Option<std::sync::Arc<store::base_store::Store>>,
+	store: Option<std::sync::Arc<store_core::Store>>,
 	client: &llm::Client,
 ) -> Result<usize, String> {
 	let Some(store) = store else { return Ok(0) };
@@ -191,7 +191,7 @@ mod tests {
 	#[tokio::test]
 	async fn a_completed_reembed_restamps_the_store_with_the_new_model() {
 		use base::base_types::Entity;
-		use store::base_store::{EmbedCheck, EmbedStamp, Store};
+		use store_core::{EmbedCheck, EmbedStamp, Store};
 
 		// Fake embed endpoint: one 2-dim vector per input, any batch size.
 		let app = axum::Router::new().route(
@@ -279,7 +279,7 @@ mod tests {
 	#[tokio::test]
 	async fn reembed_cold_reports_stale_count_and_leaves_the_tier_unchanged_on_failure() {
 		use base::base_types::Entity;
-		use store::base_store::Store;
+		use store_core::Store;
 
 		let app = axum::Router::new().route(
 			"/api/embed",

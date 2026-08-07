@@ -7,7 +7,7 @@ use parking_lot::RwLock;
 
 use base::base_types::Source;
 use math::clamp_confidence;
-use store::base_store::FlushOutcome;
+use store_core::FlushOutcome;
 use util::truncate;
 
 use crate::commands::{load_graph, Client, Endpoint};

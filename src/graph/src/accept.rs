@@ -1131,7 +1131,7 @@ mod tests {
 		let mut g = GraphGnn::new();
 		g.data_dir = dir.path().to_string_lossy().into_owned();
 		g.set_store(std::sync::Arc::new(
-			store::base_store::Store::open(&g.data_dir).unwrap(),
+			store_core::Store::open(&g.data_dir).unwrap(),
 		));
 		g.set_max_loaded_kerns(1);
 		let root = g.root.id.clone();
@@ -1150,7 +1150,7 @@ mod tests {
 		let mut g = GraphGnn::new();
 		g.data_dir = dir.path().to_string_lossy().into_owned();
 		g.set_store(std::sync::Arc::new(
-			store::base_store::Store::open(&g.data_dir).unwrap(),
+			store_core::Store::open(&g.data_dir).unwrap(),
 		));
 		g.set_max_loaded_kerns(1);
 		let root = g.root.id.clone();
@@ -1173,7 +1173,7 @@ mod tests {
 		let mut g = GraphGnn::new();
 		g.data_dir = dir.path().to_string_lossy().into_owned();
 		g.set_store(std::sync::Arc::new(
-			store::base_store::Store::open(&g.data_dir).unwrap(),
+			store_core::Store::open(&g.data_dir).unwrap(),
 		));
 		g.set_max_loaded_kerns(1);
 		let root = g.root.id.clone();
@@ -1217,7 +1217,7 @@ mod tests {
 		let mut g = GraphGnn::new();
 		g.data_dir = dir.path().to_string_lossy().into_owned();
 		g.set_store(std::sync::Arc::new(
-			store::base_store::Store::open(&g.data_dir).unwrap(),
+			store_core::Store::open(&g.data_dir).unwrap(),
 		));
 		let root = g.root.id.clone();
 		let root_net = g.root.root_id.clone();

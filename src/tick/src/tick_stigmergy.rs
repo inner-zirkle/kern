@@ -175,7 +175,7 @@ fn evict_batched(
 	g: &mut GraphGnn,
 	kern_id: &str,
 	victims: &[String],
-	spill_all: impl FnOnce(&[Entity]) -> Result<(), store::base_store::StoreError>,
+	spill_all: impl FnOnce(&[Entity]) -> Result<(), store_core::StoreError>,
 	spill_one: impl FnMut(&Entity) -> bool,
 ) -> usize {
 	let batch: Vec<Entity> = victims
@@ -244,9 +244,9 @@ mod tests {
 	// rather than collect everything it walks: stale Claim (victim), fresh Claim,
 	// stale active Fact (immune), stale superseded Fact (victim), stale Document
 	// (immune).
-	fn mixed_population(dir: &tempfile::TempDir) -> (GraphGnn, Arc<store::base_store::Store>) {
+	fn mixed_population(dir: &tempfile::TempDir) -> (GraphGnn, Arc<store_core::Store>) {
 		use base::base_types::EntityStatus;
-		use store::base_store::Store;
+		use store_core::Store;
 
 		let store = Arc::new(Store::open(&dir.path().to_string_lossy()).unwrap());
 		let now = SystemTime::now();
@@ -292,7 +292,7 @@ mod tests {
 		v
 	}
 
-	fn cold_ids(s: &store::base_store::Store) -> Vec<String> {
+	fn cold_ids(s: &store_core::Store) -> Vec<String> {
 		let mut v: Vec<String> = s.cold_all().unwrap().into_iter().map(|e| e.id).collect();
 		v.sort();
 		v
@@ -363,7 +363,7 @@ mod tests {
 			&mut g,
 			"k",
 			&victims,
-			|_| Err(store::base_store::StoreError::BadVersion(9)),
+			|_| Err(store_core::StoreError::BadVersion(9)),
 			|e| e.id != poison,
 		);
 
@@ -530,7 +530,7 @@ mod tests {
 
 	#[test]
 	fn run_gc_reclaims_a_stale_remote_fact() {
-		use store::base_store::Store;
+		use store_core::Store;
 
 		let dir = tempfile::tempdir().unwrap();
 		let store = Arc::new(Store::open(&dir.path().to_string_lossy()).unwrap());
@@ -592,7 +592,7 @@ mod tests {
 		use base::base_types::EntityStatus;
 		use parking_lot::RwLock;
 		use std::sync::Arc;
-		use store::base_store::Store;
+		use store_core::Store;
 
 		let dir = tempfile::tempdir().unwrap();
 		let store = Arc::new(Store::open(&dir.path().to_string_lossy()).unwrap());
@@ -676,7 +676,7 @@ mod tests {
 	fn run_gc_spills_stale_victim_to_cold_store_and_spares_facts() {
 		use parking_lot::RwLock;
 		use std::sync::Arc;
-		use store::base_store::Store;
+		use store_core::Store;
 
 		let dir = tempfile::tempdir().unwrap();
 		let store = Arc::new(Store::open(&dir.path().to_string_lossy()).unwrap());

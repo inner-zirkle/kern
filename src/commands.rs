@@ -3,6 +3,11 @@
 //! client/daemon plumbing they call into.
 
 pub(crate) use crate::commands_mcp_cmd::ensure_mcp_registered;
+// Bootstrap helpers live here (in `kern` lib) — a separate crate would either
+// depend on graph+store (cycle with `store::Registry` callers) or pull them
+// out of the daemon. Keeping them in lib alongside `commands_*` is the
+// least-bad answer; `commands_graph_ops` and `commands_admin` already depend
+// on them via re-export, so callers do not see the churn.
 
 use std::sync::Arc;
 
@@ -298,7 +303,6 @@ pub enum UnnamedAction {
 		embed: EmbedArgs,
 	},
 }
-
 pub(crate) fn apply_graph_config(g: &mut GraphGnn, cfg: &config::GraphConfig) {
 	g.set_max_loaded_kerns(cfg.max_kerns);
 	g.set_disk_threshold(cfg.disk_threshold);
@@ -322,7 +326,7 @@ pub(crate) fn load_graph(cfg: &config::Config) -> GraphGnn {
 			);
 			let mut g = GraphGnn::new();
 			g.data_dir = cfg.data_dir.clone();
-			if let Ok(store) = store::base_store::Store::open(&cfg.data_dir) {
+			if let Ok(store) = store_core::Store::open(&cfg.data_dir) {
 				g.set_store(std::sync::Arc::new(store));
 			}
 			g
@@ -382,11 +386,11 @@ pub(crate) fn save_graph_guarded(
 		};
 		let outcome = graph::persist::flush_snapshot(&snapshot, expected);
 		match outcome {
-			Ok(store::base_store::FlushOutcome::Flushed { epoch }) => {
+			Ok(store_core::FlushOutcome::Flushed { epoch }) => {
 				graph.write().set_flushed_epoch(epoch);
 				return;
 			}
-			Ok(store::base_store::FlushOutcome::RefusedStale {
+			Ok(store_core::FlushOutcome::RefusedStale {
 				disk_epoch,
 				expected,
 			}) => {
@@ -473,6 +477,7 @@ fn maybe_self_heal_store(cfg: &config::Config) {
 	if len < SELF_HEAL_BLOAT_BYTES {
 		return;
 	}
+
 	tracing::info!(target: "kern.startup", bytes = len, "data.mdb is bloated; self-healing (reap + compact)");
 
 	// Drop the throwaway graph so its env handle releases before the compaction swap.
@@ -484,7 +489,7 @@ fn maybe_self_heal_store(cfg: &config::Config) {
 			eprintln!("kern: self-heal reaped {reaped} empty kerns ({before} -> {after})");
 		}
 	}
-	match store::base_store::compact_dir(&cfg.data_dir) {
+	match store_core::compact_dir(&cfg.data_dir) {
 		Ok((old, new)) => eprintln!(
 			"kern: self-heal compacted data.mdb {} MiB -> {} MiB",
 			old / (1024 * 1024),
@@ -1537,7 +1542,7 @@ mod entry_point_tests {
 	fn a_normal_open_stamps_the_model_and_a_swap_reaches_health() {
 		use ::health::graph_health_stats;
 		use base::base_types::{mk_entity, EntityKind, Kern};
-		use store::base_store::EmbedStamp;
+		use store_core::EmbedStamp;
 
 		let dir = tempfile::tempdir().unwrap();
 		let data_dir = dir.path().to_string_lossy().into_owned();

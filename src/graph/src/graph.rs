@@ -14,7 +14,7 @@ use super::vector_backend::VectorBackend;
 use base::base_constants::KERN_CAP_DISABLED;
 use base::base_types::{EntityStatus, Kern};
 use math::quant::QuantizationMode;
-use store::base_store::{Store, StoreError};
+use store_core::{Store, StoreError};
 
 #[allow(clippy::too_many_arguments)]
 fn index_kern_into(
