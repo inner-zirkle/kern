@@ -1,3 +1,7 @@
+//! Chunking: LLM-guided splitting when a model is available, deterministic
+//! paragraph/size splitting when not — both bounded so one huge input cannot
+//! produce an unbounded chunk.
+
 pub fn split(text: &str, hint: &str, llm: Option<&dyn Fn(&str) -> String>) -> Vec<String> {
 	if let Some(llm_fn) = llm {
 		let result = llm_split(text, hint, llm_fn);

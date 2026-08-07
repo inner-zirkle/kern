@@ -1,3 +1,6 @@
+//! The durable drop path: write a payload into the intake dir as a file, so
+//! ingest survives a crash between accept and commit — the queue is the disk.
+
 use std::path::Path;
 
 use crate::base_constants::AGENT_SOURCE;

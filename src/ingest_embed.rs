@@ -1,3 +1,6 @@
+//! The embedding step with transient-failure retry; a chunk that still fails
+//! is dropped and counted (`ingest_dropped_chunks`), never stored vectorless.
+
 use crate::ingest_outcome::FailureReport;
 use crate::llm::{is_transient, Client as LlmClient};
 

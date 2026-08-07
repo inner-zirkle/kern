@@ -1,3 +1,6 @@
+//! The result types an ingest caller sees: per-item status, failure reports
+//! with the reason preserved, and the counts the MCP/CLI surfaces render.
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OutcomeStatus {
 	Committed,

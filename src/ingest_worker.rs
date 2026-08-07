@@ -1,3 +1,7 @@
+//! The ingest worker: a bounded in-RAM job queue ahead of the LLM/embed legs.
+//! A full queue refuses the job back to the producer (counted), and every
+//! commit funnels through the same accept/dedup path as the durable legs.
+
 use crate::base_types::*;
 use crate::graph::GraphGnn;
 use crate::ingest_config::Config;

@@ -1,3 +1,7 @@
+//! The intake queue consumer: poll the drop dir, distill `.txt` transcripts
+//! into claims, ingest other readable files whole, archive what committed into
+//! `done/` and record what failed — the durable half of ingest.
+
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};

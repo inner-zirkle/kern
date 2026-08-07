@@ -1,3 +1,8 @@
+//! Near-duplicate handling at ingest: find an existing entity close enough to
+//! merge into (ANN search above the dedup threshold) and fold the new arrival
+//! into it — updating text, confidence evidence, and TTL — instead of minting
+//! a twin.
+
 use crate::accept::merge_duplicate;
 use crate::base_types::*;
 use crate::graph::GraphGnn;

@@ -1,3 +1,7 @@
+//! Bridge from the file watcher to ingest: watched-file events become ingest
+//! jobs, a changed file supersedes the entities its previous revision produced
+//! (including renames via the source index), and deletes tombstone them.
+
 use std::path::PathBuf;
 use std::sync::Arc;
 

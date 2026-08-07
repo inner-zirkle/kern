@@ -1,3 +1,8 @@
+//! Transcript distillation: chunk a conversation by turns, prompt the LLM for
+//! self-contained claims (kind-labelled, relative dates resolved against a
+//! known today), and parse its output defensively — a malformed reply drops
+//! the chunk, never the pass.
+
 use crate::base_constants::DISTILL_CHUNK_TURNS;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

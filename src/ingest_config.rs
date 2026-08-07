@@ -1,3 +1,7 @@
+//! Ingest policy knobs: dedup threshold, clamp lengths, retention-to-TTL
+//! mapping, and the review policy that decides which sources land `pending`
+//! (held for curation) versus `active`.
+
 use crate::base_constants::INGEST_DEDUP_THRESHOLD;
 use crate::base_types::{EntityKind, ReviewState, Source};
 

@@ -1,3 +1,7 @@
+//! Build chunk entities from split text and place them through `accept`:
+//! stable per-chunk source ids, context/statement parts, and the metadata
+//! (scopes, retention, review state) stamped on before placement.
+
 use crate::accept;
 use crate::base_types::*;
 use crate::crdt::GCounter;
