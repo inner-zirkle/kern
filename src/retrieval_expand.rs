@@ -4,7 +4,7 @@
 
 use crate::config::RetrievalConfig;
 use crate::graph::GraphGnn;
-use crate::math::cosine;
+use math::cosine;
 use crate::retrieval::seed::Weights;
 use crate::search::EntityHit;
 use base::base_types::*;

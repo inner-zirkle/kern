@@ -14,7 +14,7 @@ use crate::config::TickConfig;
 use crate::graph::GraphGnn;
 use crate::heat::HeatConfig;
 use crate::ingest::place::build_chunk_entity;
-use crate::math::reason_id;
+use math::reason_id;
 use crate::reason::{add_reason, remove_reason};
 use crate::search::search_all_unlocked;
 use base::base_constants::{
@@ -567,7 +567,7 @@ pub fn do_reembed(g: &Arc<RwLock<GraphGnn>>, kern_id: &str, embed: Option<&Embed
 				None => continue,
 			};
 			let nv = match (endpoint(k, &from), endpoint(k, &to)) {
-				(Some(fv), Some(tv)) => Some(crate::math::average_vec(&fv, &tv)),
+				(Some(fv), Some(tv)) => Some(math::average_vec(&fv, &tv)),
 				_ => None,
 			};
 			if let Some(r) = k.reasons.get_mut(&rid) {

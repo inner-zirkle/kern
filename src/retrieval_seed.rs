@@ -5,7 +5,7 @@
 use crate::config::RetrievalConfig;
 use crate::graph::GraphGnn;
 use crate::lexical::LexicalIndex;
-use crate::math::cosine;
+use math::cosine;
 use crate::retrieval::score::{matches_filter, QueryOptions};
 use crate::search::{
 	search_all_filtered, search_all_unlocked, search_reasons_all_unlocked, EntityHit,
@@ -197,7 +197,7 @@ pub fn seed_important(
 
 pub fn merge_seeds(a: Vec<EntityHit>, b: Vec<EntityHit>) -> Vec<EntityHit> {
 	let scored =
-		crate::math::softmax_merge_scores(a.into_iter().chain(b).map(|h| (h.entity_id, h.score)));
+		math::softmax_merge_scores(a.into_iter().chain(b).map(|h| (h.entity_id, h.score)));
 	let mut out: Vec<EntityHit> = scored.into_iter().map(EntityHit::from).collect();
 	out.sort_by(|a, b| util::cmp_rank(a.score, &a.entity_id, b.score, &b.entity_id));
 	out

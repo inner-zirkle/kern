@@ -3,7 +3,7 @@
 //! relevance against similarity to what is already kept.
 
 use crate::config::RetrievalConfig;
-use crate::math::cosine;
+use math::cosine;
 use crate::retrieval::expand::Scored;
 use std::collections::HashMap;
 

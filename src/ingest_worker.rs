@@ -6,7 +6,7 @@ use crate::graph::GraphGnn;
 use crate::ingest_config::Config;
 use crate::ingest_place::{document_kind, place_chunks, place_document};
 use crate::llm::Client as LlmClient;
-use crate::math::clamp_confidence;
+use math::clamp_confidence;
 use base::base_types::*;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;

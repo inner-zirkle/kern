@@ -1,0 +1,16 @@
+[package]
+name = "math"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+base = { path = "../base" }
+util = { path = "../util" }
+serde.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+
+[lints]
+workspace = true

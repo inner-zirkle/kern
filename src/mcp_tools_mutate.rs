@@ -4,7 +4,7 @@
 use serde::Deserialize;
 
 use crate::ingest;
-use crate::math::clamp_confidence;
+use math::clamp_confidence;
 use crate::reason::move_entity;
 use crate::search::find_entity;
 use base::base_constants::AGENT_SOURCE;

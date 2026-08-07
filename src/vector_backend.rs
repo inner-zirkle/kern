@@ -6,7 +6,7 @@ use std::collections::HashSet;
 
 use super::diskann::DiskIndex;
 use super::hnsw::{HnswHit, HnswIndex};
-use crate::quant::QuantizationMode;
+use math::quant::QuantizationMode;
 use base::base_types::Embedding;
 use util::cmp_rank;
 

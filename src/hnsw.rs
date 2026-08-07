@@ -2,8 +2,8 @@
 //! quantization mode so RAM cost matches disk cost. Deterministic level
 //! assignment (hash of the id, not RNG) keeps rebuilds reproducible.
 
-use super::math::cosine_distance;
-use crate::quant::{quantized_cosine_distance, QuantizationMode, QuantizedVec};
+use math::cosine_distance;
+use math::quant::{quantized_cosine_distance, QuantizationMode, QuantizedVec};
 use std::collections::HashMap;
 use std::marker::PhantomData;
 use util::{cmp_partial, content_hash};
@@ -632,7 +632,7 @@ type MaxHeap = Heap<Max>;
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::math::cosine_distance as bf_cosine;
+	use math::cosine_distance as bf_cosine;
 	use rand::{RngExt, SeedableRng};
 	use std::collections::HashSet;
 	use util::cmp_partial as bf_cmp;

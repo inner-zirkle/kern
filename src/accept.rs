@@ -5,7 +5,7 @@
 //! through here so placement, dedup, and bitemporal stamping stay consistent.
 
 use super::graph::GraphGnn;
-use super::math::{average_vec, cosine_distance, reason_id};
+use math::{average_vec, cosine_distance, reason_id};
 use super::reason::{add_reason, superseded_ancestors};
 use super::search::search_all_unlocked;
 use base::base_constants::*;
@@ -983,7 +983,7 @@ fn equivalent_graviton_exists(g: &GraphGnn, name: &str, vec: &[f32]) -> bool {
 		g.loaded(&cid)
 			.map(|c| {
 				!c.graviton_vec.is_empty()
-					&& crate::math::cosine(&c.graviton_vec, vec)
+					&& math::cosine(&c.graviton_vec, vec)
 						>= base::base_constants::GRAVITON_DEDUP_THRESHOLD
 			})
 			.unwrap_or(false)

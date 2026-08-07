@@ -2,7 +2,7 @@
 //! the shape detector behind kern splitting and naming: a cohesive-enough
 //! cluster earns a name; the core cluster stays with its graviton.
 
-use crate::math::cosine;
+use math::cosine;
 use base::base_constants::{
 	KERN_COHESION_THRESHOLD, KERN_NAMING_COHESION_THRESHOLD, KERN_NAMING_MIN_CLUSTER_SIZE,
 };

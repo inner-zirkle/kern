@@ -6,7 +6,7 @@
 //! overwritten.
 
 use super::graph::GraphGnn;
-use crate::quant::QuantizationMode;
+use math::quant::QuantizationMode;
 use base::base_types::Kern;
 use std::collections::HashMap;
 use util;

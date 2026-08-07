@@ -259,7 +259,7 @@ fn cosine_align(a: &[f32], b: &[f32]) -> f64 {
 	if a.is_empty() || b.is_empty() || a.len() != b.len() {
 		return 0.5;
 	}
-	let cos = crate::math::cosine(a, b);
+	let cos = math::cosine(a, b);
 	((cos + 1.0) * 0.5).clamp(0.0, 1.0)
 }
 

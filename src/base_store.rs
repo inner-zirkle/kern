@@ -11,7 +11,7 @@ use heed::{CompactionOption, Database, Env, EnvOpenOptions};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
-use crate::quant::{QuantizationMode, QuantizedVec};
+use math::quant::{QuantizationMode, QuantizedVec};
 use base::base_types::{Embedding, Entity, Kern};
 use util::LogThrottle;
 
@@ -706,7 +706,7 @@ impl Store {
 				if buf.len() != query_vec.len() {
 					continue;
 				}
-				let s = crate::math::cosine(query_vec, &buf);
+				let s = math::cosine(query_vec, &buf);
 				if s.is_finite() {
 					scored.push((id.to_string(), s));
 				}
@@ -1475,7 +1475,7 @@ mod tests {
 				if e.vector.len() != q.len() {
 					return None;
 				}
-				let sc = crate::math::cosine(q, &e.vector);
+				let sc = math::cosine(q, &e.vector);
 				if sc.is_finite() {
 					Some((e.id, sc, e.vector))
 				} else {

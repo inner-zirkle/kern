@@ -14,7 +14,7 @@ use crate::commands::{
 use crate::commands_route::{route_to, Routed};
 
 pub(crate) fn cmd_compress(src: &str, mode_str: &str, out: Option<&str>) {
-	let Some(mode) = crate::quant::QuantizationMode::parse(mode_str) else {
+	let Some(mode) = math::quant::QuantizationMode::parse(mode_str) else {
 		eprintln!("compress: unknown mode '{mode_str}' (expected: none | int8)");
 		return;
 	};

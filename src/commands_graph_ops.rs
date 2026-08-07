@@ -3,7 +3,7 @@
 //! CLI and MCP surfaces.
 
 use crate::graph::GraphGnn;
-use crate::math::{average_vec, reason_id};
+use math::{average_vec, reason_id};
 use crate::mcp::tools_query::entity_detail_by_id;
 use crate::reason::{add_reason, remove_entity, remove_reason};
 use crate::search::find_entity;

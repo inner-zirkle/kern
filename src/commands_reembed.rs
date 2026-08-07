@@ -8,7 +8,7 @@
 
 use std::collections::HashMap;
 
-use crate::math::average_vec;
+use math::average_vec;
 
 use crate::commands::{load_graph, save_graph_unguarded, Client};
 

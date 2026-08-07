@@ -1019,7 +1019,7 @@ fn resolve_question_from_peer(
 				d.node.ledger.put_routing(&sphere.network_id, origin);
 				d.node.ledger.put_thought(&sphere.entity_id, origin);
 			}
-			r.id = crate::math::reason_id(&r.from, &r.to, r.kind, &r.text, &r.to_net_id);
+			r.id = math::reason_id(&r.from, &r.to, r.kind, &r.text, &r.to_net_id);
 		}
 	}
 	drop(g);

@@ -123,7 +123,7 @@ fn fuse_hybrid_seeds(
 	// query cosine so seeds re-enter the pipeline on the one scale it speaks.
 	for h in &mut fused {
 		h.score = expand::find_entity_ref_in_graph(g, &h.entity_id)
-			.map(|e| crate::math::cosine(qvec, &e.vector))
+			.map(|e| math::cosine(qvec, &e.vector))
 			.unwrap_or(0.0);
 	}
 	fused.sort_by(|a, b| util::cmp_rank(a.score, &a.entity_id, b.score, &b.entity_id));
@@ -349,7 +349,7 @@ pub fn rrf(lists: &[&[EntityHit]], weights: &[f64], k_rrf: f64, top_k: usize) ->
 
 // ==== [merge] ====
 
-use crate::math::OnlineSoftmax;
+use math::OnlineSoftmax;
 
 // Log-sum-exp score pool: an entity in both sources earns +ln(count). Result is a magnitude, not a probability — may exceed 1.0.
 pub fn merge_results<'a>(
@@ -397,7 +397,7 @@ pub fn merge_results<'a>(
 // ==== [gravity] ====
 
 use crate::accept::root_graviton_ids;
-use crate::math::cosine;
+use math::cosine;
 use base::base_types::Kern;
 
 // Max over gravitons, not sum — overlapping gravitons must not double-count.
