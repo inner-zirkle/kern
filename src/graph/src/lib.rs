@@ -12,6 +12,7 @@
 pub mod accept;
 pub mod diskann;
 pub mod graph;
+pub mod graph_ops;
 pub mod heat;
 pub mod hnsw;
 pub mod lexical;

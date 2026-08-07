@@ -5,7 +5,6 @@
 pub use crate::mcp_prompt as prompt;
 pub use crate::mcp_resources as resources;
 pub use crate::mcp_tools as tools;
-pub(crate) use crate::mcp_tools_query as tools_query;
 
 use std::io::{BufReader, Read, Write};
 use std::sync::Arc;

@@ -7,6 +7,7 @@
 //!
 //! Layer: L4 · May import: `base`, `graph`, `math`, `util`, `llm`.
 
+pub mod id_detail;
 pub mod retrieval;
 pub mod retrieval_diversify;
 pub mod retrieval_expand;

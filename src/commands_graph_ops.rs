@@ -2,15 +2,10 @@
 //! degrade, promote, move — the per-thought reads and writes shared by the
 //! CLI and MCP surfaces.
 
-use crate::mcp::tools_query::entity_detail_by_id;
-use base::base_constants::{
-	DEGRADE_DECAY_BASE, DEGRADE_DECAY_POW, DEGRADE_FLOOR, DEGRADE_MIN_THRESHOLD,
-};
-use base::base_types::{EntityKind, Kern, Reason, ReasonKind, ReviewState, Source};
+use retrieval::id_detail::entity_detail_by_id;
+use base::base_types::{EntityKind, Kern, ReasonKind, Source};
 use graph::graph::GraphGnn;
-use graph::reason::{add_reason, remove_entity, remove_reason};
 use graph::search::find_entity;
-use math::{average_vec, reason_id};
 use util::{explain_relationship_prompt, short_id, truncate};
 
 use crate::commands::{load_graph, with_graph, Client, Endpoint};
@@ -150,22 +145,12 @@ pub(crate) async fn cmd_forget(cfg: &config::Config, id: &str) {
 
 // The one removal path. `force` is ROADMAP item 19's deliberate bypass of local
 // fact-immunity and nothing else may set it — every per-id caller passes false.
-pub(crate) fn forget_entity(
-	g: &mut GraphGnn,
-	id: &str,
-	force: bool,
-) -> Result<usize, &'static str> {
-	let (thought, kern_id) = find_entity(g, id).ok_or("thought not found")?;
-	// A remote Fact is a peer's assertion, not durable local knowledge — forgettable.
-	if thought.is_fact() && !force && !graph::merge::is_remote_kern_id(&kern_id) {
-		return Err("cannot forget a fact");
-	}
-	let edges_before = g.kerns.get(&kern_id).map(|k| k.reasons.len()).unwrap_or(0);
-	remove_entity(g, &kern_id, id, force);
-	let edges_after = g.kerns.get(&kern_id).map(|k| k.reasons.len()).unwrap_or(0);
-	// saturating: remove_entity only drops edges, never adds — guard against underflow.
-	Ok(edges_before.saturating_sub(edges_after))
-}
+// (Implementation lives in `graph::graph_ops`; these re-exports keep the call
+// sites in the `cmd_*` wrappers below unchanged.)
+pub(crate) use graph::graph_ops::{
+	SourceForget, degrade_entity_reasons, forget_by_source, forget_entity, link_entities,
+	promote_entity,
+};
 
 fn print_promote(id: &str, promoted: bool) {
 	if promoted {
@@ -200,75 +185,6 @@ pub(crate) async fn cmd_promote(cfg: &config::Config, id: &str) {
 	});
 }
 
-// The one release path, shared by the `promote` tool and the no-daemon CLI
-// fallback. Idempotent on purpose: a row that was already `Active` answers
-// `false` rather than erroring, so a retried promote is not a failure — but an
-// id that resolves to nothing IS one, because silently succeeding on a typo
-// tells a curator the claim was released when it is still held.
-pub(crate) fn promote_entity(g: &mut GraphGnn, id: &str) -> Result<bool, &'static str> {
-	let (thought, kern_id) = find_entity(g, id).ok_or("thought not found")?;
-	// Checked on the clone, before `get_mut`: that call bumps the mutation epoch
-	// and invalidates the query cache, which a no-op promote has no business doing.
-	if thought.review == ReviewState::Active {
-		return Ok(false);
-	}
-	let entity = g
-		.get_mut(&kern_id)
-		.and_then(|k| k.entities.get_mut(id))
-		.ok_or("thought not found")?;
-	entity.review = ReviewState::Active;
-	Ok(true)
-}
-
-#[derive(Default)]
-pub(crate) struct SourceForget {
-	pub removed_entities: usize,
-	pub removed_edges: usize,
-	// Local Facts the guard refused. Without this a `--source` that hits nothing
-	// but Facts prints "forgot 0" and never says why `--force` was the answer.
-	pub kept_facts: usize,
-}
-
-// Deleting a source in the host must cascade into the graph (ROADMAP item 19).
-// The key is `(scheme, object_id)` and deliberately NOT the section: `source_id`
-// hashes scheme+object+section, so keying on one would forget a single section
-// of a document and leave the rest. Reaches exactly as far as `forget_entity`
-// does — the resident kerns; an unloaded kern is out of both their reach.
-pub(crate) fn forget_by_source(
-	g: &mut GraphGnn,
-	scheme: &str,
-	object_id: &str,
-	force: bool,
-) -> SourceForget {
-	// Collected first: the removal mutates every kern map we would be iterating.
-	let ids: Vec<String> = g
-		.all()
-		.into_iter()
-		.flat_map(|k| k.entities.values())
-		.filter(|t| t.source.scheme() == scheme && t.source.object_id() == object_id)
-		.map(|t| t.id.clone())
-		.collect();
-
-	let mut out = SourceForget::default();
-	for id in ids {
-		match forget_entity(g, &id, force) {
-			Ok(edges) => {
-				out.removed_entities += 1;
-				out.removed_edges += edges;
-			}
-			Err("cannot forget a fact") => out.kept_facts += 1,
-			// The id came out of the graph one statement ago; a miss here means a
-			// duplicate id across kerns already took it. Nothing left to remove.
-			Err(_) => {}
-		}
-	}
-	out
-}
-
-// `<scheme>://<object_id>` — the URI shape `Source`'s own doc comment uses
-// (`src/base/types.rs`). Everything after `://` is the raw `Source::object_id()`,
-// not a parsed URI path: that is the half of the pair the graph actually stores,
-// and re-deriving it from a `ticket://<system>/<id>` spelling would guess.
 fn parse_source_selector(arg: &str) -> Result<(&'static str, &str), String> {
 	let bad = || format!("--source wants <scheme>://<object_id>, got: {arg}");
 	let (scheme, object_id) = arg.split_once("://").ok_or_else(bad)?;
@@ -294,9 +210,6 @@ fn print_forget_source(scheme: &str, object_id: &str, out: &SourceForget) {
 	}
 }
 
-// Routed first for the same reason as `cmd_forget`: a serving daemon's graph is
-// the live one, and a local delete would drop rows from a stale copy while the
-// daemon kept serving the originals.
 pub(crate) async fn cmd_forget_source(cfg: &config::Config, source: &str, force: bool) {
 	let (scheme, object_id) = match parse_source_selector(source) {
 		Ok(pair) => pair,
@@ -324,7 +237,6 @@ pub(crate) async fn cmd_forget_source(cfg: &config::Config, source: &str, force:
 	});
 }
 
-#[allow(clippy::too_many_arguments)]
 pub(crate) async fn cmd_link(
 	cfg: &config::Config,
 	from: &str,
@@ -410,46 +322,6 @@ fn link_and_persist(
 // `score` is the assertion's strength, NOT cosine(from, to): a deliberate link
 // exists precisely to connect what content similarity cannot, so scoring it by
 // endpoint similarity guarantees the edge is weakest exactly where it is the
-// only evidence. Callers pass their source's confidence (user 1.0, agent 0.95).
-pub(crate) fn link_entities(
-	g: &mut GraphGnn,
-	from: &str,
-	to: &str,
-	reason_text: String,
-	reason_embed: Option<Vec<f32>>,
-	score: f64,
-) -> Result<(String, f64), String> {
-	let (from_t, from_kern_id) =
-		find_entity(g, from).ok_or_else(|| format!("from thought not found: {from}"))?;
-	let (to_t, _) = find_entity(g, to).ok_or_else(|| format!("to thought not found: {to}"))?;
-
-	let vec = link_vector(reason_embed, &from_t.vector, &to_t.vector);
-	let rid = reason_id(from, to, ReasonKind::Similarity, &reason_text, "");
-	let r = Reason {
-		id: rid.clone(),
-		from: from.to_string(),
-		to: to.to_string(),
-		kind: ReasonKind::Similarity,
-		text: reason_text,
-		vector: vec.into(),
-		score,
-		..Default::default()
-	};
-
-	let kern = g.kerns.get_mut(&from_kern_id).ok_or_else(|| {
-		format!(
-			"link failed: kern {} no longer present",
-			short_id(&from_kern_id)
-		)
-	})?;
-	add_reason(kern, r);
-	Ok((rid, score))
-}
-
-fn link_vector(reason_embed: Option<Vec<f32>>, from_vec: &[f32], to_vec: &[f32]) -> Vec<f32> {
-	reason_embed.unwrap_or_else(|| average_vec(from_vec, to_vec))
-}
-
 fn print_degrade(id: &str, decayed: u64, removed: u64) {
 	println!(
 		"degraded {}  decayed {} edges, removed {} below threshold",
@@ -484,62 +356,18 @@ pub(crate) async fn cmd_degrade(cfg: &config::Config, id: &str) {
 	});
 }
 
-pub(crate) fn degrade_entity_reasons(g: &mut GraphGnn, kern_id: &str, id: &str) -> (usize, usize) {
-	let rids: Vec<String> = match g.kerns.get(kern_id) {
-		Some(kern) => graph::reason::collect_reason_ids(kern, id),
-		None => Vec::new(),
-	};
-
-	let mut decayed = 0usize;
-	let mut removed = 0usize;
-	for (i, rid) in rids.iter().enumerate() {
-		let decay = DEGRADE_DECAY_BASE * DEGRADE_DECAY_POW.powi(i as i32);
-
-		let should_remove = g
-			.kerns
-			.get(kern_id)
-			.and_then(|kern| kern.reasons.get(rid))
-			.map(|r| r.score - decay < DEGRADE_MIN_THRESHOLD)
-			.unwrap_or(false);
-
-		if should_remove {
-			if let Some(kern) = g.kerns.get_mut(kern_id) {
-				remove_reason(kern, rid);
-			}
-			// A degraded Rephrase takes its alternate wording out of the index with it.
-			graph::lexical::reindex_entity(g, kern_id, id);
-			removed += 1;
-		} else {
-			let lamport = g.bump_lamport();
-			let producer = g.network_id.clone();
-			if let Some(kern) = g.kerns.get_mut(kern_id) {
-				if let Some(r) = kern.reasons.get_mut(rid) {
-					r.score = (r.score - decay).max(DEGRADE_FLOOR);
-					r.score_lamport = lamport;
-					r.score_producer = producer.clone();
-					let lww_value =
-						bincode::serde::encode_to_vec(r.score, bincode::config::standard()).unwrap_or_default();
-					g.push_delta(graph::graph::PendingDelta {
-						object_id: rid.clone(),
-						target: 2,
-						replica: String::new(),
-						value: 0,
-						lamport,
-						producer,
-						lww_value,
-					});
-				}
-			}
-		}
-		decayed += 1;
-	}
-	(decayed, removed)
-}
-
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use base::base_types::{Entity, Kern, Reason};
+	#[allow(unused_imports)]
+	use base::base_constants::{DEGRADE_DECAY_BASE, DEGRADE_DECAY_POW, DEGRADE_FLOOR, DEGRADE_MIN_THRESHOLD};
+	#[allow(unused_imports)]
+	use base::base_types::{Reason, ReasonKind, ReviewState};
+	#[allow(unused_imports)]
+	use graph::reason::{add_reason, remove_entity, remove_reason};
+	#[allow(unused_imports)]
+	use math::{average_vec, reason_id};
+	use base::base_types::{Entity, Kern};
 
 	fn edge(from: &str, to: &str, score: f64) -> Reason {
 		Reason {
@@ -663,30 +491,6 @@ mod tests {
 		let mut g = GraphGnn::new();
 		let (decayed, removed) = degrade_entity_reasons(&mut g, "missing", "a");
 		assert_eq!((decayed, removed), (0, 0));
-	}
-
-	#[test]
-	fn link_vector_prefers_the_reason_embedding() {
-		let v = link_vector(
-			Some(vec![1.0, 2.0, 3.0]),
-			&[0.0, 0.0, 0.0],
-			&[9.0, 9.0, 9.0],
-		);
-		assert_eq!(
-			v,
-			vec![1.0, 2.0, 3.0],
-			"an embedded reason wins over the midpoint"
-		);
-	}
-
-	#[test]
-	fn link_vector_falls_back_to_endpoint_midpoint() {
-		let v = link_vector(None, &[0.0, 2.0], &[4.0, 6.0]);
-		assert_eq!(
-			v,
-			vec![2.0, 4.0],
-			"no embedding -> midpoint of the two endpoints"
-		);
 	}
 
 	use base::base_types::EntityKind;
