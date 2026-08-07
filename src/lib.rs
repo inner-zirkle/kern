@@ -112,8 +112,6 @@ pub mod health;
 pub mod heat;
 pub mod hnsw;
 pub mod hub;
-pub mod hub_node;
-pub mod hub_serve;
 pub mod identity;
 pub mod ingest;
 pub mod ingest_config;
