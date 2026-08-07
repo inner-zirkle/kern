@@ -1,3 +1,6 @@
+//! The daemon-side KernRpc handler: serves query/ingest/status over the
+//! per-cwd socket to local clients, against the shared store registry.
+
 use std::sync::Arc;
 
 use crate::transport::kern_rpc::{

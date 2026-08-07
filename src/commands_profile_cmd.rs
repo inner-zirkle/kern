@@ -1,3 +1,6 @@
+//! The `profile` subcommand: run a query with phase timing and print where the
+//! time went.
+
 use std::sync::Arc;
 use std::time::Instant;
 

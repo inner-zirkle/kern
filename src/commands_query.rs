@@ -1,3 +1,6 @@
+//! The `query` subcommand: recall from the graph with the full filter surface
+//! and render results for a terminal reader.
+
 use crate::mcp::tools_query::base_entity_json;
 use crate::search::{find_entity, search_all_unlocked};
 use crate::util::{short_id, truncate};

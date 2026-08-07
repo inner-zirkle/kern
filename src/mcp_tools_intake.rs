@@ -1,3 +1,5 @@
+//! Intake tools: drain the drop-dir queue and report intake status/failures.
+
 use std::time::{Duration, SystemTime};
 
 use crate::mcp::{tool_error, tool_result_json, Server};

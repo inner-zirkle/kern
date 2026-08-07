@@ -1,3 +1,6 @@
+//! Admin tools: health, gc, gravitons, claim-kind registration — operations
+//! on the daemon and its vocabulary rather than on the knowledge itself.
+
 use serde::Deserialize;
 
 use crate::mcp::{tool_error, tool_result_json, Server};

@@ -1,3 +1,7 @@
+//! Operator subcommands: health, gc, compact, compress, gravitons, claim
+//! kinds, unnamed-kern triage, peers, hub control, and store registration —
+//! administration of the daemon and its graph, not recall or ingest.
+
 use crate::transport::kern_rpc::AuthReq;
 use crate::transport::typed::Endpoint;
 

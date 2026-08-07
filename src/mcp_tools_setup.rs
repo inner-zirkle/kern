@@ -1,3 +1,6 @@
+//! The `setup` tool: returns wiring instructions for the calling agent with
+//! already-done steps marked; kern never writes a host's config itself.
+
 use crate::mcp::tool_result_json;
 
 // The agent-facing installer. kern never writes into a host's config itself —

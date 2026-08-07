@@ -1,3 +1,6 @@
+//! The `mcp` subcommand: run the MCP server over stdio against a store, or
+//! proxy to the daemon that owns it.
+
 use parking_lot::RwLock as StdRwLock;
 use std::sync::Arc;
 

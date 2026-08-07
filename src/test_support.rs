@@ -1,3 +1,7 @@
+//! Shared test fixtures: deterministic embeddings, canned LLM closures, and
+//! graph builders — test-only, compiled into the lib for reuse by integration
+//! tests.
+
 use crate::base_types::{Entity, Reason};
 use tokio::task::JoinHandle;
 

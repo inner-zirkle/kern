@@ -1,3 +1,6 @@
+//! The `ingest` subcommand: hand text or files to the ingest pipeline and
+//! report the outcome.
+
 use std::sync::Arc;
 
 use parking_lot::RwLock;

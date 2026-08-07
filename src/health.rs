@@ -1,3 +1,7 @@
+//! The health surface: [`HealthStats`] gathers graph counts, degradation
+//! counters, and convergence gauges from across the crate — every silent
+//! failure mode gets a number here so it stops being silent.
+
 use crate::graph::GraphGnn;
 
 // `Default` is what lets a caller name the one or two counters it cares about

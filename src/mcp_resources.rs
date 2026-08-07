@@ -1,3 +1,6 @@
+//! MCP resource definitions and reads — the graph views a host can pull as
+//! documents.
+
 use serde_json::value::RawValue;
 
 use crate::search::{find_entity, find_reason};

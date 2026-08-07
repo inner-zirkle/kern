@@ -1,3 +1,6 @@
+//! MCP prompt definitions — the reusable prompt templates a host lists and
+//! fills.
+
 use serde_json::value::RawValue;
 
 use crate::mcp::{err_resp, ok, Response, ERR_INVALID_REQ, ERR_NOT_FOUND};

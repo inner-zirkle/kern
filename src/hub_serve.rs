@@ -1,3 +1,6 @@
+//! The machine hub RPC server: one per machine, letting clients enumerate and
+//! reach every kern daemon without knowing socket paths.
+
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;

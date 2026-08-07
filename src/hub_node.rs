@@ -1,3 +1,7 @@
+//! The hub's handle on one per-root kern daemon: spawn it detached, probe its
+//! socket for liveness, read its idle time, and stop it — the process-level
+//! plumbing the machine hub manages daemons with.
+
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::time::Duration;

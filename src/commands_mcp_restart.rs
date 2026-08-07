@@ -1,3 +1,7 @@
+//! The attach-time staleness check: compare the daemon's build/config identity
+//! with our own and decide keep / restart / refuse — the live handshake behind
+//! auto-restart on a new build.
+
 use crate::transport::kern_rpc::HealthRes;
 
 // Below this, a mismatching daemon is left alone. Two clients built from

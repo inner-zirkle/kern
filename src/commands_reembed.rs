@@ -1,3 +1,6 @@
+//! The `reembed` subcommand: re-embed every entity with the configured model
+//! and restamp the store — the recovery path for an embedding-model change.
+
 // Daemon must be stopped: this writes the graph directly. That precondition was
 // unenforceable until the writer lock existed — killing the hub does not keep it
 // dead, since a surviving `kern mcp` proxy respawns it, and the respawned hub

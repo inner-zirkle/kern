@@ -1,3 +1,6 @@
+//! The `events` tool: a read-only change feed derived from bitemporal stamps,
+//! paged by an opaque cursor — the poll source for external watchers.
+
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::Deserialize;

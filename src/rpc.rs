@@ -1,3 +1,6 @@
+//! RPC auth glue: derive the caller identity/token requirements from config
+//! for the typed RPC surfaces.
+
 pub use crate::rpc_kern_rpc_server::{serve_kern_rpc_loop, KernRpcHandler};
 
 use std::path::{Path, PathBuf};

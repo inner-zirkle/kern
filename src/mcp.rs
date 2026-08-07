@@ -1,3 +1,7 @@
+//! The MCP server: JSON-RPC over stdio or SSE, exposing the tool/prompt/
+//! resource surfaces in the `mcp_*` modules. One [`Server`] per transport,
+//! sharing the store registry.
+
 pub use crate::mcp_prompt as prompt;
 pub use crate::mcp_resources as resources;
 pub use crate::mcp_sse as sse;

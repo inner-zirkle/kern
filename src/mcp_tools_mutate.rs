@@ -1,3 +1,6 @@
+//! Mutating tools: ingest, link, forget, promote, move — every write a host
+//! can make, routed through the same command paths as the CLI.
+
 use serde::Deserialize;
 
 use crate::base_constants::AGENT_SOURCE;

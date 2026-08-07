@@ -1,3 +1,7 @@
+//! Delegated-key tools: `sign` (the daemon signs with its peer key, which
+//! never leaves the process) and `contract_grant` (owner-signed contract
+//! amendment) — the federation operations a host asks the daemon to perform.
+
 use crate::gossip_contract::{
 	contract_id, params_from_config, tombstone_digest, WritePolicy, SIGNED_CRDT_V0_TAG,
 };

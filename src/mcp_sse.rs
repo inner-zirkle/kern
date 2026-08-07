@@ -1,3 +1,7 @@
+//! MCP over Streamable HTTP (the module name predates the rename): resolve
+//! the bearer token from the server's own config and serve through
+//! `transport::serve_http` — the surface is never up unauthenticated.
+
 use std::path::Path;
 use std::sync::Arc;
 

@@ -1,3 +1,6 @@
+//! The `route` subcommand: show where a text would land (kern, graviton,
+//! dedup) without committing it.
+
 use crate::transport::kern_rpc::{AuthReq, CallToolReq, KernRpcClient};
 use crate::transport::typed::{AdapterError, Endpoint, JsonEnvelopeCodec};
 

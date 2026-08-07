@@ -1,3 +1,5 @@
+//! The `intake` subcommand: drain and inspect the durable drop-dir queue.
+
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 

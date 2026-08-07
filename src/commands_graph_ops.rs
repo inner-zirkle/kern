@@ -1,3 +1,7 @@
+//! Entity-level subcommands: get, list, link, forget (by id and by source),
+//! degrade, promote, move — the per-thought reads and writes shared by the
+//! CLI and MCP surfaces.
+
 use crate::base_constants::{
 	DEGRADE_DECAY_BASE, DEGRADE_DECAY_POW, DEGRADE_FLOOR, DEGRADE_MIN_THRESHOLD,
 };

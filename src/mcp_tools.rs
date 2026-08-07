@@ -1,3 +1,6 @@
+//! The MCP tool catalog: JSON schema definitions and dispatch into the
+//! `mcp_tools_*` handlers.
+
 pub fn tool_definitions() -> Vec<serde_json::Value> {
 	let mut defs = crate::mcp_tools_query::tool_schemas();
 	defs.extend(crate::mcp_tools_events::tool_schemas());

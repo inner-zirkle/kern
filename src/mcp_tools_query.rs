@@ -1,3 +1,7 @@
+//! The `query` tool: recall with filters (kind, claim kind, scopes, time
+//! windows, review state) rendered for an agent caller — passages plus chains,
+//! no synthesis.
+
 use serde::Deserialize;
 
 use crate::base_types::EntityKind;

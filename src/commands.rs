@@ -1,3 +1,7 @@
+//! The CLI: clap definitions and dispatch. Every subcommand body lives in a
+//! `commands_*` module; this file owns argument shapes and the shared
+//! client/daemon plumbing they call into.
+
 pub(crate) use crate::commands_mcp_cmd::ensure_mcp_registered;
 
 use std::sync::Arc;

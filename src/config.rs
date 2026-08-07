@@ -1,3 +1,7 @@
+//! The resolved configuration: [`Config`] aggregates every section (embed,
+//! ingest, retrieval, gossip, tick, serve, ...) from the deep-merged
+//! global-then-project TOML scopes in `config_io`.
+
 pub use crate::config_detached_log;
 pub use crate::config_embed::{EmbedConfig, DEFAULT_EMBED_MODEL, DEFAULT_EMBED_URL};
 pub use crate::config_gnn::GnnConfig;
