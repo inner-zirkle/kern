@@ -5,12 +5,13 @@
 
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use crate::config::RetrievalConfig;
 use crate::retrieval::expand::{Scored, ScoredEntity};
 use base::base_constants::CONFIDENCE_BOUND_K;
 use base::base_types::{Entity, EntityKind, EntityStatus, ReviewState};
+use config::HeatConfig;
+use config::RetrievalConfig;
 use graph::graph::GraphGnn;
-use graph::heat::{self, HeatConfig};
+use graph::heat;
 use graph::lexical::LexicalIndex;
 use std::collections::HashMap;
 use std::time::{Duration, SystemTime};

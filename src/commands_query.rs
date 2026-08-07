@@ -42,7 +42,7 @@ fn print_results(v: &serde_json::Value) {
 // Routed before the embed call: a serving daemon owns the index this query has to
 // hit, and it embeds with its own configured model — the local path is what runs
 // when nothing is serving.
-pub(crate) async fn cmd_query(cfg: &crate::config::Config, params: QueryParams<'_>) {
+pub(crate) async fn cmd_query(cfg: &config::Config, params: QueryParams<'_>) {
 	let QueryParams {
 		text,
 		mode,
@@ -102,7 +102,7 @@ pub(crate) async fn cmd_query(cfg: &crate::config::Config, params: QueryParams<'
 }
 
 pub(crate) async fn cmd_search(
-	cfg: &crate::config::Config,
+	cfg: &config::Config,
 	text: &str,
 	k: usize,
 	embed_url: &str,
@@ -171,7 +171,7 @@ fn renamed(mut p: Profile, name: &str) -> Profile {
 }
 
 // Read-only: nothing is persisted, so it is safe to run next to a daemon.
-pub(crate) async fn cmd_profile(cfg: &crate::config::Config, text: &str, no_llm: bool) {
+pub(crate) async fn cmd_profile(cfg: &config::Config, text: &str, no_llm: bool) {
 	let mut profiles: Vec<Profile> = Vec::new();
 
 	let t = Instant::now();
@@ -262,7 +262,7 @@ mod tests {
 		let dir = std::env::temp_dir().join(format!("kern_profile_smoke_{}", std::process::id()));
 		std::fs::create_dir_all(&dir).unwrap();
 
-		let mut cfg = crate::config::Config {
+		let mut cfg = config::Config {
 			data_dir: dir.to_string_lossy().into_owned(),
 			..Default::default()
 		};

@@ -206,7 +206,7 @@ mod tests {
 	fn at_equal_usage_survival_does_not_depend_on_depth() {
 		use crate::retrieval::score::commit_access_ids;
 		use crate::tick_stigmergy::run_gc;
-		use graph::heat::HeatConfig;
+		use config::HeatConfig;
 		use parking_lot::RwLock;
 
 		const DEPTHS: usize = 8;

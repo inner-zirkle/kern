@@ -15,10 +15,10 @@ use parking_lot::RwLock;
 use serde::Serialize;
 use serde_json::value::RawValue;
 
-use crate::config::Config;
 use crate::ingest;
-use crate::llm;
+use config::Config;
 use graph::graph::GraphGnn;
+use llm;
 
 #[derive(Serialize)]
 pub(crate) struct Response {
@@ -211,8 +211,8 @@ impl Server {
 			"gnn_train_refused": crate::tick_trainer::gnn_train_refused(),
 			// Read straight from the client, like `gnn_train_refused` above: it is a
 			// property of this process's LLM leg, not of the graph `h` describes.
-			"llm_complete_failed": crate::llm::complete_failed(),
-			"last_llm_complete_failure": crate::llm::last_complete_failure(),
+			"llm_complete_failed": llm::complete_failed(),
+			"last_llm_complete_failure": llm::last_complete_failure(),
 		})
 	}
 }
@@ -454,7 +454,7 @@ pub async fn run_sse(server: Arc<Server>, addr: &str) -> Result<(), std::io::Err
 		.resolve_mcp_token(Path::new(&server.cfg.data_dir))?;
 	tracing::info!(
 		target: "kern.mcp_sse",
-		token_file = %crate::config::mcp_token_path(Path::new(&server.cfg.data_dir)).display(),
+		token_file = %config::mcp_token_path(Path::new(&server.cfg.data_dir)).display(),
 		"MCP-over-HTTP requires a bearer token"
 	);
 	crate::transport::serve_http(server, addr, Some(&token)).await

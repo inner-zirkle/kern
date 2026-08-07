@@ -2,8 +2,8 @@
 //! from one source section, then MMR-reorder so each kept result trades
 //! relevance against similarity to what is already kept.
 
-use crate::config::RetrievalConfig;
 use crate::retrieval::expand::Scored;
+use config::RetrievalConfig;
 use math::cosine;
 use std::collections::HashMap;
 

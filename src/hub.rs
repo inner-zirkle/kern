@@ -82,9 +82,9 @@ fn self_exe() -> Result<PathBuf, String> {
 }
 
 fn node_log_dir(root: &Path) -> PathBuf {
-	match crate::config::Config::load(root) {
+	match config::Config::load(root) {
 		Ok(cfg) => cfg.log_dir(),
-		Err(_) => crate::config::Config::default_in(root).log_dir(),
+		Err(_) => config::Config::default_in(root).log_dir(),
 	}
 }
 
@@ -101,7 +101,7 @@ pub async fn spawn(root: &Path) -> Result<NodeHandle, String> {
 	// The hub-first path is the default posture, so THIS is the daemon whose
 	// silence hides every fail-open defect. A config we cannot read must not
 	// stop the spawn — fall back to the conventional `.kern/data/logs`.
-	let (out, err) = crate::config::stdio(&node_log_dir(root), "--daemon");
+	let (out, err) = config::stdio(&node_log_dir(root), "--daemon");
 	let child = Command::new(exe)
 		.arg("--daemon")
 		.current_dir(root)
@@ -214,7 +214,7 @@ fn canon(root: &str) -> Result<PathBuf, String> {
 	}
 	// A booting node re-pins its cwd to the nearest `.kern` ancestor; resolve
 	// the same way here or the hub probes a socket the node never binds.
-	Ok(crate::config::Config::resolve_root(&canon))
+	Ok(config::Config::resolve_root(&canon))
 }
 
 async fn root_lock(locks: &SpawnLocks, root: &std::path::Path) -> Arc<Mutex<()>> {

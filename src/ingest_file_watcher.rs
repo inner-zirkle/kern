@@ -402,7 +402,7 @@ mod tests {
 		let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
 
 		let g = Arc::new(RwLock::new(GraphGnn::new()));
-		let embedder = crate::llm::Client::new_embed_only(&format!("http://{addr}"), "m", "");
+		let embedder = llm::Client::new_embed_only(&format!("http://{addr}"), "m", "");
 		let worker = Arc::new(crate::ingest::Worker::new(
 			g.clone(),
 			embedder,
@@ -466,7 +466,7 @@ mod tests {
 		let _serial = crate::ingest_worker::queue_refused_test_lock().lock().await;
 		let (url, _server) =
 			crate::test_support::spawn_http(crate::test_support::hanging_embed_app()).await;
-		let embedder = crate::llm::Client::new_embed_only(&url, "m", "");
+		let embedder = llm::Client::new_embed_only(&url, "m", "");
 		let worker = Arc::new(crate::ingest::Worker::new(
 			Arc::new(RwLock::new(GraphGnn::new())),
 			embedder,
@@ -529,7 +529,7 @@ mod tests {
 		let (url, _server) =
 			crate::test_support::spawn_http(crate::test_support::fixed_vec_embed_app()).await;
 		let g = Arc::new(RwLock::new(GraphGnn::new()));
-		let embedder = crate::llm::Client::new_embed_only(&url, "m", "");
+		let embedder = llm::Client::new_embed_only(&url, "m", "");
 		let worker = Arc::new(crate::ingest::Worker::new(
 			g.clone(),
 			embedder,
@@ -592,7 +592,7 @@ mod tests {
 		let (url, _server) =
 			crate::test_support::spawn_http(crate::test_support::fixed_vec_embed_app()).await;
 		let g = Arc::new(RwLock::new(GraphGnn::new()));
-		let embedder = crate::llm::Client::new_embed_only(&url, "m", "");
+		let embedder = llm::Client::new_embed_only(&url, "m", "");
 		let worker = Arc::new(crate::ingest::Worker::new(
 			g.clone(),
 			embedder,
@@ -672,7 +672,7 @@ mod tests {
 		let (url, _server) =
 			crate::test_support::spawn_http(crate::test_support::fixed_vec_embed_app()).await;
 		let g = Arc::new(RwLock::new(GraphGnn::new()));
-		let embedder = crate::llm::Client::new_embed_only(&url, "m", "");
+		let embedder = llm::Client::new_embed_only(&url, "m", "");
 		let worker = Arc::new(crate::ingest::Worker::new(
 			g.clone(),
 			embedder,

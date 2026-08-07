@@ -39,7 +39,7 @@ pub(crate) fn cmd_compress(src: &str, mode_str: &str, out: Option<&str>) {
 	}
 }
 
-pub(crate) async fn cmd_health(cfg: &crate::config::Config) {
+pub(crate) async fn cmd_health(cfg: &config::Config) {
 	let g = load_graph(cfg);
 	let h = crate::health::graph_health_stats(&g);
 	// Asked once, before anything prints: the degradation lines below need it too,
@@ -126,9 +126,7 @@ pub(crate) async fn cmd_health(cfg: &crate::config::Config) {
 
 // The tick queue lives in the daemon; an offline CLI has no view of it. One
 // attempt, no retry: `kern health` must not stall when nothing is serving.
-async fn daemon_health(
-	cfg: &crate::config::Config,
-) -> Option<crate::transport::kern_rpc::HealthRes> {
+async fn daemon_health(cfg: &config::Config) -> Option<crate::transport::kern_rpc::HealthRes> {
 	use crate::transport::kern_rpc::KernRpcClient;
 	use crate::transport::typed::{Endpoint, JsonEnvelopeCodec};
 
@@ -407,7 +405,7 @@ fn llm_health_lines(h: Option<&crate::transport::kern_rpc::HealthRes>) -> Vec<St
 }
 
 // Daemon must be stopped: a live daemon would race and re-persist the bloated graph.
-pub(crate) fn cmd_gc(cfg: &crate::config::Config) {
+pub(crate) fn cmd_gc(cfg: &config::Config) {
 	let _lock = match store::lock::acquire(&cfg.data_dir, "gc") {
 		Ok(l) => l,
 		Err(e) => {
@@ -440,7 +438,7 @@ pub(crate) fn cmd_gc(cfg: &crate::config::Config) {
 }
 
 // Daemon must be stopped: compaction swaps data.mdb underneath any open env.
-pub(crate) fn cmd_compact(cfg: &crate::config::Config) {
+pub(crate) fn cmd_compact(cfg: &config::Config) {
 	let _lock = match store::lock::acquire(&cfg.data_dir, "compact") {
 		Ok(l) => l,
 		Err(e) => {
@@ -487,7 +485,7 @@ fn print_graviton_removed(name: &str) {
 	println!("graviton removed: {name}");
 }
 
-pub(crate) async fn cmd_graviton(cfg: &crate::config::Config, action: GravitonAction) {
+pub(crate) async fn cmd_graviton(cfg: &config::Config, action: GravitonAction) {
 	graviton_at(cfg, &Endpoint::kern(), &crate::rpc::caller_of(cfg), action).await
 }
 
@@ -495,7 +493,7 @@ pub(crate) async fn cmd_graviton(cfg: &crate::config::Config, action: GravitonAc
 // map back unguarded, so a local graviton edit beside a serving daemon drops
 // everything that daemon has committed since this process loaded.
 async fn graviton_at(
-	cfg: &crate::config::Config,
+	cfg: &config::Config,
 	endpoint: &Endpoint,
 	auth: &AuthReq,
 	action: GravitonAction,
@@ -606,12 +604,12 @@ fn print_claim_kind_removed(name: &str) {
 	println!("claim kind removed: {name}");
 }
 
-pub(crate) async fn cmd_claim_kind(cfg: &crate::config::Config, action: ClaimKindAction) {
+pub(crate) async fn cmd_claim_kind(cfg: &config::Config, action: ClaimKindAction) {
 	claim_kind_at(cfg, &Endpoint::kern(), &crate::rpc::caller_of(cfg), action).await
 }
 
 async fn claim_kind_at(
-	cfg: &crate::config::Config,
+	cfg: &config::Config,
 	endpoint: &Endpoint,
 	auth: &AuthReq,
 	action: ClaimKindAction,
@@ -671,11 +669,11 @@ async fn claim_kind_at(
 	}
 }
 
-pub(crate) fn cmd_peers(cfg: &crate::config::Config) {
+pub(crate) fn cmd_peers(cfg: &config::Config) {
 	print!("{}", peers_summary(cfg));
 }
 
-fn peers_summary(cfg: &crate::config::Config) -> String {
+fn peers_summary(cfg: &config::Config) -> String {
 	let g = &cfg.gossip;
 	let mut out = String::new();
 	if !g.enabled {
@@ -702,7 +700,7 @@ fn peers_summary(cfg: &crate::config::Config) -> String {
 	out
 }
 
-pub(crate) fn cmd_register(cfg: &crate::config::Config, path: &str) {
+pub(crate) fn cmd_register(cfg: &config::Config, path: &str) {
 	// The loaded graph is bound to the SOURCE store, so write into a freshly
 	// opened destination store — save_graph_unguarded would write back to the source.
 	match graph::persist::load_dir(path) {
@@ -717,7 +715,7 @@ pub(crate) fn cmd_register(cfg: &crate::config::Config, path: &str) {
 	}
 }
 
-pub(crate) async fn cmd_unnamed(cfg: &crate::config::Config, action: UnnamedAction) {
+pub(crate) async fn cmd_unnamed(cfg: &config::Config, action: UnnamedAction) {
 	match action {
 		UnnamedAction::List => {
 			let g = load_graph(cfg);
@@ -784,9 +782,7 @@ pub(crate) async fn cmd_unnamed(cfg: &crate::config::Config, action: UnnamedActi
 
 fn default_root() -> String {
 	let cwd = std::env::current_dir().unwrap_or_default();
-	crate::config::Config::resolve_root(&cwd)
-		.display()
-		.to_string()
+	config::Config::resolve_root(&cwd).display().to_string()
 }
 
 pub(crate) async fn cmd_hub(action: Option<crate::commands::HubAction>, idle_unload_secs: u64) {
@@ -878,7 +874,7 @@ async fn cmd_hub_merge(src: &str, dst: &str) {
 
 	let canon = |s: &str| -> Option<std::path::PathBuf> {
 		let p = std::path::Path::new(s).canonicalize().ok()?;
-		Some(crate::config::Config::resolve_root(&p))
+		Some(config::Config::resolve_root(&p))
 	};
 	let Some(src_root) = canon(src) else {
 		eprintln!("merge: src {src} does not exist");
@@ -922,14 +918,14 @@ async fn cmd_hub_merge(src: &str, dst: &str) {
 	// Fallback must stay pinned to the root: a bare `Config::default()` carries a
 	// cwd-relative data_dir and would read (and write!) whatever store the
 	// caller happens to stand in.
-	let src_cfg = match crate::config::Config::load(&src_root) {
+	let src_cfg = match config::Config::load(&src_root) {
 		Ok(c) => c,
 		Err(e) => {
 			eprintln!("merge: src config error: {e}");
 			return;
 		}
 	};
-	let dst_cfg = match crate::config::Config::load(&dst_root) {
+	let dst_cfg = match config::Config::load(&dst_root) {
 		Ok(c) => c,
 		Err(e) => {
 			eprintln!("merge: dst config error: {e}");
@@ -963,7 +959,7 @@ async fn cmd_hub_merge(src: &str, dst: &str) {
 use crate::transport::kern_rpc::KernRpcClient;
 use crate::transport::typed::JsonEnvelopeCodec;
 
-pub(crate) async fn cmd_status(cfg: &crate::config::Config) {
+pub(crate) async fn cmd_status(cfg: &config::Config) {
 	let kern_ep = Endpoint::kern();
 	let hub_ep = Endpoint::hub();
 
@@ -1412,7 +1408,7 @@ mod degradation_lines_tests {
 #[cfg(test)]
 mod peers_tests {
 	use super::*;
-	use crate::config::Config;
+	use config::Config;
 
 	#[test]
 	fn peers_summary_gossip_disabled() {
@@ -1446,7 +1442,7 @@ mod peers_tests {
 #[cfg(test)]
 mod cmd_tests {
 	use super::*;
-	use crate::config::Config;
+	use config::Config;
 
 	fn temp_cfg() -> (tempfile::TempDir, Config) {
 		let dir = tempfile::tempdir().expect("tempdir");
@@ -1699,7 +1695,7 @@ mod hub_merge_tests {
 
 	fn store_with_entity(root: &std::path::Path, eid: &str) {
 		std::fs::create_dir_all(root.join(".kern")).unwrap();
-		let cfg = crate::config::Config::default_in(root);
+		let cfg = config::Config::default_in(root);
 		let mut g = graph::graph::GraphGnn::new();
 		g.data_dir = cfg.data_dir.clone();
 		std::fs::create_dir_all(&g.data_dir).unwrap();
@@ -1718,7 +1714,7 @@ mod hub_merge_tests {
 	}
 
 	fn dst_entities(root: &std::path::Path) -> usize {
-		let cfg = crate::config::Config::default_in(root);
+		let cfg = config::Config::default_in(root);
 		let g = crate::commands::load_graph(&cfg);
 		crate::health::graph_health_stats(&g).entities
 	}

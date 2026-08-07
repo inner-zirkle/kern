@@ -20,7 +20,7 @@ pub(crate) fn mcp_server_with_embed_url(url: &str) -> crate::mcp::Server {
 	use parking_lot::RwLock;
 	use std::sync::Arc;
 	let graph = Arc::new(RwLock::new(graph::graph::GraphGnn::new()));
-	let embedder = crate::llm::Client::new_embed_only(url, "test", "");
+	let embedder = llm::Client::new_embed_only(url, "test", "");
 	let worker = Arc::new(crate::ingest::Worker::new(
 		graph.clone(),
 		embedder,
@@ -34,7 +34,7 @@ pub(crate) fn mcp_server_with_embed_url(url: &str) -> crate::mcp::Server {
 		llm: None,
 		save_fn: Arc::new(|| {}),
 		task_q: None,
-		cfg: Arc::new(crate::config::Config::default()),
+		cfg: Arc::new(config::Config::default()),
 		broadcast_pulse: None,
 		last_activity: Arc::new(std::sync::atomic::AtomicU64::new(util::now_ms())),
 	}
@@ -42,7 +42,7 @@ pub(crate) fn mcp_server_with_embed_url(url: &str) -> crate::mcp::Server {
 
 // The default rig with a caller-shaped config — for tools that resolve paths
 // (peer key, intake dir) off cfg rather than the graph.
-pub(crate) fn mcp_server_with_config(cfg: crate::config::Config) -> crate::mcp::Server {
+pub(crate) fn mcp_server_with_config(cfg: config::Config) -> crate::mcp::Server {
 	let mut s = mcp_server();
 	s.cfg = std::sync::Arc::new(cfg);
 	s

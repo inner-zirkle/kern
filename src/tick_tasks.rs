@@ -7,18 +7,18 @@ use std::sync::Arc;
 
 use parking_lot::RwLock;
 
-use crate::config::TickConfig;
 use crate::ingest::place::build_chunk_entity;
 use base::base_constants::{
 	DEFAULT_SEED_K, KERN_INNER_RADIUS, KERN_OUTER_RADIUS, PROVENANCE_SCORE,
 	QUESTION_RESOLVE_THRESHOLD,
 };
 use base::base_types::{Embedding, Reason, ReasonKind, Scoping};
+use config::HeatConfig;
+use config::TickConfig;
 use graph::accept::{
 	classify_prompt, parse_contradiction, supersede_by_contradiction, ContradictionClass,
 };
 use graph::graph::GraphGnn;
-use graph::heat::HeatConfig;
 use graph::reason::{add_reason, remove_reason};
 use graph::search::search_all_unlocked;
 use math::reason_id;
@@ -29,7 +29,7 @@ use crate::tick_cluster::{
 };
 use crate::tick_queue::{task, task_extra, Queue, TaskKind};
 
-pub use crate::llm::{EmbedFunc, LlmFunc};
+pub use llm::{EmbedFunc, LlmFunc};
 pub type BroadcastQuestionFunc = Arc<dyn Fn(&str, &[f32], &str) + Send + Sync>;
 
 fn strip_name_prefixes(raw: &str) -> String {

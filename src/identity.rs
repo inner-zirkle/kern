@@ -56,7 +56,7 @@ pub fn build_id() -> String {
 
 /// Identity of the *resolved* config, so an edited `kern.toml` reads as stale
 /// even when the binary did not change. Empty when it will not serialize.
-pub fn config_id(cfg: &crate::config::Config) -> String {
+pub fn config_id(cfg: &config::Config) -> String {
 	serde_json::to_string(cfg)
 		.map(|s| short(&s))
 		.unwrap_or_default()
@@ -96,8 +96,8 @@ mod tests {
 
 	#[test]
 	fn config_id_moves_when_config_moves() {
-		let a = crate::config::Config::default();
-		let mut b = crate::config::Config::default();
+		let a = config::Config::default();
+		let mut b = config::Config::default();
 		b.embed.url = "http://elsewhere:11434".into();
 		assert_ne!(
 			config_id(&a),

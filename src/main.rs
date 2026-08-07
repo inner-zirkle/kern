@@ -3,8 +3,8 @@
 
 use clap::Parser;
 
+use config::Config;
 use kern::commands::{dispatch, run_server, Cli, Commands};
-use kern::config::Config;
 
 // sysexits(3) EX_CONFIG: distinguishes "your settings are wrong" from a crash.
 const EXIT_CONFIG: i32 = 78;
@@ -16,7 +16,7 @@ fn worker_thread_count(available: Option<usize>) -> usize {
 /// Booting with settings known to be wrong is not failing open, it is failing
 /// silently. An absent config is legitimate — `load` already defaults it — so
 /// every error it does return is a real one, and every one of them is fatal.
-fn boot_config(loaded: Result<Config, kern::config::Error>) -> Result<Config, String> {
+fn boot_config(loaded: Result<Config, config::Error>) -> Result<Config, String> {
 	let cfg = loaded.map_err(|e| {
 		format!("kern: cannot read the config: {e}\n  fix .kern/kern.toml (or the user-level kern.toml); deleting it is also valid — an absent config uses defaults")
 	})?;

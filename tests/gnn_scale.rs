@@ -15,10 +15,10 @@ use std::time::{Duration, Instant};
 use parking_lot::RwLock;
 
 use base::base_types::{Entity, EntityKind, Kern, Reason};
+use config::HeatConfig;
+use config::TickConfig;
 use graph::graph::GraphGnn;
-use graph::heat::HeatConfig;
 use graph::reason::add_reason;
-use kern::config::TickConfig;
 use kern::gnn::propagate::GnnConfig;
 use kern::tick_gnn_propagate::do_gnn_propagate;
 use kern::tick_queue::{task, task_commit_access, Queue, TaskKind};

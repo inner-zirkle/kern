@@ -8,8 +8,8 @@
 // Kept rather than deleted because both items are perf claims, and a perf claim
 // whose instrument was thrown away cannot be rechecked when the numbers move.
 use base::base_types::{ChunkPart, ChunkPartKind, Entity, EntityKind, Kern, Reason};
+use config::RetrievalConfig;
 use graph::graph::GraphGnn;
-use kern::config::RetrievalConfig;
 use kern::retrieval::query::retrieve_profiled;
 use kern::retrieval::seed::{seed_important, Mode, Weights};
 use std::time::Instant;

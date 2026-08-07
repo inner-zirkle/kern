@@ -19,12 +19,12 @@ use crate::transport::kern_rpc::AuthReq;
 /// Searching costs nothing to be wrong about. The daemon compares against the
 /// secret *it* resolved, so the only outcome of guessing badly is a refusal —
 /// this is a client hunting for a key, never a server deciding to accept one.
-fn token_for(root: &Path, cfg: &crate::config::Config) -> Option<String> {
+fn token_for(root: &Path, cfg: &config::Config) -> Option<String> {
 	cfg
 		.serve
 		.read_mcp_token(Path::new(&cfg.data_dir))
 		.or_else(|| {
-			let conventional = crate::config::Config::default_in(root).data_dir;
+			let conventional = config::Config::default_in(root).data_dir;
 			(conventional != cfg.data_dir)
 				.then(|| cfg.serve.read_mcp_token(Path::new(&conventional)))
 				.flatten()
@@ -42,15 +42,14 @@ fn cwd() -> PathBuf {
 /// No token found leaves it empty, and the daemon refuses an empty token like
 /// any other wrong one: a caller that cannot prove itself is turned away, not
 /// waved through.
-pub fn caller_of(cfg: &crate::config::Config) -> AuthReq {
+pub fn caller_of(cfg: &config::Config) -> AuthReq {
 	AuthReq::new(token_for(&cwd(), cfg).unwrap_or_default())
 }
 
 /// The same, for a caller that knows only which directory the graph lives in —
 /// the hub, whose nodes are addressed by a root it never stands in.
 pub fn caller_at(root: &Path) -> AuthReq {
-	let cfg =
-		crate::config::Config::load(root).unwrap_or_else(|_| crate::config::Config::default_in(root));
+	let cfg = config::Config::load(root).unwrap_or_else(|_| config::Config::default_in(root));
 	AuthReq::new(token_for(root, &cfg).unwrap_or_default())
 }
 
@@ -63,7 +62,7 @@ pub fn caller() -> AuthReq {
 #[cfg(test)]
 mod caller_tests {
 	use super::*;
-	use crate::config::mcp_token_path;
+	use config::mcp_token_path;
 
 	fn write_token(data_dir: &Path, token: &str) {
 		std::fs::create_dir_all(data_dir).unwrap();
@@ -73,7 +72,7 @@ mod caller_tests {
 	#[test]
 	fn the_configured_store_is_where_the_token_is_read_from() {
 		let root = tempfile::tempdir().unwrap();
-		let mut cfg = crate::config::Config::default_in(root.path());
+		let mut cfg = config::Config::default_in(root.path());
 		cfg.data_dir = root.path().join("store").to_string_lossy().into_owned();
 		write_token(Path::new(&cfg.data_dir), "configured-secret");
 		assert_eq!(
@@ -88,10 +87,10 @@ mod caller_tests {
 	#[test]
 	fn a_repointed_data_dir_still_finds_the_secret_the_root_daemon_minted() {
 		let root = tempfile::tempdir().unwrap();
-		let conventional = crate::config::Config::default_in(root.path()).data_dir;
+		let conventional = config::Config::default_in(root.path()).data_dir;
 		write_token(Path::new(&conventional), "the-daemons-secret");
 
-		let mut cfg = crate::config::Config::default_in(root.path());
+		let mut cfg = config::Config::default_in(root.path());
 		cfg.data_dir = root.path().join("blind").to_string_lossy().into_owned();
 		assert_eq!(
 			token_for(root.path(), &cfg).as_deref(),
@@ -103,7 +102,7 @@ mod caller_tests {
 	#[test]
 	fn no_token_anywhere_yields_none_rather_than_something_forgiving() {
 		let root = tempfile::tempdir().unwrap();
-		let cfg = crate::config::Config::default_in(root.path());
+		let cfg = config::Config::default_in(root.path());
 		assert!(token_for(root.path(), &cfg).is_none());
 		assert!(
 			caller_at(root.path()).token.is_empty(),
@@ -120,7 +119,7 @@ mod caller_tests {
 	fn a_blank_token_file_reads_as_no_token_at_all() {
 		for body in ["", "   ", "\n", " \t\r\n "] {
 			let root = tempfile::tempdir().unwrap();
-			let cfg = crate::config::Config::default_in(root.path());
+			let cfg = config::Config::default_in(root.path());
 			write_token(Path::new(&cfg.data_dir), body);
 			assert!(
 				token_for(root.path(), &cfg).is_none(),
@@ -133,7 +132,7 @@ mod caller_tests {
 	#[test]
 	fn an_explicit_configured_token_wins_and_needs_no_file() {
 		let root = tempfile::tempdir().unwrap();
-		let mut cfg = crate::config::Config::default_in(root.path());
+		let mut cfg = config::Config::default_in(root.path());
 		cfg.serve.mcp_token = "explicit".into();
 		assert_eq!(token_for(root.path(), &cfg).as_deref(), Some("explicit"));
 	}

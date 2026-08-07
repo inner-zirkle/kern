@@ -223,7 +223,7 @@ impl Server {
 		let mode = retrieval::seed::Mode::parse(&p.mode);
 		let rcfg = &self.cfg.retrieval;
 
-		let vec = match crate::llm::block_on_in_place(llm.embed(&p.text)) {
+		let vec = match llm::block_on_in_place(llm.embed(&p.text)) {
 			Some(Ok(v)) => v,
 			Some(Err(e)) => return tool_error(&format!("embed failed: {e}")),
 			None => return tool_error("no tokio runtime"),
@@ -882,7 +882,7 @@ mod cold_tier_filter_tests {
 		let mut srv = crate::test_support::mcp_server_with_embed_url(&url);
 		// The ranked path embeds the query itself, so this rig needs the server's
 		// own client, not just the worker's.
-		srv.llm = Some(crate::llm::Client::new_embed_only(&url, "test", ""));
+		srv.llm = Some(llm::Client::new_embed_only(&url, "test", ""));
 
 		let dir = tempfile::tempdir().expect("tmpdir");
 		let store = store::base_store::Store::open(&dir.path().to_string_lossy()).expect("store");

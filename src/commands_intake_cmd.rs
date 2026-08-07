@@ -14,7 +14,7 @@ use crate::commands_route::{route, u64_field, Routed};
 const WRITE_RETRIES: u32 = 5;
 
 pub(crate) async fn cmd_intake(
-	cfg: &crate::config::Config,
+	cfg: &config::Config,
 	action: Option<IntakeAction>,
 	embed_url: &str,
 	embed_model: &str,
@@ -81,7 +81,7 @@ fn human_age(d: Duration) -> String {
 }
 
 async fn drain(
-	cfg: &crate::config::Config,
+	cfg: &config::Config,
 	dir: &std::path::Path,
 	embed_url: &str,
 	embed_model: &str,
@@ -129,7 +129,7 @@ async fn drain(
 // the graph both. The queue itself is on disk either way, which is why only the
 // archived count crosses the socket and both paths print through the same tail.
 async fn drain_locally(
-	cfg: &crate::config::Config,
+	cfg: &config::Config,
 	dir: &std::path::Path,
 	before: &Report,
 	embed_url: &str,
@@ -153,7 +153,7 @@ async fn drain_locally(
 	} else {
 		let c = llm_client.clone();
 		Some(Arc::new(move |q: &str| {
-			crate::llm::block_on_in_place(c.complete(q))
+			llm::block_on_in_place(c.complete(q))
 				.and_then(Result::ok)
 				.unwrap_or_default()
 		}))
@@ -181,7 +181,7 @@ async fn drain_locally(
 // Same guarded retry as `cmd_ingest`: this opens the store directly, so a
 // running daemon is a second writer (ROADMAP item 9). The guard turns that
 // into a refused flush and a reload, never a silent clobber.
-fn flush(g: &Arc<RwLock<graph::graph::GraphGnn>>, cfg: &crate::config::Config) {
+fn flush(g: &Arc<RwLock<graph::graph::GraphGnn>>, cfg: &config::Config) {
 	for attempt in 0..WRITE_RETRIES {
 		let expected = g.read().flushed_epoch();
 		let flushed = graph::persist::flush_guarded(&g.read(), expected);

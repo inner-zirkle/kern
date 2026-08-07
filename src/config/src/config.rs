@@ -8,7 +8,23 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use graph::heat::HeatConfig;
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(default)]
+pub struct HeatConfig {
+	pub half_life_secs: u64,
+	// Dimensionless heat unit — not a ratio or duration. The only deposit there
+	// is: heat measures use, and the tick is not a user (ROADMAP item 32).
+	pub deposit_access: f32,
+}
+
+impl Default for HeatConfig {
+	fn default() -> Self {
+		Self {
+			half_life_secs: 7 * 24 * 60 * 60,
+			deposit_access: 1.0,
+		}
+	}
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
@@ -204,7 +220,7 @@ impl Config {
 			("embed.url", &self.embed.url),
 			("reason.url", &self.reason.url),
 		] {
-			if !url.is_empty() && !crate::llm::is_local_url(url) {
+			if !url.is_empty() && !llm::is_local_url(url) {
 				out.push(format!(
 					"{label} ({url}) is non-local — all text sent to it egresses this machine"
 				));
@@ -222,31 +238,28 @@ impl Config {
 	/// value would double-count the one provider.
 	pub fn native_knob_warnings(&self) -> Vec<String> {
 		let mut out = Vec::new();
-		if crate::llm::is_openai_compat(&self.embed.url) {
-			if self.embed.num_ctx != 0 && self.embed.num_ctx != crate::llm::EMBED_NUM_CTX {
+		if llm::is_openai_compat(&self.embed.url) {
+			if self.embed.num_ctx != 0 && self.embed.num_ctx != llm::EMBED_NUM_CTX {
 				out.push(format!(
 					"embed.num_ctx = {} is ignored — embed.url ({}) is an OpenAI-compatible /v1 endpoint with no client-side context window",
 					self.embed.num_ctx, self.embed.url
 				));
 			}
-			if !self.embed.keep_alive.is_empty() && self.embed.keep_alive != crate::llm::EMBED_KEEP_ALIVE
-			{
+			if !self.embed.keep_alive.is_empty() && self.embed.keep_alive != llm::EMBED_KEEP_ALIVE {
 				out.push(format!(
 					"embed.keep_alive = \"{}\" is ignored — embed.url ({}) is an OpenAI-compatible /v1 endpoint with no keep-alive option",
 					self.embed.keep_alive, self.embed.url
 				));
 			}
 		}
-		if crate::llm::is_openai_compat(&self.reason.url) {
-			if self.reason.num_ctx != 0 && self.reason.num_ctx != crate::llm::REASON_NUM_CTX {
+		if llm::is_openai_compat(&self.reason.url) {
+			if self.reason.num_ctx != 0 && self.reason.num_ctx != llm::REASON_NUM_CTX {
 				out.push(format!(
 					"reason.num_ctx = {} is ignored — reason.url ({}) is an OpenAI-compatible /v1 endpoint with no client-side context window",
 					self.reason.num_ctx, self.reason.url
 				));
 			}
-			if !self.reason.keep_alive.is_empty()
-				&& self.reason.keep_alive != crate::llm::REASON_KEEP_ALIVE
-			{
+			if !self.reason.keep_alive.is_empty() && self.reason.keep_alive != llm::REASON_KEEP_ALIVE {
 				out.push(format!(
 					"reason.keep_alive = \"{}\" is ignored — reason.url ({}) is an OpenAI-compatible /v1 endpoint with no keep-alive option",
 					self.reason.keep_alive, self.reason.url
@@ -263,7 +276,7 @@ impl Config {
 	/// (loopback is correct there), and a non-loopback local URL (e.g. the WSL2
 	/// gateway `172.27.x.x`) is already correct, so it is silent too.
 	pub fn wsl_loopback_warnings(&self) -> Vec<String> {
-		self.wsl_loopback_warnings_for(crate::llm::is_wsl())
+		self.wsl_loopback_warnings_for(llm::is_wsl())
 	}
 
 	/// Same as `wsl_loopback_warnings` with the WSL flag injected, so a test does
@@ -277,7 +290,7 @@ impl Config {
 			("embed.url", &self.embed.url),
 			("reason.url", &self.reason.url),
 		] {
-			if !url.is_empty() && crate::llm::is_loopback_url(url) {
+			if !url.is_empty() && llm::is_loopback_url(url) {
 				out.push(format!(
 					"{label} ({url}) is loopback, but kern is running under WSL — a Linux 127.0.0.1 does not reach a Windows-host Ollama. Pin the WSL2 gateway IP instead (e.g. the host side of /etc/resolv.conf, or `ip route show default`)"
 				));
@@ -632,8 +645,8 @@ mod tests {
 	#[test]
 	fn embed_config_default_carries_the_native_knob_constants() {
 		let c = crate::config::EmbedConfig::default();
-		assert_eq!(c.num_ctx, crate::llm::EMBED_NUM_CTX);
-		assert_eq!(c.keep_alive, crate::llm::EMBED_KEEP_ALIVE);
+		assert_eq!(c.num_ctx, llm::EMBED_NUM_CTX);
+		assert_eq!(c.keep_alive, llm::EMBED_KEEP_ALIVE);
 	}
 
 	#[test]
@@ -665,14 +678,14 @@ mod tests {
 
 	#[test]
 	fn is_loopback_url_pins_loopback_only() {
-		assert!(crate::llm::is_loopback_url("http://127.0.0.1:11434"));
-		assert!(crate::llm::is_loopback_url("http://127.1.2.3:11434"));
-		assert!(crate::llm::is_loopback_url("http://localhost:11434"));
-		assert!(crate::llm::is_loopback_url("http://[::1]:8080"));
+		assert!(llm::is_loopback_url("http://127.0.0.1:11434"));
+		assert!(llm::is_loopback_url("http://127.1.2.3:11434"));
+		assert!(llm::is_loopback_url("http://localhost:11434"));
+		assert!(llm::is_loopback_url("http://[::1]:8080"));
 		// RFC1918 is local but NOT loopback — the WSL2 gateway falls here
-		assert!(!crate::llm::is_loopback_url("http://172.27.176.1:11434"));
-		assert!(!crate::llm::is_loopback_url("http://10.0.0.1:11434"));
-		assert!(!crate::llm::is_loopback_url("https://api.openai.com"));
+		assert!(!llm::is_loopback_url("http://172.27.176.1:11434"));
+		assert!(!llm::is_loopback_url("http://10.0.0.1:11434"));
+		assert!(!llm::is_loopback_url("https://api.openai.com"));
 	}
 }
 
@@ -1009,7 +1022,24 @@ impl Preset {
 #[cfg(test)]
 mod preset_tests {
 	use super::*;
-	use graph::heat::HeatConfig;
+	#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+	#[serde(default)]
+	pub struct HeatConfig {
+		pub half_life_secs: u64,
+		// Dimensionless heat unit — not a ratio or duration. The only deposit there
+		// is: heat measures use, and the tick is not a user (ROADMAP item 32).
+		pub deposit_access: f32,
+	}
+
+	impl Default for HeatConfig {
+		fn default() -> Self {
+			Self {
+				half_life_secs: 7 * 24 * 60 * 60,
+				deposit_access: 1.0,
+			}
+		}
+	}
+
 	use std::path::Path;
 
 	fn applied(p: Preset) -> Config {
@@ -1176,8 +1206,8 @@ impl Default for EmbedConfig {
 			url: DEFAULT_EMBED_URL.into(),
 			model: DEFAULT_EMBED_MODEL.into(),
 			key: String::new(),
-			num_ctx: crate::llm::EMBED_NUM_CTX,
-			keep_alive: crate::llm::EMBED_KEEP_ALIVE.into(),
+			num_ctx: llm::EMBED_NUM_CTX,
+			keep_alive: llm::EMBED_KEEP_ALIVE.into(),
 		}
 	}
 }
@@ -1218,7 +1248,6 @@ const DEFAULT_REASON_URL: &str = "http://localhost:11434";
 pub const DEFAULT_REASON_MODEL: &str = "granite4:3b";
 
 // Slow CPU inference / large RAG prompts / long streams run past anything less.
-pub const DEFAULT_REASON_TIMEOUT_SECS: u64 = 600;
 
 impl Default for ReasonConfig {
 	fn default() -> Self {
@@ -1226,9 +1255,9 @@ impl Default for ReasonConfig {
 			url: DEFAULT_REASON_URL.into(),
 			model: DEFAULT_REASON_MODEL.into(),
 			key: String::new(),
-			timeout_secs: DEFAULT_REASON_TIMEOUT_SECS,
-			num_ctx: crate::llm::REASON_NUM_CTX,
-			keep_alive: crate::llm::REASON_KEEP_ALIVE.into(),
+			timeout_secs: llm::DEFAULT_REASON_TIMEOUT_SECS,
+			num_ctx: llm::REASON_NUM_CTX,
+			keep_alive: llm::REASON_KEEP_ALIVE.into(),
 		}
 	}
 }
@@ -1245,60 +1274,23 @@ pub struct GnnConfig {
 	pub train_learning_rate: f64,
 }
 
+// Canonical GNN defaults — config owns them so it never reaches up to `gnn`;
+// `gnn::propagate::GnnConfig::defaults()` reads these down here.
+pub const DEFAULT_SELF_WEIGHT: f64 = 0.6;
+pub const DEFAULT_MIN_WEIGHT: f64 = 0.01;
+pub const DEFAULT_MIN_THOUGHTS: usize = 128;
+pub const DEFAULT_TRAIN_EPOCHS: usize = 24;
+pub const DEFAULT_TRAIN_LEARNING_RATE: f64 = 0.01;
+
 impl Default for GnnConfig {
 	fn default() -> Self {
 		Self {
-			self_weight: crate::gnn::propagate::DEFAULT_SELF_WEIGHT,
-			min_weight: crate::gnn::propagate::DEFAULT_MIN_WEIGHT,
-			min_thoughts: crate::gnn::propagate::DEFAULT_MIN_THOUGHTS,
-			train_epochs: crate::gnn::propagate::DEFAULT_TRAIN_EPOCHS,
-			train_learning_rate: crate::gnn::propagate::DEFAULT_TRAIN_LEARNING_RATE,
+			self_weight: DEFAULT_SELF_WEIGHT,
+			min_weight: DEFAULT_MIN_WEIGHT,
+			min_thoughts: DEFAULT_MIN_THOUGHTS,
+			train_epochs: DEFAULT_TRAIN_EPOCHS,
+			train_learning_rate: DEFAULT_TRAIN_LEARNING_RATE,
 		}
-	}
-}
-
-impl From<GnnConfig> for crate::gnn::propagate::GnnConfig {
-	fn from(c: GnnConfig) -> Self {
-		crate::gnn::propagate::GnnConfig {
-			self_weight: c.self_weight,
-			min_weight: c.min_weight,
-			min_thoughts: c.min_thoughts,
-			train_epochs: c.train_epochs,
-			train_learning_rate: c.train_learning_rate,
-		}
-	}
-}
-
-#[cfg(test)]
-mod reason_tests {
-	use super::*;
-
-	#[test]
-	fn from_maps_every_field_without_drift() {
-		let serde_cfg = GnnConfig {
-			self_weight: 0.11,
-			min_weight: 0.22,
-			min_thoughts: 33,
-			train_epochs: 44,
-			train_learning_rate: 0.55,
-		};
-		let runtime: crate::gnn::propagate::GnnConfig = serde_cfg.into();
-		assert_eq!(runtime.self_weight, 0.11);
-		assert_eq!(runtime.min_weight, 0.22);
-		assert_eq!(runtime.min_thoughts, 33);
-		assert_eq!(runtime.train_epochs, 44);
-		assert_eq!(runtime.train_learning_rate, 0.55);
-	}
-
-	#[test]
-	fn serde_default_equals_the_runtime_default() {
-		let runtime: crate::gnn::propagate::GnnConfig = GnnConfig::default().into();
-		let rd = crate::gnn::propagate::GnnConfig::defaults();
-		assert_eq!(runtime.self_weight, rd.self_weight);
-		assert_eq!(runtime.min_weight, rd.min_weight);
-		assert_eq!(runtime.min_thoughts, rd.min_thoughts);
-		assert_eq!(runtime.train_epochs, rd.train_epochs);
-		assert_eq!(runtime.train_learning_rate, rd.train_learning_rate);
 	}
 }
 
@@ -1382,9 +1374,9 @@ impl Default for HubConfig {
 
 // ==== [ingest] ====
 
-use crate::ingest::ReviewPolicy;
 use base::base_constants::INGEST_DEDUP_THRESHOLD;
 use base::base_types::{EntityKind, Source};
+use ingest_config::ReviewPolicy;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
@@ -1430,7 +1422,7 @@ impl IngestConfig {
 				));
 			}
 		}
-		crate::ingest::Config {
+		ingest_config::Config {
 			dedup_threshold: self.dedup_threshold,
 			dedup_threshold_by_kind: self.dedup_threshold_by_kind,
 			..Default::default()
@@ -1521,7 +1513,7 @@ impl IntakeConfig {
 		}
 		// Refuse a retention that can never become a deadline at boot, rather
 		// than logging it once per drain pass for the life of the daemon.
-		crate::ingest::valid_until_from_retention(self.retention_secs)?;
+		ingest_config::valid_until_from_retention(self.retention_secs)?;
 		Ok(())
 	}
 }
@@ -2237,7 +2229,7 @@ pub struct WatcherConfig {
 
 impl WatcherConfig {
 	pub fn validate(&self) -> Result<(), String> {
-		crate::ingest::valid_until_from_retention(self.retention_secs)?;
+		ingest_config::valid_until_from_retention(self.retention_secs)?;
 		Ok(())
 	}
 
@@ -2670,6 +2662,21 @@ mod serve_tests {
 		assert!(
 			open(&blocked, "hub").is_err(),
 			"create_dir_all over an existing file must fail, so the fallback is reachable"
+		);
+	}
+}
+
+#[cfg(test)]
+mod llm_timeout_tests {
+	use super::*;
+
+	#[test]
+	fn the_unconfigured_timeout_is_the_const_it_replaced() {
+		let cfg = Config::default();
+		assert_eq!(
+			cfg.reason.timeout_secs,
+			llm::DEFAULT_REASON_TIMEOUT_SECS,
+			"an unconfigured kern must post under exactly the old ceiling"
 		);
 	}
 }

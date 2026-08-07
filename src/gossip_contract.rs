@@ -122,7 +122,7 @@ pub fn parse_key_hex(s: &str) -> Option<[u8; 32]> {
 /// Materialize a `[[gossip.contracts]]` table into params. None when a key
 /// fails to parse — silently weakening a write policy is worse than refusing
 /// to host the contract.
-pub fn params_from_config(c: &crate::config::ContractConfig) -> Option<ParamsV0> {
+pub fn params_from_config(c: &config::ContractConfig) -> Option<ParamsV0> {
 	if c.kind != SIGNED_CRDT_V0_TAG {
 		return None;
 	}

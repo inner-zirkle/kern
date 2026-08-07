@@ -267,7 +267,7 @@ impl Server {
 				},
 				scoping.clone(),
 			);
-			let Some(outcome) = crate::llm::block_on_in_place(fut) else {
+			let Some(outcome) = llm::block_on_in_place(fut) else {
 				return tool_error("no tokio runtime");
 			};
 			(self.save_fn)();
@@ -376,7 +376,7 @@ impl Server {
 		if reason_text.is_empty() {
 			if let Some(llm) = &self.llm {
 				let prompt = explain_relationship_prompt(&from_t.text(), &to_t.text());
-				if let Some(reply) = crate::llm::block_on_in_place(llm.complete(&prompt)) {
+				if let Some(reply) = llm::block_on_in_place(llm.complete(&prompt)) {
 					reason_text = reply.unwrap_or_default().trim().to_string();
 				}
 			}
@@ -386,7 +386,7 @@ impl Server {
 			self
 				.llm
 				.as_ref()
-				.and_then(|llm| crate::llm::block_on_in_place(llm.embed(&reason_text)))
+				.and_then(|llm| llm::block_on_in_place(llm.embed(&reason_text)))
 				.and_then(Result::ok)
 		} else {
 			None

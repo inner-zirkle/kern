@@ -11,7 +11,7 @@ use tokio::sync::Mutex as TokioMutex;
 
 use crate::commands::load_graph;
 
-pub(crate) async fn cmd_mcp(cfg: &crate::config::Config) {
+pub(crate) async fn cmd_mcp(cfg: &config::Config) {
 	// Hub-first: a running hub owns node lifecycle (spawn, adopt, unload) so the
 	// proxy never self-spawns a daemon the hub can't see. No hub -> direct path.
 	let log_dir = cfg.log_dir();
@@ -84,7 +84,7 @@ async fn run_proxy(client: KernRpcClient<JsonEnvelopeCodec>, auth: AuthReq) {
 // proxies anyway rather than restarting again.
 async fn replace_if_stale(
 	client: KernRpcClient<JsonEnvelopeCodec>,
-	cfg: &crate::config::Config,
+	cfg: &config::Config,
 	log_dir: &std::path::Path,
 	via_hub: bool,
 ) -> KernRpcClient<JsonEnvelopeCodec> {
@@ -263,7 +263,7 @@ fn spawn_daemon(log_dir: &std::path::Path) -> std::io::Result<()> {
 fn spawn_detached(arg: &str, log_dir: &std::path::Path) -> std::io::Result<()> {
 	use std::process::{Command, Stdio};
 	let exe = std::env::current_exe()?;
-	let (out, err) = crate::config::stdio(log_dir, arg);
+	let (out, err) = config::stdio(log_dir, arg);
 	let mut cmd = Command::new(exe);
 	cmd.arg(arg).stdin(Stdio::null()).stdout(out).stderr(err);
 	#[cfg(windows)]
@@ -299,7 +299,7 @@ impl McpServer for ProxyServer {
 
 	fn tools_list(&self) -> Vec<ToolSchema> {
 		let client = self.client.clone();
-		let res = crate::llm::block_on_in_place(async move {
+		let res = llm::block_on_in_place(async move {
 			let c = client.lock().await;
 			c.list_tools(crate::transport::kern_rpc::ListToolsReq {})
 				.await
@@ -321,7 +321,7 @@ impl McpServer for ProxyServer {
 			name: name.to_string(),
 			args: args.clone(),
 		};
-		let res = crate::llm::block_on_in_place(async move {
+		let res = llm::block_on_in_place(async move {
 			let first = {
 				let c = client.lock().await;
 				c.call_tool(req.clone()).await
@@ -420,7 +420,7 @@ async fn claim_standalone(
 	}
 }
 
-async fn run_standalone(cfg: &crate::config::Config) {
+async fn run_standalone(cfg: &config::Config) {
 	let _writer_lock = match claim_standalone(
 		&cfg.data_dir,
 		&Endpoint::kern(),
@@ -487,7 +487,7 @@ async fn run_standalone(cfg: &crate::config::Config) {
 			match tokio::runtime::Handle::try_current() {
 				Ok(h) => {
 					let result = std::thread::scope(|_| h.block_on(c.embed(&text)));
-					result.map_err(|e: crate::llm::LlmError| e.to_string())
+					result.map_err(|e: llm::LlmError| e.to_string())
 				}
 				Err(_) => Err("no runtime".to_string()),
 			}

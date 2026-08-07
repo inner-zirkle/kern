@@ -56,7 +56,7 @@ pub struct EmbedArgs {
 }
 
 impl EmbedArgs {
-	pub(crate) fn resolve<'a>(&'a self, cfg: &'a crate::config::Config) -> (&'a str, &'a str) {
+	pub(crate) fn resolve<'a>(&'a self, cfg: &'a config::Config) -> (&'a str, &'a str) {
 		(
 			resolve(&self.embed_url, &cfg.embed.url),
 			resolve(&self.embed_model, &cfg.embed.model),
@@ -68,7 +68,7 @@ impl EmbedArgs {
 	/// container-spawned `kern mcp` never reaches an ollama service under another
 	/// host; these flags let the parent point it there for the life of the
 	/// process. Absent flags leave `cfg.embed` exactly as loaded from config.
-	pub(crate) fn apply_to(self, cfg: &mut crate::config::Config) {
+	pub(crate) fn apply_to(self, cfg: &mut config::Config) {
 		if let Some(url) = self.embed_url {
 			cfg.embed.url = url;
 		}
@@ -91,7 +91,7 @@ pub struct LlmArgs {
 impl LlmArgs {
 	pub(crate) fn resolve<'a>(
 		&'a self,
-		cfg: &'a crate::config::Config,
+		cfg: &'a config::Config,
 	) -> (&'a str, &'a str, &'a str, &'a str) {
 		let (embed_url, embed_model) = self.embed.resolve(cfg);
 		(
@@ -299,7 +299,7 @@ pub enum UnnamedAction {
 	},
 }
 
-pub(crate) fn apply_graph_config(g: &mut GraphGnn, cfg: &crate::config::GraphConfig) {
+pub(crate) fn apply_graph_config(g: &mut GraphGnn, cfg: &config::GraphConfig) {
 	g.set_max_loaded_kerns(cfg.max_kerns);
 	g.set_disk_threshold(cfg.disk_threshold);
 	if cfg.disk_threshold != base::base_constants::KERN_CAP_DISABLED {
@@ -307,7 +307,7 @@ pub(crate) fn apply_graph_config(g: &mut GraphGnn, cfg: &crate::config::GraphCon
 	}
 }
 
-pub(crate) fn load_graph(cfg: &crate::config::Config) -> GraphGnn {
+pub(crate) fn load_graph(cfg: &config::Config) -> GraphGnn {
 	let mut g = match graph::persist::load_dir(&cfg.data_dir) {
 		Ok(g) => g,
 		Err(e) => {
@@ -338,7 +338,7 @@ pub(crate) fn load_graph(cfg: &crate::config::Config) -> GraphGnn {
 
 // Every store handle in this process is bound to the configured embedding model
 // here — the stamp is what turns a silent model swap into a reported one.
-fn bind_embed_model(g: &mut GraphGnn, cfg: &crate::config::Config) {
+fn bind_embed_model(g: &mut GraphGnn, cfg: &config::Config) {
 	g.set_embed_model(&cfg.embed.model);
 	graph::persist::check_graph_stamp(g);
 }
@@ -353,7 +353,7 @@ pub(crate) fn save_graph_unguarded(g: &GraphGnn) {
 	}
 }
 
-pub(crate) fn reload_graph(cfg: &crate::config::Config, old: &GraphGnn) -> GraphGnn {
+pub(crate) fn reload_graph(cfg: &config::Config, old: &GraphGnn) -> GraphGnn {
 	match graph::persist::reload_from_disk(old) {
 		Some(mut g) => {
 			bind_embed_model(&mut g, cfg);
@@ -369,7 +369,7 @@ pub(crate) fn reload_graph(cfg: &crate::config::Config, old: &GraphGnn) -> Graph
 
 pub(crate) fn save_graph_guarded(
 	graph: &std::sync::Arc<parking_lot::RwLock<GraphGnn>>,
-	cfg: &crate::config::Config,
+	cfg: &config::Config,
 ) {
 	const FLUSH_RETRIES: u32 = 5;
 	for attempt in 0..FLUSH_RETRIES {
@@ -432,7 +432,7 @@ pub(crate) fn save_graph_guarded(
 
 pub(crate) fn snapshot_if_dirty(
 	graph: &SharedGraph,
-	cfg: &crate::config::Config,
+	cfg: &config::Config,
 	last_snap_epoch: &mut u64,
 ) -> bool {
 	let epoch = graph.read().mutation_epoch();
@@ -446,7 +446,7 @@ pub(crate) fn snapshot_if_dirty(
 
 pub(crate) fn reconcile_if_stale(
 	graph: &std::sync::Arc<parking_lot::RwLock<GraphGnn>>,
-	cfg: &crate::config::Config,
+	cfg: &config::Config,
 ) -> bool {
 	let mut w = graph.write();
 	let stale = match w.store() {
@@ -467,7 +467,7 @@ pub(crate) fn reconcile_if_stale(
 	stale
 }
 
-fn maybe_self_heal_store(cfg: &crate::config::Config) {
+fn maybe_self_heal_store(cfg: &config::Config) {
 	let data = std::path::Path::new(&cfg.data_dir).join("data.mdb");
 	let len = std::fs::metadata(&data).map(|m| m.len()).unwrap_or(0);
 	if len < SELF_HEAL_BLOAT_BYTES {
@@ -496,7 +496,7 @@ fn maybe_self_heal_store(cfg: &crate::config::Config) {
 	}
 }
 
-pub(crate) fn with_graph<R>(cfg: &crate::config::Config, f: impl FnOnce(&mut GraphGnn) -> R) -> R {
+pub(crate) fn with_graph<R>(cfg: &config::Config, f: impl FnOnce(&mut GraphGnn) -> R) -> R {
 	let mut g = load_graph(cfg);
 	let out = f(&mut g);
 	save_graph_unguarded(&g);
@@ -507,14 +507,14 @@ pub(crate) fn resolve<'a>(arg: &'a Option<String>, fallback: &'a str) -> &'a str
 	arg.as_deref().unwrap_or(fallback)
 }
 
-pub(crate) use crate::llm::{Client, Endpoint};
+pub(crate) use llm::{Client, Endpoint};
 
-pub(crate) fn embed_fn(client: &Client) -> crate::llm::EmbedFunc {
+pub(crate) fn embed_fn(client: &Client) -> llm::EmbedFunc {
 	let c = client.clone();
 	std::sync::Arc::new(move |text: &str| -> Result<Vec<f32>, String> {
 		let c = c.clone();
 		let text = text.to_string();
-		match crate::llm::block_on_in_place(c.embed(&text)) {
+		match llm::block_on_in_place(c.embed(&text)) {
 			Some(r) => r.map_err(|e| e.to_string()),
 			None => Err("no runtime".to_string()),
 		}
@@ -524,7 +524,7 @@ pub(crate) fn embed_fn(client: &Client) -> crate::llm::EmbedFunc {
 // embed is ALWAYS taken from config — embedding with any model but the
 // graph's degenerates every cosine.
 pub(crate) fn server_llm_client(
-	cfg: &crate::config::Config,
+	cfg: &config::Config,
 	reason_url: &str,
 	reason_model: &str,
 ) -> Client {
@@ -539,7 +539,7 @@ pub(crate) fn server_llm_client(
 	.with_embed_keep_alive(&cfg.embed.keep_alive)
 }
 
-pub async fn dispatch(cmd: Commands, cfg: &crate::config::Config) {
+pub async fn dispatch(cmd: Commands, cfg: &config::Config) {
 	match cmd {
 		Commands::Ingest {
 			text,
@@ -689,7 +689,7 @@ pub(crate) struct EngineHandle {
 	pub _writer_lock: Option<store::lock::WriterLock>,
 }
 
-pub(crate) async fn bootstrap(cli: &Cli, cfg: &crate::config::Config) -> EngineHandle {
+pub(crate) async fn bootstrap(cli: &Cli, cfg: &config::Config) -> EngineHandle {
 	// Stamps uptime for the staleness handshake. Before any await so a health
 	// probe on a slow cold boot cannot read 0 and be mistaken for unknown.
 	crate::identity::mark_start();
@@ -842,7 +842,7 @@ pub(crate) async fn bootstrap(cli: &Cli, cfg: &crate::config::Config) -> EngineH
 	}
 }
 
-pub async fn run_server(cli: &Cli, cfg: &crate::config::Config) {
+pub async fn run_server(cli: &Cli, cfg: &config::Config) {
 	{
 		let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
 		ensure_mcp_registered(&cwd);
@@ -1114,10 +1114,7 @@ fn spawn_keepalive(llm_client: &Client) {
 /// `.kern/` is covered without remembering to add it; a future writer outside
 /// both `.kern/` and the configured data/intake dirs would still need a line
 /// here, and that is the registry the full item 99 names.
-fn watcher_denied_paths(
-	cfg: &crate::config::Config,
-	cwd: &std::path::Path,
-) -> Vec<std::path::PathBuf> {
+fn watcher_denied_paths(cfg: &config::Config, cwd: &std::path::Path) -> Vec<std::path::PathBuf> {
 	vec![
 		cwd.join(".kern"),
 		cwd.join(&cfg.intake.dir),
@@ -1125,7 +1122,7 @@ fn watcher_denied_paths(
 	]
 }
 
-fn spawn_file_watcher(cfg: &crate::config::Config, worker: &Arc<crate::ingest::Worker>) {
+fn spawn_file_watcher(cfg: &config::Config, worker: &Arc<crate::ingest::Worker>) {
 	if !cfg.watcher.enabled {
 		return;
 	}
@@ -1162,7 +1159,7 @@ fn spawn_file_watcher(cfg: &crate::config::Config, worker: &Arc<crate::ingest::W
 }
 
 fn spawn_intake(
-	cfg: &crate::config::Config,
+	cfg: &config::Config,
 	worker: &Arc<crate::ingest::Worker>,
 	llm_fn: &Option<crate::ingest::LlmFunc>,
 	g: &SharedGraph,
@@ -1202,7 +1199,7 @@ fn spawn_intake(
 type BroadcastPulseFn = Arc<dyn Fn(&str, f64) + Send + Sync>;
 
 async fn start_gossip(
-	cfg: &crate::config::Config,
+	cfg: &config::Config,
 	g: &SharedGraph,
 	q: &Arc<crate::tick_queue::Queue>,
 	save_fn: &Arc<dyn Fn() + Send + Sync>,
@@ -1370,7 +1367,7 @@ async fn start_gossip(
 }
 
 fn spawn_maintenance_tick(
-	cfg: &crate::config::Config,
+	cfg: &config::Config,
 	g: &SharedGraph,
 	q: &Arc<crate::tick_queue::Queue>,
 	broadcast_pulse: Option<crate::mcp::PulseBroadcast>,
@@ -1411,7 +1408,7 @@ fn spawn_maintenance_tick(
 #[cfg(test)]
 mod watcher_deny_tests {
 	use super::watcher_denied_paths;
-	use crate::config::Config;
+	use config::Config;
 	use std::path::Path;
 
 	#[test]
@@ -1470,8 +1467,8 @@ mod entry_point_tests {
 	#[test]
 	fn mcp_embed_flags_override_the_config_and_are_inert_when_absent() {
 		use super::{Cli, EmbedArgs};
-		use crate::config::Config;
 		use clap::Parser;
+		use config::Config;
 		use std::path::Path;
 
 		// Bare invocation: apply_to on the parsed EmbedArgs is a no-op.
@@ -1538,9 +1535,9 @@ mod entry_point_tests {
 
 		let dir = tempfile::tempdir().unwrap();
 		let data_dir = dir.path().to_string_lossy().into_owned();
-		let cfg = |model: &str| crate::config::Config {
+		let cfg = |model: &str| config::Config {
 			data_dir: data_dir.clone(),
-			embed: crate::config::EmbedConfig {
+			embed: config::EmbedConfig {
 				model: model.into(),
 				..Default::default()
 			},
@@ -1606,7 +1603,7 @@ mod entry_point_tests {
 		use base::base_types::{mk_entity, EntityKind, Kern};
 
 		let dir = tempfile::tempdir().unwrap();
-		let cfg = crate::config::Config {
+		let cfg = config::Config {
 			data_dir: dir.path().to_string_lossy().into_owned(),
 			..Default::default()
 		};
@@ -1658,7 +1655,7 @@ mod entry_point_tests {
 		use base::base_types::Kern;
 
 		let dir = tempfile::tempdir().unwrap();
-		let cfg = crate::config::Config {
+		let cfg = config::Config {
 			data_dir: dir.path().to_string_lossy().into_owned(),
 			..Default::default()
 		};
@@ -1691,7 +1688,7 @@ mod entry_point_tests {
 		use base::base_types::{mk_entity, EntityKind, Kern};
 
 		let dir = tempfile::tempdir().unwrap();
-		let cfg = crate::config::Config {
+		let cfg = config::Config {
 			data_dir: dir.path().to_string_lossy().into_owned(),
 			..Default::default()
 		};
@@ -1732,7 +1729,7 @@ mod entry_point_tests {
 		use base::base_types::Kern;
 
 		let dir = tempfile::tempdir().unwrap();
-		let cfg = crate::config::Config {
+		let cfg = config::Config {
 			data_dir: dir.path().to_string_lossy().into_owned(),
 			..Default::default()
 		};
@@ -1788,7 +1785,7 @@ mod entry_point_tests {
 		use base::base_types::{mk_entity, EntityKind, Kern};
 
 		let dir = tempfile::tempdir().unwrap();
-		let cfg = crate::config::Config {
+		let cfg = config::Config {
 			data_dir: dir.path().to_string_lossy().into_owned(),
 			..Default::default()
 		};
@@ -1835,9 +1832,9 @@ mod entry_point_tests {
 
 	#[test]
 	fn apply_graph_config_spills_to_disk_when_threshold_enabled() {
-		use crate::config::GraphConfig;
 		use base::base_constants::KERN_CAP_DISABLED;
 		use base::base_types::{Entity, EntityStatus, Kern};
+		use config::GraphConfig;
 		use graph::graph::GraphGnn;
 		use graph::vector_backend::VectorBackend;
 

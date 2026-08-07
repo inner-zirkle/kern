@@ -2,8 +2,8 @@
 //! the GNN-propagated index, and BM25 lexical hits per the mode's weights,
 //! with importance fallbacks so an empty ANN result still seeds a walk.
 
-use crate::config::RetrievalConfig;
 use crate::retrieval::score::{matches_filter, QueryOptions};
+use config::RetrievalConfig;
 use graph::graph::GraphGnn;
 use graph::lexical::LexicalIndex;
 use graph::search::{

@@ -1,0 +1,12 @@
+[package]
+name = "ingest_config"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+base = { path = "../base" }
+tracing.workspace = true
+
+[lints]
+workspace = true

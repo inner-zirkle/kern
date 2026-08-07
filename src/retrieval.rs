@@ -1,7 +1,7 @@
 //! Namespace shim for the retrieval pipeline: re-exports every `retrieval_*`
 //! stage under `crate::retrieval::<stage>` plus the shared closure aliases.
 
-pub use crate::llm::{EmbedFunc, LlmFunc};
+pub use llm::{EmbedFunc, LlmFunc};
 
 pub use crate::retrieval_diversify as diversify;
 pub use crate::retrieval_expand as expand;

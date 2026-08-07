@@ -3,7 +3,6 @@
 //! provenance chains. The one place the pipeline's stage order is spelled out;
 //! every stage lives in its own `retrieval_*` module.
 
-use crate::config::RetrievalConfig;
 use crate::retrieval::expand::{
 	self, find_entity_ref_in_graph, PathChain, Scored, ScoredEntity, ScoredRef,
 };
@@ -11,8 +10,9 @@ use crate::retrieval::score::QueryOptions;
 use crate::retrieval::seed::{Mode, Weights};
 use crate::retrieval::{diversify, pagerank, score, seed};
 use base::base_constants::QUERY_MAX_CHAINS;
+use config::HeatConfig;
+use config::RetrievalConfig;
 use graph::graph::GraphGnn;
-use graph::heat::HeatConfig;
 use graph::search::{find_entity, find_reason};
 use util;
 use util::profile::Profiler;
@@ -493,7 +493,7 @@ mod tests {
 	}
 
 	fn retrieved_ids(g: &GraphGnn, query_text: &str) -> Vec<String> {
-		let cfg = crate::config::RetrievalConfig {
+		let cfg = config::RetrievalConfig {
 			// The fixture has no edges, so PageRank's dangling mass spreads evenly over
 			// the whole corpus and seeds the survivor for ANY query — it would hide the
 			// one seed source this test is about.
@@ -580,7 +580,7 @@ mod tests {
 		// survivor's verbatim BM25 overlap must lift it to #1 of the delivered list
 		// — the post-MMR re-sort is what makes the bonus visible past diversity.
 		let g = deduped_corpus();
-		let cfg = crate::config::RetrievalConfig {
+		let cfg = config::RetrievalConfig {
 			pagerank_enabled: false,
 			lexical_top_boost: 1.0,
 			..Default::default()
@@ -608,7 +608,7 @@ mod tests {
 		// And the same query without the boost leaves the survivor buried — the
 		// decoys' content score wins. This is the counterfactual that proves the
 		// boost is doing the work, not the seed.
-		let cfg_off = crate::config::RetrievalConfig {
+		let cfg_off = config::RetrievalConfig {
 			pagerank_enabled: false,
 			lexical_top_boost: 0.0,
 			..Default::default()
@@ -824,7 +824,7 @@ mod tests {
 		}
 		g.rebuild_index();
 
-		let cfg = crate::config::RetrievalConfig::default();
+		let cfg = config::RetrievalConfig::default();
 		let w = Weights {
 			content: 0.70,
 			reason: 0.15,
@@ -916,7 +916,7 @@ mod tests {
 		}
 		g.rebuild_index();
 
-		let cfg = crate::config::RetrievalConfig::default();
+		let cfg = config::RetrievalConfig::default();
 		let w = Weights {
 			content: 0.70,
 			reason: 0.15,

@@ -72,7 +72,7 @@ impl Server {
 		let Some(contract_val) = args.get("contract") else {
 			return tool_error("contract is required (the current [[gossip.contracts]] table)");
 		};
-		let cfg: crate::config::ContractConfig = match serde_json::from_value(contract_val.clone()) {
+		let cfg: config::ContractConfig = match serde_json::from_value(contract_val.clone()) {
 			Ok(c) => c,
 			Err(e) => return tool_error(&format!("contract does not parse: {e}")),
 		};
@@ -147,7 +147,7 @@ mod tests {
 	}
 
 	fn server_in(dir: &std::path::Path) -> Server {
-		let mut cfg = crate::config::Config::default_in(dir);
+		let mut cfg = config::Config::default_in(dir);
 		cfg.data_dir = dir.to_string_lossy().to_string();
 		crate::test_support::mcp_server_with_config(cfg)
 	}

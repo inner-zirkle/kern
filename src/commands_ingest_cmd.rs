@@ -16,7 +16,7 @@ const WRITE_RETRIES: u32 = 5;
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn cmd_ingest(
-	cfg: &crate::config::Config,
+	cfg: &config::Config,
 	text_parts: Vec<String>,
 	file: Option<String>,
 	retention_secs: u64,
@@ -137,7 +137,7 @@ async fn run_once(
 	src: &Source,
 	kind: base::base_types::EntityKind,
 	conf: f64,
-	cfg: &crate::config::Config,
+	cfg: &config::Config,
 	valid_until: Option<std::time::SystemTime>,
 ) -> crate::ingest::Outcome {
 	worker
@@ -157,7 +157,7 @@ async fn run_once(
 }
 
 fn ingest_config(
-	cfg: &crate::config::Config,
+	cfg: &config::Config,
 	valid_until: Option<std::time::SystemTime>,
 ) -> crate::ingest::Config {
 	crate::ingest::Config {
@@ -175,7 +175,7 @@ mod tests {
 
 	#[test]
 	fn ingest_config_carries_dedup_threshold_from_cfg() {
-		let mut cfg = crate::config::Config::default();
+		let mut cfg = config::Config::default();
 		cfg.ingest.dedup_threshold = 0.87;
 		let ic = ingest_config(&cfg, None);
 		assert_eq!(
@@ -192,7 +192,7 @@ mod tests {
 
 	#[test]
 	fn ingest_config_carries_the_resolved_retention_deadline() {
-		let cfg = crate::config::Config::default();
+		let cfg = config::Config::default();
 		assert_eq!(
 			ingest_config(&cfg, None).valid_until,
 			None,

@@ -8,11 +8,11 @@ use std::time::{Duration, Instant};
 
 use parking_lot::RwLock;
 
-use crate::config::TickConfig;
 use crate::gnn::propagate::GnnConfig;
 use base::base_constants::{KERN_COHESION_THRESHOLD, KERN_MIN_CLUSTER_SIZE};
+use config::HeatConfig;
+use config::TickConfig;
 use graph::graph::GraphGnn;
-use graph::heat::HeatConfig;
 
 use crate::tick_cluster::{cohesion, is_core_cluster, vector_cluster, Cluster};
 use crate::tick_gnn_propagate::do_gnn_propagate;

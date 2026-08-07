@@ -14,8 +14,9 @@ use parking_lot::RwLock;
 
 use base::base_constants::{COLD_GC_AGE, COLD_HEAT_THRESHOLD, EVIDENCE_HALF_LIFE_SECS};
 use base::base_types::{Entity, EntityKind};
+use config::HeatConfig;
 use graph::graph::GraphGnn;
-use graph::heat::{self, HeatConfig};
+use graph::heat;
 use graph::reason::remove_entity;
 
 const SKEW_WARN_SECS: u64 = 300;

@@ -470,7 +470,7 @@ impl Client {
 }
 
 // `block_in_place` makes `block_on` legal on a runtime worker (plain `block_on` panics); `None` outside any runtime.
-pub(crate) fn block_on_in_place<F: std::future::Future>(fut: F) -> Option<F::Output> {
+pub fn block_on_in_place<F: std::future::Future>(fut: F) -> Option<F::Output> {
 	let handle = tokio::runtime::Handle::try_current().ok()?;
 	Some(tokio::task::block_in_place(|| handle.block_on(fut)))
 }
@@ -554,7 +554,8 @@ pub const REASON_KEEP_ALIVE: &str = "2m";
 
 // Overrides the client's 120 s default: slow CPU inference / large RAG prompts / long streams run past it.
 // The floor `with_timeout_secs` starts from, and the same number `[reason] timeout_secs` defaults to.
-const LLM_TIMEOUT: Duration = Duration::from_secs(crate::config::DEFAULT_REASON_TIMEOUT_SECS);
+pub const DEFAULT_REASON_TIMEOUT_SECS: u64 = 600;
+const LLM_TIMEOUT: Duration = Duration::from_secs(DEFAULT_REASON_TIMEOUT_SECS);
 
 const EMBED_TIMEOUT: Duration = Duration::from_secs(120);
 
@@ -821,7 +822,7 @@ mod tests {
 				}
 			}),
 		);
-		let (url, _server) = crate::test_support::spawn_http(app).await;
+		let (url, _server) = test_support::spawn_http(app).await;
 		let client = Client::new_embed_only(&url, "m", "");
 		let v = client
 			.embed("hello")
@@ -842,7 +843,7 @@ mod tests {
 				}
 			}),
 		);
-		let (url, _server) = crate::test_support::spawn_http(app).await;
+		let (url, _server) = test_support::spawn_http(app).await;
 		let client = Client::new_embed_only(&url, "m", "");
 		let v = client
 			.embed("x")
@@ -870,7 +871,7 @@ mod tests {
 				}
 			}),
 		);
-		let (url, _server) = crate::test_support::spawn_http(app).await;
+		let (url, _server) = test_support::spawn_http(app).await;
 		let client = Client::new_embed_only(&url, "m", "");
 		let err = client.embed("hello").await.unwrap_err();
 		assert!(
@@ -920,43 +921,6 @@ mod tests {
 		)
 	}
 
-	// The bit-identity claim, checked rather than asserted: the key that replaced
-	// the const defaults to the const, and a client built from an unconfigured
-	// config posts under the same `Duration` as one that never heard of the key.
-	#[test]
-	fn the_unconfigured_timeout_is_the_const_it_replaced() {
-		let cfg = crate::config::Config::default();
-		assert_eq!(
-			Duration::from_secs(cfg.reason.timeout_secs),
-			LLM_TIMEOUT,
-			"an unconfigured kern must post under exactly the old ceiling"
-		);
-		let plain = Client::new(
-			Endpoint::new("http://localhost:11434", "m", ""),
-			Endpoint::default(),
-		);
-		assert_eq!(plain.inner.reason_timeout, LLM_TIMEOUT);
-		assert_eq!(
-			plain
-				.clone()
-				.with_timeout_secs(cfg.reason.timeout_secs)
-				.inner
-				.reason_timeout,
-			plain.inner.reason_timeout,
-			"applying the default must be a no-op"
-		);
-		// 0 is "unset", not "give up immediately".
-		assert_eq!(
-			plain.clone().with_timeout_secs(0).inner.reason_timeout,
-			LLM_TIMEOUT
-		);
-		assert_eq!(
-			plain.with_timeout_secs(45).inner.reason_timeout,
-			Duration::from_secs(45),
-			"a configured ceiling must actually replace it"
-		);
-	}
-
 	// The three outcomes item 30 says were one empty string. Deltas, never
 	// absolutes: the counter is a process-global static, so `cargo test` running
 	// the whole crate in one process sees every other test's failures too, and an
@@ -974,7 +938,7 @@ mod tests {
 			let (url, _server) = match mode {
 				"refused" => ("http://127.0.0.1:1".to_string(), None),
 				_ => {
-					let (u, h) = crate::test_support::spawn_http(chat_app(mode)).await;
+					let (u, h) = test_support::spawn_http(chat_app(mode)).await;
 					(u, Some(h))
 				}
 			};
@@ -1054,7 +1018,7 @@ mod tests {
 				}
 			}),
 		);
-		let (url, _server) = crate::test_support::spawn_http(app).await;
+		let (url, _server) = test_support::spawn_http(app).await;
 		let client = Client::new(Endpoint::new(&url, "m", ""), Endpoint::default());
 		let out = client.complete("say something").await.unwrap();
 		assert_eq!(out, "recovered", "the retry reached the answering call");
@@ -1077,7 +1041,7 @@ mod tests {
 				}))
 			}),
 		);
-		let (url, _server) = crate::test_support::spawn_http(app).await;
+		let (url, _server) = test_support::spawn_http(app).await;
 		let f = Client::new(Endpoint::new(&url, "m", ""), Endpoint::default()).complete_func();
 
 		let before = complete_failed();

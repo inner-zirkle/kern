@@ -14,7 +14,7 @@ use crate::commands::{load_graph, save_graph_unguarded, Client};
 
 const BATCH: usize = 64;
 
-pub(crate) async fn cmd_reembed(cfg: &crate::config::Config, embed_url: &str, embed_model: &str) {
+pub(crate) async fn cmd_reembed(cfg: &config::Config, embed_url: &str, embed_model: &str) {
 	let _lock = match store::lock::acquire(&cfg.data_dir, "reembed") {
 		Ok(l) => l,
 		Err(e) => {
@@ -109,7 +109,7 @@ fn restamp(g: &graph::graph::GraphGnn, embed_model: &str, new_vecs: &HashMap<Str
 }
 
 async fn embed_all(
-	client: &crate::llm::Client,
+	client: &llm::Client,
 	ids: &[String],
 	texts: &[String],
 ) -> Result<HashMap<String, Vec<f32>>, String> {
@@ -137,7 +137,7 @@ async fn embed_all(
 // drop from search otherwise.
 async fn reembed_cold(
 	store: Option<std::sync::Arc<store::base_store::Store>>,
-	client: &crate::llm::Client,
+	client: &llm::Client,
 ) -> Result<usize, String> {
 	let Some(store) = store else { return Ok(0) };
 	let mut cold = store
@@ -205,7 +205,7 @@ mod tests {
 		let (url, server) = crate::test_support::spawn_http(app).await;
 
 		let dir = tempfile::tempdir().unwrap();
-		let mut cfg = crate::config::Config::default_in(dir.path());
+		let mut cfg = config::Config::default_in(dir.path());
 		cfg.embed.model = "new-model".into();
 
 		// A store holding one 3-dim entity, stamped with the model that made it.
@@ -261,7 +261,7 @@ mod tests {
 		);
 		let (url, server) = crate::test_support::spawn_http(app).await;
 
-		let client = crate::llm::Client::new_embed_only(&url, "test-model", "");
+		let client = llm::Client::new_embed_only(&url, "test-model", "");
 		let ids = vec!["a".to_string(), "b".to_string()];
 		let texts = vec!["alpha".to_string(), "beta".to_string()];
 
@@ -306,7 +306,7 @@ mod tests {
 		];
 		store.cold_put_all(&seed).unwrap();
 
-		let client = crate::llm::Client::new_embed_only(&url, "m", "");
+		let client = llm::Client::new_embed_only(&url, "m", "");
 		let err = reembed_cold(Some(store.clone()), &client)
 			.await
 			.expect_err("a mismatched cold batch must surface a partial-failure error");

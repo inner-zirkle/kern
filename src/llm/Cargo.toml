@@ -1,27 +1,21 @@
 [package]
-name = "graph"
+name = "llm"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [dependencies]
-base = { path = "../base" }
-math = { path = "../math" }
-store = { path = "../store" }
 util = { path = "../util" }
-config = { path = "../config" }
 serde.workspace = true
-bincode.workspace = true
 serde_json.workspace = true
-tracing.workspace = true
+reqwest.workspace = true
 parking_lot.workspace = true
-rand.workspace = true
-rayon.workspace = true
-memmap2 = "0.9"
 thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+axum.workspace = true
 
 [dev-dependencies]
-tempfile = "3"
 test_support = { path = "../test_support" }
 
 [lints]

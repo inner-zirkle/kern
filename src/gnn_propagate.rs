@@ -16,12 +16,11 @@ use rand::rngs::StdRng;
 use rand::SeedableRng;
 
 /// Single source of truth for the GnnConfig defaults — both [`GnnConfig::defaults`]
-/// and the serde `crate::config::GnnConfig` must read them from here, never re-literal.
-pub const DEFAULT_SELF_WEIGHT: f64 = 0.6;
-pub const DEFAULT_MIN_WEIGHT: f64 = 0.01;
-pub const DEFAULT_MIN_THOUGHTS: usize = 128;
-pub const DEFAULT_TRAIN_EPOCHS: usize = 24;
-pub const DEFAULT_TRAIN_LEARNING_RATE: f64 = 0.01;
+/// and the serde `config::GnnConfig` must read them from here, never re-literal.
+use config::{
+	DEFAULT_MIN_THOUGHTS, DEFAULT_MIN_WEIGHT, DEFAULT_SELF_WEIGHT, DEFAULT_TRAIN_EPOCHS,
+	DEFAULT_TRAIN_LEARNING_RATE,
+};
 
 #[derive(Debug, Clone, Copy)]
 pub struct GnnConfig {
@@ -346,5 +345,50 @@ mod tests {
 				"negative edge must not be a positive edge"
 			);
 		}
+	}
+}
+
+impl From<config::GnnConfig> for GnnConfig {
+	fn from(c: config::GnnConfig) -> Self {
+		GnnConfig {
+			self_weight: c.self_weight,
+			min_weight: c.min_weight,
+			min_thoughts: c.min_thoughts,
+			train_epochs: c.train_epochs,
+			train_learning_rate: c.train_learning_rate,
+		}
+	}
+}
+
+#[cfg(test)]
+mod reason_tests {
+	use super::*;
+
+	#[test]
+	fn from_maps_every_field_without_drift() {
+		let serde_cfg = config::GnnConfig {
+			self_weight: 0.11,
+			min_weight: 0.22,
+			min_thoughts: 33,
+			train_epochs: 44,
+			train_learning_rate: 0.55,
+		};
+		let runtime: GnnConfig = serde_cfg.into();
+		assert_eq!(runtime.self_weight, 0.11);
+		assert_eq!(runtime.min_weight, 0.22);
+		assert_eq!(runtime.min_thoughts, 33);
+		assert_eq!(runtime.train_epochs, 44);
+		assert_eq!(runtime.train_learning_rate, 0.55);
+	}
+
+	#[test]
+	fn serde_default_equals_the_runtime_default() {
+		let runtime: GnnConfig = config::GnnConfig::default().into();
+		let rd = GnnConfig::defaults();
+		assert_eq!(runtime.self_weight, rd.self_weight);
+		assert_eq!(runtime.min_weight, rd.min_weight);
+		assert_eq!(runtime.min_thoughts, rd.min_thoughts);
+		assert_eq!(runtime.train_epochs, rd.train_epochs);
+		assert_eq!(runtime.train_learning_rate, rd.train_learning_rate);
 	}
 }

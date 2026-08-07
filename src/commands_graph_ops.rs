@@ -111,7 +111,7 @@ fn print_detail(v: &serde_json::Value) {
 // Routed first for the same reason as forget: a serving daemon's graph is newer
 // than anything this process can load, so a local read would print a stale
 // thought — and stale evidence is the defect one step down from a lost write.
-pub(crate) async fn cmd_get(cfg: &crate::config::Config, id: &str) {
+pub(crate) async fn cmd_get(cfg: &config::Config, id: &str) {
 	match route("query", serde_json::json!({"id": id})).await {
 		Routed::Done(v) => return print_detail(&v),
 		Routed::Refused(e) => return eprintln!("{e}"),
@@ -124,7 +124,7 @@ pub(crate) async fn cmd_get(cfg: &crate::config::Config, id: &str) {
 	}
 }
 
-pub(crate) fn cmd_list(cfg: &crate::config::Config) {
+pub(crate) fn cmd_list(cfg: &config::Config) {
 	let g: GraphGnn = load_graph(cfg);
 	print_kern(&g.root, &g, 0);
 }
@@ -136,7 +136,7 @@ fn print_forget(id: &str, removed: u64) {
 // Routed first: while a daemon serves, its in-memory graph is newer than
 // anything this process can load, so a local forget would delete from a stale
 // copy and report a stale edge count.
-pub(crate) async fn cmd_forget(cfg: &crate::config::Config, id: &str) {
+pub(crate) async fn cmd_forget(cfg: &config::Config, id: &str) {
 	match route("forget", serde_json::json!({"id": id})).await {
 		Routed::Done(v) => return print_forget(id, u64_field(&v, "removed_edges")),
 		Routed::Refused(e) => return eprintln!("{e}"),
@@ -182,7 +182,7 @@ fn print_promote(id: &str, promoted: bool) {
 // Releasing a held claim is a curation decision. The socket it routes over is
 // owner-only and token-authenticated; any caller holding the mcp-token may
 // release one — the process boundary is the access model.
-pub(crate) async fn cmd_promote(cfg: &crate::config::Config, id: &str) {
+pub(crate) async fn cmd_promote(cfg: &config::Config, id: &str) {
 	match route("promote", serde_json::json!({"id": id})).await {
 		Routed::Done(v) => {
 			let promoted = v
@@ -297,7 +297,7 @@ fn print_forget_source(scheme: &str, object_id: &str, out: &SourceForget) {
 // Routed first for the same reason as `cmd_forget`: a serving daemon's graph is
 // the live one, and a local delete would drop rows from a stale copy while the
 // daemon kept serving the originals.
-pub(crate) async fn cmd_forget_source(cfg: &crate::config::Config, source: &str, force: bool) {
+pub(crate) async fn cmd_forget_source(cfg: &config::Config, source: &str, force: bool) {
 	let (scheme, object_id) = match parse_source_selector(source) {
 		Ok(pair) => pair,
 		Err(e) => return eprintln!("{e}"),
@@ -326,7 +326,7 @@ pub(crate) async fn cmd_forget_source(cfg: &crate::config::Config, source: &str,
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn cmd_link(
-	cfg: &crate::config::Config,
+	cfg: &config::Config,
 	from: &str,
 	to: &str,
 	reason: &str,
@@ -392,7 +392,7 @@ pub(crate) async fn cmd_link(
 // buried inside it.
 fn link_and_persist(
 	mut g: GraphGnn,
-	cfg: &crate::config::Config,
+	cfg: &config::Config,
 	from: &str,
 	to: &str,
 	reason_text: String,
@@ -459,7 +459,7 @@ fn print_degrade(id: &str, decayed: u64, removed: u64) {
 	);
 }
 
-pub(crate) async fn cmd_degrade(cfg: &crate::config::Config, id: &str) {
+pub(crate) async fn cmd_degrade(cfg: &config::Config, id: &str) {
 	match route("degrade", serde_json::json!({"query_id": id})).await {
 		Routed::Done(v) => {
 			return print_degrade(
@@ -619,7 +619,7 @@ mod tests {
 		use base::base_types::{mk_entity, EntityKind};
 
 		let dir = tempfile::tempdir().unwrap();
-		let cfg = crate::config::Config {
+		let cfg = config::Config {
 			data_dir: dir.path().to_string_lossy().into_owned(),
 			..Default::default()
 		};

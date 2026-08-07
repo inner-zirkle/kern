@@ -13,8 +13,8 @@
 // t=0 — so any survival difference between depths is depth, and nothing else.
 use base::base_constants::{COLD_GC_AGE, COLD_HEAT_THRESHOLD, PULSE_DECAY, PULSE_THRESHOLD};
 use base::base_types::{Entity, EntityKind, Kern};
+use config::HeatConfig;
 use graph::graph::GraphGnn;
-use graph::heat::HeatConfig;
 use kern::retrieval::score::commit_access_ids;
 use kern::tick_pulse::pulse;
 use kern::tick_queue::Queue;

@@ -224,7 +224,7 @@ mod tests {
 		let addr = listener.local_addr().unwrap();
 		let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
 
-		let embedder = crate::llm::Client::new_embed_only(&format!("http://{addr}"), "m", "");
+		let embedder = llm::Client::new_embed_only(&format!("http://{addr}"), "m", "");
 		let graph = Arc::new(RwLock::new(GraphGnn::new()));
 		let worker = Worker::new(graph.clone(), embedder, None, None, None);
 
@@ -273,7 +273,7 @@ mod tests {
 		let (url, _server) =
 			crate::test_support::spawn_http(crate::test_support::fixed_vec_embed_app()).await;
 		let graph = Arc::new(RwLock::new(GraphGnn::new()));
-		let embedder = crate::llm::Client::new_embed_only(&url, "m", "");
+		let embedder = llm::Client::new_embed_only(&url, "m", "");
 		let worker = Worker::new(graph.clone(), embedder, None, None, None);
 
 		let dir = tempdir().unwrap();
@@ -314,7 +314,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn drain_direct_once_leaves_failed_job_for_retry() {
-		let embedder = crate::llm::Client::new_embed_only("http://127.0.0.1:1", "m", "");
+		let embedder = llm::Client::new_embed_only("http://127.0.0.1:1", "m", "");
 		let graph = Arc::new(RwLock::new(GraphGnn::new()));
 		let worker = Worker::new(graph, embedder, None, None, None);
 

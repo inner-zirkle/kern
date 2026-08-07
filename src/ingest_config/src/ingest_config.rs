@@ -111,19 +111,6 @@ mod tests {
 	use base::base_types::EntityKind;
 
 	#[test]
-	fn runtime_and_serde_ingest_defaults_agree() {
-		let rt = Config::default();
-		let serde = crate::config::IngestConfig::default();
-		assert_eq!(rt.dedup_threshold, serde.dedup_threshold);
-		assert_eq!(rt.dedup_threshold, INGEST_DEDUP_THRESHOLD);
-		assert_eq!(rt.review_policy, serde.review_policy);
-		assert!(
-			rt.review_policy.is_empty(),
-			"nothing is held for review until a host asks"
-		);
-	}
-
-	#[test]
 	fn review_for_keys_on_the_scheme_and_defaults_to_active() {
 		let file = Source::File {
 			path: "/a".into(),

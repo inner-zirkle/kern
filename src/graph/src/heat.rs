@@ -5,25 +5,8 @@
 
 use std::time::SystemTime;
 
-use serde::{Deserialize, Serialize};
-
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-#[serde(default)]
-pub struct HeatConfig {
-	pub half_life_secs: u64,
-	// Dimensionless heat unit — not a ratio or duration. The only deposit there
-	// is: heat measures use, and the tick is not a user (ROADMAP item 32).
-	pub deposit_access: f32,
-}
-
-impl Default for HeatConfig {
-	fn default() -> Self {
-		Self {
-			half_life_secs: 7 * 24 * 60 * 60,
-			deposit_access: 1.0,
-		}
-	}
-}
+#[cfg(test)]
+use config::HeatConfig;
 
 pub fn decayed(heat: f32, since: Option<SystemTime>, now: SystemTime, half_life_secs: u64) -> f32 {
 	if heat <= 0.0 {

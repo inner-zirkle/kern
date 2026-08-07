@@ -132,7 +132,7 @@ impl Server {
 					Some(llm) => {
 						let mut vecs = Vec::with_capacity(examples.len());
 						for ex in &examples {
-							match crate::llm::block_on_in_place(llm.embed(ex)) {
+							match llm::block_on_in_place(llm.embed(ex)) {
 								Some(Ok(v)) => vecs.push(v),
 								Some(Err(e)) => return tool_error(&format!("embed failed: {e}")),
 								None => return tool_error("no tokio runtime"),
@@ -278,7 +278,7 @@ impl Server {
 		};
 		let extra_kinds: Vec<String> = self.graph.read().root.claim_kinds.keys().cloned().collect();
 
-		let archived = crate::llm::block_on_in_place(crate::ingest::intake::drain_now(
+		let archived = llm::block_on_in_place(crate::ingest::intake::drain_now(
 			&dir,
 			&self.worker,
 			llm_fn.as_ref(),

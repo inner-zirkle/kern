@@ -2,11 +2,11 @@
 //! A full queue refuses the job back to the producer (counted), and every
 //! commit funnels through the same accept/dedup path as the durable legs.
 
-use crate::ingest_config::Config;
 use crate::ingest_place::{document_kind, place_chunks, place_document};
-use crate::llm::Client as LlmClient;
 use base::base_types::*;
 use graph::graph::GraphGnn;
+use ingest_config::Config;
+use llm::Client as LlmClient;
 use math::clamp_confidence;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
@@ -488,7 +488,7 @@ impl Outcome {
 
 // ==== [embed] ====
 
-use crate::llm::is_transient;
+use llm::is_transient;
 
 const RETRY_DELAYS_MS: [u64; 3] = [150, 300, 600];
 

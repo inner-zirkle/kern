@@ -9,8 +9,8 @@ use std::time::{Duration, SystemTime};
 use crate::ingest::Worker;
 use crate::ingest_distill::{distill, Claim};
 use crate::ingest_worker::OutcomeStatus;
-use crate::llm::LlmFunc;
 use base::base_types::{EntityKind, Source};
+use llm::LlmFunc;
 
 pub type ClaimKindsFn = Arc<dyn Fn() -> Vec<String> + Send + Sync>;
 
@@ -509,7 +509,7 @@ mod tests {
 		let addr = listener.local_addr().unwrap();
 		let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
 
-		let embedder = crate::llm::Client::new_embed_only(&format!("http://{addr}"), "m", "");
+		let embedder = llm::Client::new_embed_only(&format!("http://{addr}"), "m", "");
 		let llm: LlmFunc =
 			Arc::new(|_p: &str| r#"[{"text":"the API key lives in vault X","kind":"fact"}]"#.to_string());
 		let graph = Arc::new(RwLock::new(GraphGnn::new()));
@@ -569,7 +569,7 @@ mod tests {
 		let addr = listener.local_addr().unwrap();
 		let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
 
-		let embedder = crate::llm::Client::new_embed_only(&format!("http://{addr}"), "m", "");
+		let embedder = llm::Client::new_embed_only(&format!("http://{addr}"), "m", "");
 		let graph = Arc::new(RwLock::new(GraphGnn::new()));
 		let worker = Arc::new(Worker::new(graph.clone(), embedder, None, None, None));
 
@@ -629,7 +629,7 @@ mod tests {
 		let addr = listener.local_addr().unwrap();
 		let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
 
-		let embedder = crate::llm::Client::new_embed_only(&format!("http://{addr}"), "m", "");
+		let embedder = llm::Client::new_embed_only(&format!("http://{addr}"), "m", "");
 		let llm: LlmFunc =
 			Arc::new(|_p: &str| r#"[{"text":"the pager rotation is Ada's","kind":"fact"}]"#.to_string());
 		let graph = Arc::new(RwLock::new(GraphGnn::new()));
@@ -702,7 +702,7 @@ mod tests {
 		let addr = listener.local_addr().unwrap();
 		let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
 
-		let embedder = crate::llm::Client::new_embed_only(&format!("http://{addr}"), "m", "");
+		let embedder = llm::Client::new_embed_only(&format!("http://{addr}"), "m", "");
 		let llm: LlmFunc = Arc::new(|p: &str| {
 			let which = if p.contains("alpha") { "alpha" } else { "beta" };
 			format!(r#"[{{"text":"the {which} rotation is Ada's","kind":"fact"}}]"#)
@@ -799,7 +799,7 @@ mod tests {
 		use graph::graph::GraphGnn;
 		use parking_lot::RwLock;
 
-		let embedder = crate::llm::Client::new_embed_only("http://127.0.0.1:1", "m", "");
+		let embedder = llm::Client::new_embed_only("http://127.0.0.1:1", "m", "");
 		let graph = Arc::new(RwLock::new(GraphGnn::new()));
 		let worker = Arc::new(Worker::new(graph.clone(), embedder, None, None, None));
 

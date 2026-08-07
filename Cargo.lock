@@ -440,6 +440,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "config"
+version = "1.3.0"
+dependencies = [
+ "base",
+ "dirs",
+ "ingest_config",
+ "llm",
+ "rand 0.10.2",
+ "serde",
+ "tempfile",
+ "test_support",
+ "thiserror",
+ "toml",
+ "tracing",
+ "util",
+]
+
+[[package]]
 name = "const-oid"
 version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -835,6 +853,7 @@ version = "1.3.0"
 dependencies = [
  "base",
  "bincode 2.0.1",
+ "config",
  "math",
  "memmap2",
  "parking_lot",
@@ -1143,6 +1162,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "ingest_config"
+version = "1.3.0"
+dependencies = [
+ "base",
+ "tracing",
+]
+
+[[package]]
 name = "inotify"
 version = "0.11.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1273,6 +1300,7 @@ dependencies = [
  "bytes",
  "chacha20poly1305",
  "clap",
+ "config",
  "dirs",
  "ed25519-dalek",
  "futures",
@@ -1281,7 +1309,9 @@ dependencies = [
  "graph",
  "heed",
  "ignore",
+ "ingest_config",
  "libc",
+ "llm",
  "math",
  "memmap2",
  "notify",
@@ -1359,6 +1389,22 @@ name = "litemap"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "92daf443525c4cce67b150400bc2316076100ce0b3686209eb8cf3c31612e6f0"
+
+[[package]]
+name = "llm"
+version = "1.3.0"
+dependencies = [
+ "axum",
+ "parking_lot",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "test_support",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "util",
+]
 
 [[package]]
 name = "lmdb-master-sys"
