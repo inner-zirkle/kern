@@ -1,0 +1,20 @@
+[package]
+name = "bootstrap"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+base = { path = "../base" }
+config = { path = "../config" }
+graph = { path = "../graph" }
+util = { path = "../util" }
+store_core = { path = "../store_core" }
+parking_lot.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tempfile = "3"
+
+[lints]
+workspace = true
