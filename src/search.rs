@@ -3,8 +3,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use super::graph::GraphGnn;
 use super::hnsw::HnswHit;
 use super::log_throttle::LogThrottle;
-use crate::base_types::{Entity, Reason};
 use super::util::cmp_rank;
+use crate::base_types::{Entity, Reason};
 
 const DIM_WARN_SECS: u64 = 60;
 static DIM_REJECTED: AtomicU64 = AtomicU64::new(0);

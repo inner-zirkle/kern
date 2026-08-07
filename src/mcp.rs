@@ -12,8 +12,8 @@ use parking_lot::RwLock;
 use serde::Serialize;
 use serde_json::value::RawValue;
 
-use crate::graph::GraphGnn;
 use crate::config::Config;
+use crate::graph::GraphGnn;
 use crate::ingest;
 use crate::llm;
 
@@ -62,10 +62,9 @@ impl Server {
 	}
 
 	pub(crate) fn touch(&self) {
-		self.last_activity.store(
-			crate::util::now_ms(),
-			std::sync::atomic::Ordering::Relaxed,
-		);
+		self
+			.last_activity
+			.store(crate::util::now_ms(), std::sync::atomic::Ordering::Relaxed);
 	}
 }
 

@@ -88,10 +88,7 @@ impl Node {
 		let id = self.identity.peer_id();
 		let mut seed = [0u8; 8];
 		seed.copy_from_slice(&id[8..16]);
-		*self.ring.write() = Some(RingView::new(
-			self.identity.loc(),
-			u64::from_le_bytes(seed),
-		));
+		*self.ring.write() = Some(RingView::new(self.identity.loc(), u64::from_le_bytes(seed)));
 	}
 
 	pub fn ring_enabled(&self) -> bool {
@@ -141,8 +138,7 @@ impl Node {
 				origin: self.addr(),
 				payload: GossipPayload::FindNearest(FindNearestPayload { target }),
 			};
-			let reply =
-				send_and_receive(&contact, &self.identity, self.bump_lamport(), &msg).await;
+			let reply = send_and_receive(&contact, &self.identity, self.bump_lamport(), &msg).await;
 			let peers = match reply {
 				Some(GossipMessage {
 					payload: GossipPayload::Nearest(p),
@@ -271,7 +267,8 @@ impl Node {
 	/// The ring neighbor strictly closer to `target`, if any. None when the
 	/// ring is disabled or we are terminal for this location.
 	pub fn route_toward(&self, target: f64) -> Option<String> {
-		self.ring
+		self
+			.ring
 			.read()
 			.as_ref()
 			.and_then(|r| r.route(target).map(|e| e.addr.clone()))
@@ -540,14 +537,12 @@ mod tests {
 		// Sign one body, ship another — the signature no longer covers it.
 		let sender = PeerIdentity::generate();
 		let honest =
-			bincode::serde::encode_to_vec(&pe_msg("h1", "10.0.0.9:1"), bincode::config::standard())
+			bincode::serde::encode_to_vec(pe_msg("h1", "10.0.0.9:1"), bincode::config::standard())
 				.unwrap();
 		let mut frame = sender.sign_frame(1, honest);
-		frame.body = bincode::serde::encode_to_vec(
-			&pe_msg("forged", "10.0.0.9:1"),
-			bincode::config::standard(),
-		)
-		.unwrap();
+		frame.body =
+			bincode::serde::encode_to_vec(pe_msg("forged", "10.0.0.9:1"), bincode::config::standard())
+				.unwrap();
 		let before = crate::gossip_identity::invalid_sig_dropped();
 		ship_raw(&addr, &frame).await;
 		tokio::time::sleep(std::time::Duration::from_millis(80)).await;
@@ -613,7 +608,7 @@ mod tests {
 
 		let sender = PeerIdentity::generate();
 		let body =
-			bincode::serde::encode_to_vec(&pe_msg("h2", "10.0.0.9:2"), bincode::config::standard())
+			bincode::serde::encode_to_vec(pe_msg("h2", "10.0.0.9:2"), bincode::config::standard())
 				.unwrap();
 		ship_raw(&addr, &sender.sign_frame(1, body)).await;
 

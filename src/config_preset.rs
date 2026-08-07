@@ -73,8 +73,8 @@ impl Preset {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::heat::HeatConfig;
 	use crate::config::{IngestConfig, RetrievalConfig};
+	use crate::heat::HeatConfig;
 	use std::path::Path;
 
 	fn applied(p: Preset) -> Config {

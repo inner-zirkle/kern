@@ -2,5 +2,7 @@ pub use crate::transport_hub_rpc_client as client;
 pub use crate::transport_hub_rpc_dto as dto;
 pub use crate::transport_hub_rpc_svc as svc;
 
-pub use crate::transport_hub_rpc_dto::{HubStatusRes, NodeLite, ResolveReq, ResolveRes, StopRes, UnloadReq, UnloadRes};
+pub use crate::transport_hub_rpc_dto::{
+	HubStatusRes, NodeLite, ResolveReq, ResolveRes, StopRes, UnloadReq, UnloadRes,
+};
 pub use crate::transport_hub_rpc_svc::{serve_hub_rpc, HubRpc, HubRpcClient};

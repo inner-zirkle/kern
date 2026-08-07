@@ -1,16 +1,16 @@
 use crate::base_constants::{
 	DEGRADE_DECAY_BASE, DEGRADE_DECAY_POW, DEGRADE_FLOOR, DEGRADE_MIN_THRESHOLD,
 };
+use crate::base_types::{EntityKind, Kern, Reason, ReasonKind, ReviewState, Source};
 use crate::graph::GraphGnn;
 use crate::math::{average_vec, reason_id};
+use crate::mcp::tools_query::entity_detail_by_id;
 use crate::reason::{add_reason, remove_entity, remove_reason};
 use crate::search::find_entity;
-use crate::base_types::{EntityKind, Kern, Reason, ReasonKind, ReviewState, Source};
 use crate::util::{explain_relationship_prompt, short_id, truncate};
-use crate::mcp::tools_query::entity_detail_by_id;
 
-use crate::commands_route::{array_field, f64_field, route, str_field, u64_field, Routed};
 use crate::commands::{load_graph, with_graph, Client, Endpoint};
+use crate::commands_route::{array_field, f64_field, route, str_field, u64_field, Routed};
 
 fn print_kern(kern: &Kern, g: &GraphGnn, depth: usize) {
 	let indent = "  ".repeat(depth);
@@ -976,7 +976,13 @@ mod tests {
 			&[("a", "b")],
 		);
 		{
-			let a = g.kerns.get_mut("kx").unwrap().entities.get_mut("a").unwrap();
+			let a = g
+				.kerns
+				.get_mut("kx")
+				.unwrap()
+				.entities
+				.get_mut("a")
+				.unwrap();
 			a.set_text("the question".into());
 			a.source = crate::base_types::Source::Session {
 				session_id: "session:sess-1".into(),

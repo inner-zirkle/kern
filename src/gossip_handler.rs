@@ -7,10 +7,10 @@ use std::time::SystemTime;
 use parking_lot::RwLock;
 
 use crate::base_constants::*;
-use crate::graph::GraphGnn;
-use crate::search::search_all_unlocked;
 use crate::base_types::{Kern, ReasonKind};
 use crate::crdt::{lww_wins, GCounter};
+use crate::graph::GraphGnn;
+use crate::search::search_all_unlocked;
 
 use crate::gossip_contract::{
 	contract_kern_id, contract_loc, entity_sig_digest, tombstone_digest, Applied, ContractId,
@@ -345,11 +345,7 @@ fn handle_question(d: &Deps, peer: crate::gossip_identity::PeerId, msg: GossipMe
 	// expensive. The budget is keyed on the envelope-verified PeerId — spoofing
 	// a fresh `origin` string no longer buys a fresh budget; a fresh budget now
 	// costs a fresh keypair.
-	if !d
-		.node
-		.question_rate
-		.allow(&crate::util::hex::encode(peer))
-	{
+	if !d.node.question_rate.allow(&crate::util::hex::encode(peer)) {
 		if QUESTION_RATE_WARN.allow() {
 			tracing::warn!(
 				target: "kern.gossip",
@@ -749,7 +745,10 @@ fn handle_suback(d: &Arc<Deps>, msg: GossipMessage) {
 
 	let (ours, our_summary) = {
 		let state = host.state.read();
-		(SignedCrdt.diff(&state, &their_summary), SignedCrdt.summarize(&state))
+		(
+			SignedCrdt.diff(&state, &their_summary),
+			SignedCrdt.summarize(&state),
+		)
 	};
 	if !ours.entities.is_empty() {
 		d.node.send_to(
@@ -869,7 +868,9 @@ fn handle_tombstone(d: &Arc<Deps>, msg: GossipMessage) {
 		GossipPayload::Tombstone(p) => p.clone(),
 		_ => return,
 	};
-	let Some(host) = d.host(&p.contract) else { return };
+	let Some(host) = d.host(&p.contract) else {
+		return;
+	};
 	let digest = tombstone_digest(&p.contract, &p.new_id);
 	let signed_by_owner = host
 		.params
@@ -908,9 +909,7 @@ pub fn publish_to_contract(
 		lamport,
 		entity,
 	};
-	let delta = ContractDelta {
-		entities: vec![se],
-	};
+	let delta = ContractDelta { entities: vec![se] };
 	let applied = {
 		let mut state = host.state.write();
 		SignedCrdt
@@ -973,8 +972,7 @@ pub fn contract_sync_once(d: &Arc<Deps>) {
 pub fn start_contract_sync(d: Arc<Deps>, interval_secs: u64) {
 	let mut stop = d.node.stop_rx.clone();
 	tokio::spawn(async move {
-		let mut interval =
-			tokio::time::interval(std::time::Duration::from_secs(interval_secs.max(1)));
+		let mut interval = tokio::time::interval(std::time::Duration::from_secs(interval_secs.max(1)));
 		loop {
 			tokio::select! {
 				_ = interval.tick() => contract_sync_once(&d),
@@ -1033,15 +1031,18 @@ fn resolve_question_from_peer(
 	}
 
 	if let Some(q) = &d.queue {
-		q.enqueue(crate::tick_queue::task(crate::tick_queue::TaskKind::Persist, &kern_id));
+		q.enqueue(crate::tick_queue::task(
+			crate::tick_queue::TaskKind::Persist,
+			&kern_id,
+		));
 	}
 }
 
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::reason::add_reason;
 	use crate::base_types::{mk_entity as mk_entity_kind, Entity, EntityKind, Reason};
+	use crate::reason::add_reason;
 
 	fn mk_entity(id: &str, text: &str, heat: f64) -> Entity {
 		mk_entity_kind(id, text, heat, EntityKind::Fact)

@@ -1,9 +1,9 @@
+use crate::mcp::tools_query::base_entity_json;
 use crate::search::{find_entity, search_all_unlocked};
 use crate::util::{short_id, truncate};
-use crate::mcp::tools_query::base_entity_json;
 
-use crate::commands_route::{array_field, f64_field, route, str_field, Routed};
 use crate::commands::{load_graph, Client};
+use crate::commands_route::{array_field, f64_field, route, str_field, Routed};
 
 pub(crate) struct QueryParams<'a> {
 	pub(crate) text: &'a str,

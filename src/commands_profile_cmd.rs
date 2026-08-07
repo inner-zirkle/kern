@@ -1,9 +1,9 @@
 use std::sync::Arc;
 use std::time::Instant;
 
-use crate::search::search_all_unlocked;
 use crate::profile::{render_timeline, Profile};
 use crate::retrieval::seed::Mode;
+use crate::search::search_all_unlocked;
 
 use crate::commands::{load_graph, Client, Endpoint};
 

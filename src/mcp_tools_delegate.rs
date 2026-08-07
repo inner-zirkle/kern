@@ -1,8 +1,8 @@
-use crate::mcp::{tool_error, tool_result_json, Server};
 use crate::gossip_contract::{
 	contract_id, params_from_config, tombstone_digest, WritePolicy, SIGNED_CRDT_V0_TAG,
 };
 use crate::gossip_identity::PeerIdentity;
+use crate::mcp::{tool_error, tool_result_json, Server};
 
 pub(crate) fn tool_schemas() -> Vec<serde_json::Value> {
 	vec![
@@ -68,8 +68,7 @@ impl Server {
 		let Some(contract_val) = args.get("contract") else {
 			return tool_error("contract is required (the current [[gossip.contracts]] table)");
 		};
-		let cfg: crate::config::ContractConfig = match serde_json::from_value(contract_val.clone())
-		{
+		let cfg: crate::config::ContractConfig = match serde_json::from_value(contract_val.clone()) {
 			Ok(c) => c,
 			Err(e) => return tool_error(&format!("contract does not parse: {e}")),
 		};
@@ -184,7 +183,9 @@ mod tests {
 	async fn sign_refuses_a_malformed_digest() {
 		let dir = tempfile::tempdir().unwrap();
 		let s = server_in(dir.path());
-		assert!(is_error(&s.tool_sign(&serde_json::json!({"payload_hash": "short"}))));
+		assert!(is_error(
+			&s.tool_sign(&serde_json::json!({"payload_hash": "short"}))
+		));
 		assert!(is_error(&s.tool_sign(&serde_json::json!({}))));
 	}
 
@@ -229,10 +230,9 @@ mod tests {
 		// The tombstone signature verifies as an owner signature over (old, new).
 		let old_id = crate::gossip_contract::parse_key_hex(b["old_id"].as_str().unwrap()).unwrap();
 		let new_id = crate::gossip_contract::parse_key_hex(b["new_id"].as_str().unwrap()).unwrap();
-		let owner_pk = crate::gossip_contract::parse_key_hex(
-			b["amended_contract"]["owners"][0].as_str().unwrap(),
-		)
-		.unwrap();
+		let owner_pk =
+			crate::gossip_contract::parse_key_hex(b["amended_contract"]["owners"][0].as_str().unwrap())
+				.unwrap();
 		let sig_hex = b["tombstone_sig"].as_str().unwrap();
 		let sig: Vec<u8> = crate::util::hex::decode(sig_hex).unwrap();
 		assert!(verify_sig_by(

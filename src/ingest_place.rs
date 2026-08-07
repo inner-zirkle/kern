@@ -1,13 +1,13 @@
 use crate::accept;
-use crate::graph::GraphGnn;
 use crate::base_types::*;
-use crate::util;
 use crate::crdt::GCounter;
+use crate::graph::GraphGnn;
+use crate::ingest::Job;
 use crate::ingest_dedup::{find_duplicate, update_existing_entity};
 use crate::ingest_embed::embed_with_retry;
 use crate::ingest_outcome::FailureReport;
-use crate::ingest::Job;
 use crate::llm::Client as LlmClient;
+use crate::util;
 use std::sync::Arc;
 
 use parking_lot::RwLock;
@@ -499,9 +499,7 @@ mod tests {
 			&chunks,
 			&vecs,
 			"doc1",
-			fact_job
-				.config
-				.dedup_threshold_for(EntityKind::Fact),
+			fact_job.config.dedup_threshold_for(EntityKind::Fact),
 		);
 		assert_eq!(placed, 2, "place_chunks counts deduped-or-new, not new");
 		assert_eq!(
@@ -557,9 +555,7 @@ mod tests {
 			&claim_chunks,
 			&claim_vecs,
 			"doc2",
-			claim_job
-				.config
-				.dedup_threshold_for(EntityKind::Claim),
+			claim_job.config.dedup_threshold_for(EntityKind::Claim),
 		);
 		assert_eq!(
 			total_entity_count(&g3),

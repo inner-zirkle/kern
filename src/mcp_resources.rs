@@ -210,9 +210,9 @@ fn resource_content(uri: &str, text: &str) -> serde_json::Value {
 mod tests {
 	use super::*;
 
-	use crate::reason::add_reason;
 	use crate::base_types::{Entity, Kern, Reason};
 	use crate::mcp::Server;
+	use crate::reason::add_reason;
 
 	fn make_server() -> Server {
 		crate::test_support::mcp_server()

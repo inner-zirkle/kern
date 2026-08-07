@@ -593,17 +593,23 @@ impl Kern {
 			for _ in 0..=self.claim_kind_parents.len() {
 				match self.claim_kind_parents.get(cur) {
 					Some(next) if next.as_str() == name => {
-						return Err(format!("parent {p} would make {name} an ancestor of itself"));
+						return Err(format!(
+							"parent {p} would make {name} an ancestor of itself"
+						));
 					}
 					Some(next) => cur = next,
 					None => break,
 				}
 			}
-			self.claim_kind_parents.insert(name.to_string(), p.to_string());
+			self
+				.claim_kind_parents
+				.insert(name.to_string(), p.to_string());
 		} else {
 			self.claim_kind_parents.remove(name);
 		}
-		self.claim_kinds.insert(name.to_string(), description.to_string());
+		self
+			.claim_kinds
+			.insert(name.to_string(), description.to_string());
 		Ok(())
 	}
 

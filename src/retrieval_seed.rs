@@ -1,11 +1,11 @@
+use crate::config::RetrievalConfig;
 use crate::graph::GraphGnn;
 use crate::lexical::LexicalIndex;
 use crate::math::cosine;
+use crate::retrieval::score::{matches_filter, QueryOptions};
 use crate::search::{
 	search_all_filtered, search_all_unlocked, search_reasons_all_unlocked, EntityHit,
 };
-use crate::config::RetrievalConfig;
-use crate::retrieval::score::{matches_filter, QueryOptions};
 use rayon::iter::Either;
 use rayon::prelude::*;
 use std::collections::HashMap;
@@ -719,9 +719,10 @@ mod tests {
 			let mut g = graph_with(vec![ent("local", vec![1.0, 0.0], 0, true)]);
 			let before = g.mutation_epoch();
 			let mut phantom = Kern::new("remote-net-k2", "");
-			phantom
-				.entities
-				.insert("gossip-fact".into(), ent("gossip-fact", vec![1.0, 0.0], 0, true));
+			phantom.entities.insert(
+				"gossip-fact".into(),
+				ent("gossip-fact", vec![1.0, 0.0], 0, true),
+			);
 			g.kerns.insert("remote-net-k2".into(), phantom);
 			assert_eq!(
 				g.mutation_epoch(),

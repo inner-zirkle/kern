@@ -1,13 +1,13 @@
-use crate::graph::GraphGnn;
-use crate::log_throttle::LogThrottle;
-use crate::math::clamp_confidence;
 use crate::base_types::*;
-use crate::util;
+use crate::graph::GraphGnn;
 use crate::ingest_config::Config;
 use crate::ingest_embed::embed_chunks;
 use crate::ingest_outcome::{FailureReport, Outcome, OutcomeStatus};
 use crate::ingest_place::{document_kind, place_chunks, place_document};
 use crate::llm::Client as LlmClient;
+use crate::log_throttle::LogThrottle;
+use crate::math::clamp_confidence;
+use crate::util;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 

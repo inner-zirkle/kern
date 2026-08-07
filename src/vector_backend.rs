@@ -2,8 +2,8 @@ use std::collections::HashSet;
 
 use super::diskann::DiskIndex;
 use super::hnsw::{HnswHit, HnswIndex};
-use crate::base_types::Embedding;
 use super::util::cmp_rank;
+use crate::base_types::Embedding;
 use crate::quant::QuantizationMode;
 
 pub enum VectorBackend {

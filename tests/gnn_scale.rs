@@ -14,14 +14,14 @@ use std::time::{Duration, Instant};
 
 use parking_lot::RwLock;
 
-use kern::base::graph::GraphGnn;
-use kern::base::heat::HeatConfig;
-use kern::base::reason::add_reason;
-use kern::base::types::{Entity, EntityKind, Kern, Reason};
+use kern::graph::GraphGnn;
+use kern::heat::HeatConfig;
+use kern::reason::add_reason;
+use kern::base_types::{Entity, EntityKind, Kern, Reason};
 use kern::config::TickConfig;
 use kern::gnn::propagate::GnnConfig;
-use kern::tick::gnn_propagate::do_gnn_propagate;
-use kern::tick::queue::{task, task_commit_access, Queue, TaskKind};
+use kern::tick_gnn_propagate::do_gnn_propagate;
+use kern::tick_queue::{task, task_commit_access, Queue, TaskKind};
 
 const DIM: usize = 384;
 
@@ -124,7 +124,7 @@ fn gnn_train_scale() {
 			.unwrap_or(0);
 		let adj_mb = {
 			let k = &g.read().kerns["kx"];
-			let snap = kern::tick::gnn_propagate::build_gnn_snapshot(k, &cfg);
+			let snap = kern::tick_gnn_propagate::build_gnn_snapshot(k, &cfg);
 			snap
 				.map(|s| s.graph.normalized_adjacency_sparse().nnz())
 				.unwrap_or(0) as f64
@@ -159,7 +159,7 @@ fn gnn_cost_breakdown() {
 
 	for n in [1024usize, 2048, 4096] {
 		let k = kern_with(n, 2);
-		let snap = kern::tick::gnn_propagate::build_gnn_snapshot(&k, &cfg).expect("snapshot builds");
+		let snap = kern::tick_gnn_propagate::build_gnn_snapshot(&k, &cfg).expect("snapshot builds");
 		let narrow = kern::gnn::tensor::Tensor::zeros(n, hidden);
 
 		let t = Instant::now();
@@ -219,17 +219,17 @@ fn other_tick_tasks_scale() {
 		let q = Queue::new(512);
 
 		let t = Instant::now();
-		kern::tick::stigmergy::run_gc(&g, "kx", &HeatConfig::default());
+		kern::tick_stigmergy::run_gc(&g, "kx", &HeatConfig::default());
 		let gc_ms = t.elapsed().as_secs_f64() * 1000.0;
 
 		let ids: Vec<String> = g.read().kerns["kx"].entities.keys().cloned().collect();
 		let commit = task_commit_access(&ids[..1.min(ids.len())]);
 		let t = Instant::now();
-		kern::tick::tasks::do_commit_access(&g, &commit.extra, &HeatConfig::default());
+		kern::tick_tasks::do_commit_access(&g, &commit.extra, &HeatConfig::default());
 		let commit_ms = t.elapsed().as_secs_f64() * 1000.0;
 
 		let t = Instant::now();
-		kern::tick::idle::run_idle_sweep(&g, Duration::from_secs(3600));
+		kern::tick_idle::run_idle_sweep(&g, Duration::from_secs(3600));
 		let idle_ms = t.elapsed().as_secs_f64() * 1000.0;
 
 		let _ = &q;

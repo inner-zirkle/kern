@@ -143,7 +143,10 @@ mod tests {
 			"peer key defaults beside the graph it identifies"
 		);
 		assert_eq!(c.sync_interval_secs, 300);
-		assert!(c.subscriptions.is_empty(), "no boot subscriptions by default");
+		assert!(
+			c.subscriptions.is_empty(),
+			"no boot subscriptions by default"
+		);
 		assert!(c.contracts.is_empty(), "no hosted contracts by default");
 		assert!(
 			!c.seed,

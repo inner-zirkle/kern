@@ -11,14 +11,14 @@
 // `run_gc`) untouched. Two cohorts sit at every depth with IDENTICAL usage —
 // `used` re-accessed every 6h through the whole run, `unused` accessed once at
 // t=0 — so any survival difference between depths is depth, and nothing else.
-use kern::base::constants::{COLD_GC_AGE, COLD_HEAT_THRESHOLD, PULSE_DECAY, PULSE_THRESHOLD};
-use kern::base::graph::GraphGnn;
-use kern::base::heat::HeatConfig;
-use kern::base::types::{Entity, EntityKind, Kern};
+use kern::base_constants::{COLD_GC_AGE, COLD_HEAT_THRESHOLD, PULSE_DECAY, PULSE_THRESHOLD};
+use kern::graph::GraphGnn;
+use kern::heat::HeatConfig;
+use kern::base_types::{Entity, EntityKind, Kern};
 use kern::retrieval::score::commit_access_ids;
-use kern::tick::pulse::pulse;
-use kern::tick::queue::Queue;
-use kern::tick::stigmergy::run_gc;
+use kern::tick_pulse::pulse;
+use kern::tick_queue::Queue;
+use kern::tick_stigmergy::run_gc;
 use parking_lot::RwLock;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};

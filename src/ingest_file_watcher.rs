@@ -1,8 +1,10 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use crate::watcher::{
+	FileWatcher, IgnoreRules, IngestPipeline, IngestRecord, IngestSink, WatcherError,
+};
 use async_trait::async_trait;
-use crate::watcher::{FileWatcher, IgnoreRules, IngestPipeline, IngestRecord, IngestSink, WatcherError};
 
 use crate::base_types::{EntityKind, Scoping, Source};
 use crate::ingest::{Config as IngestRunConfig, Worker};
@@ -180,10 +182,10 @@ mod tests {
 	use tokio::time::{sleep, timeout};
 
 	use crate::accept;
-	use crate::graph::GraphGnn;
 	use crate::base_types::{ChunkPart, ChunkPartKind, Embedding, Entity, EntityStatus};
-	use crate::util;
 	use crate::crdt::GCounter;
+	use crate::graph::GraphGnn;
+	use crate::util;
 
 	#[derive(Clone)]
 	struct DirectFileSink {
@@ -235,14 +237,14 @@ mod tests {
 				session_id: None,
 				valid_from: None,
 				valid_to: None,
-						invalidated_at: None,
+				invalidated_at: None,
 			};
 			t.refresh_score();
 			t
 		}
-}
+	}
 
-		#[async_trait]
+	#[async_trait]
 	impl IngestSink for DirectFileSink {
 		async fn ingest(&self, record: IngestRecord) {
 			let path = strip_file_uri(&record.source_uri);
@@ -783,7 +785,7 @@ mod tests {
 			matches!(old.status, EntityStatus::Superseded),
 			"old-path document is superseded, not left dangling"
 		);
-		assert_eq!(old.superseded_by.len() > 0, true, "superseded_by is set");
+		assert!(!old.superseded_by.is_empty(), "superseded_by is set");
 		let new = g
 			.kerns
 			.values()
@@ -888,7 +890,7 @@ mod tests {
 			.kern_of_source("tmp/new.rs")
 			.expect("new source-index set");
 		assert!(
-			g.kerns.get(holder).is_some(),
+			g.kerns.contains_key(holder),
 			"new source-index points at a real kern"
 		);
 	}

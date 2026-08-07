@@ -42,10 +42,7 @@ pub fn encrypt_text(key: &[u8; 32], plaintext: &str) -> String {
 	let mut body = Vec::with_capacity(NONCE_LEN + ct.len());
 	body.extend_from_slice(&nonce);
 	body.extend_from_slice(&ct);
-	format!(
-		"{CIPHERTEXT_PREFIX}{}",
-		crate::util::hex::encode(body)
-	)
+	format!("{CIPHERTEXT_PREFIX}{}", crate::util::hex::encode(body))
 }
 
 pub fn decrypt_text(key: &[u8; 32], ciphertext: &str) -> Option<String> {

@@ -1,6 +1,6 @@
 use crate::accept::merge_duplicate;
-use crate::graph::GraphGnn;
 use crate::base_types::*;
+use crate::graph::GraphGnn;
 use std::sync::Arc;
 
 use parking_lot::RwLock;
@@ -11,9 +11,7 @@ pub fn find_duplicate(
 	threshold: f64,
 ) -> Option<String> {
 	let g = graph.read();
-	let hits = g
-		.entity_idx
-		.search(vec, 1, crate::base_constants::DEDUP_EF);
+	let hits = g.entity_idx.search(vec, 1, crate::base_constants::DEDUP_EF);
 	hits
 		.into_iter()
 		.find(|h| h.score >= threshold)

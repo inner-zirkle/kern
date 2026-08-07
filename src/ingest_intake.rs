@@ -3,9 +3,9 @@ use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
 use crate::base_types::{EntityKind, Source};
+use crate::ingest::Worker;
 use crate::ingest_distill::{distill, Claim};
 use crate::ingest_outcome::OutcomeStatus;
-use crate::ingest::Worker;
 use crate::types::LlmFunc;
 
 pub type ClaimKindsFn = Arc<dyn Fn() -> Vec<String> + Send + Sync>;
@@ -205,7 +205,16 @@ async fn drain_entry(
 		claim_cfg.valid_from = c.valid_from;
 		let tag = src.scheme();
 		let outcome = worker
-			.run(c.text, src, EntityKind::Claim, c.kind, 0.6, tag, claim_cfg, crate::base_types::Scoping::default())
+			.run(
+				c.text,
+				src,
+				EntityKind::Claim,
+				c.kind,
+				0.6,
+				tag,
+				claim_cfg,
+				crate::base_types::Scoping::default(),
+			)
 			.await;
 		let ok = !matches!(outcome.status, OutcomeStatus::Failed);
 		if !ok {
@@ -318,7 +327,8 @@ async fn drain_once(
 			archived += 1;
 		}
 	}
-	archived += crate::ingest_direct::drain_direct_once(&intake_dir.join("direct"), worker, cfg).await;
+	archived +=
+		crate::ingest_direct::drain_direct_once(&intake_dir.join("direct"), worker, cfg).await;
 	prune_done(done, done_retention, now);
 	prune_done(&intake_dir.join("direct").join("done"), done_retention, now);
 	archived

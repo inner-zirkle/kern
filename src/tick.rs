@@ -4,10 +4,10 @@ use std::time::{Duration, Instant};
 use parking_lot::RwLock;
 
 use crate::base_constants::{KERN_COHESION_THRESHOLD, KERN_MIN_CLUSTER_SIZE};
-use crate::graph::GraphGnn;
-use crate::heat::HeatConfig;
 use crate::config::TickConfig;
 use crate::gnn::propagate::GnnConfig;
+use crate::graph::GraphGnn;
+use crate::heat::HeatConfig;
 
 use crate::tick_cluster::{cohesion, is_core_cluster, vector_cluster, Cluster};
 use crate::tick_gnn_propagate::do_gnn_propagate;
@@ -48,7 +48,11 @@ pub fn start(
 	})
 }
 
-fn gnn_trainer(q: &Arc<Queue>, g: &Arc<RwLock<GraphGnn>>, ctx: &TickContext) -> crate::tick_trainer::Trainer {
+fn gnn_trainer(
+	q: &Arc<Queue>,
+	g: &Arc<RwLock<GraphGnn>>,
+	ctx: &TickContext,
+) -> crate::tick_trainer::Trainer {
 	let (tq, tg, cfg) = (q.clone(), g.clone(), ctx.gnn_cfg);
 	crate::tick_trainer::Trainer::spawn(q.clone(), move |kern_id| {
 		do_gnn_propagate(&tq, &tg, kern_id, &cfg)
@@ -356,8 +360,8 @@ pub fn tick_sync(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::reason::add_reason;
 	use crate::base_types::{Entity, Kern, Reason, ReasonKind};
+	use crate::reason::add_reason;
 
 	fn parent_child(child_named: bool, child_has_thought: bool) -> (GraphGnn, String, String) {
 		let mut g = GraphGnn::new();
@@ -742,8 +746,8 @@ mod tests {
 
 	#[test]
 	fn spawning_a_cluster_carries_outgoing_reasons_and_reindexes_the_entity() {
-		use crate::reason::add_reason;
 		use crate::base_types::{Kern, Reason};
+		use crate::reason::add_reason;
 
 		let mut g = GraphGnn::new();
 		let root_id = g.root.id.clone();

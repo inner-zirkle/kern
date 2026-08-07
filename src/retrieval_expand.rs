@@ -1,9 +1,9 @@
-use crate::graph::GraphGnn;
-use crate::math::cosine;
-use crate::search::EntityHit;
 use crate::base_types::*;
 use crate::config::RetrievalConfig;
+use crate::graph::GraphGnn;
+use crate::math::cosine;
 use crate::retrieval::seed::Weights;
+use crate::search::EntityHit;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 

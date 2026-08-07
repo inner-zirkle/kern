@@ -1,8 +1,8 @@
-use crate::base_constants::*;
 use super::graph::GraphGnn;
 use super::math::{average_vec, cosine_distance, reason_id};
 use super::reason::{add_reason, superseded_ancestors};
 use super::search::search_all_unlocked;
+use crate::base_constants::*;
 use crate::base_types::*;
 use crate::crdt::GCounter;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -554,6 +554,7 @@ fn supersede(
 /// Stamp `old_id` Superseded-by `new_id`, evict it from the ANN indices, and add
 /// a `Supersedes` reason edge new→old. Shared by same-external-id `supersede`
 /// and cross-external-id `supersede_renamed`.
+#[allow(clippy::too_many_arguments)]
 fn stamp_superseded(
 	g: &mut GraphGnn,
 	placed_kern_id: &str,

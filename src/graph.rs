@@ -2,12 +2,12 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::SystemTime;
 
-use crate::base_constants::KERN_CAP_DISABLED;
 use super::lexical::LexicalIndex;
-use crate::base_store::{Store, StoreError};
-use crate::base_types::{EntityStatus, Kern};
 use super::util;
 use super::vector_backend::VectorBackend;
+use crate::base_constants::KERN_CAP_DISABLED;
+use crate::base_store::{Store, StoreError};
+use crate::base_types::{EntityStatus, Kern};
 use crate::quant::QuantizationMode;
 
 #[allow(clippy::too_many_arguments)]

@@ -1,10 +1,10 @@
 use parking_lot::RwLock as StdRwLock;
 use std::sync::Arc;
 
-use tokio::sync::Mutex as TokioMutex;
 use crate::transport::kern_rpc::{AuthReq, CallToolReq, KernRpcClient};
 use crate::transport::typed::{AdapterError, Endpoint, JsonEnvelopeCodec};
 use crate::transport::{McpError, McpServer, ToolResult, ToolSchema};
+use tokio::sync::Mutex as TokioMutex;
 
 use crate::commands::load_graph;
 
@@ -299,7 +299,8 @@ impl McpServer for ProxyServer {
 		let client = self.client.clone();
 		let res = crate::llm::block_on_in_place(async move {
 			let c = client.lock().await;
-			c.list_tools(crate::transport::kern_rpc::ListToolsReq {}).await
+			c.list_tools(crate::transport::kern_rpc::ListToolsReq {})
+				.await
 		});
 		match res {
 			Some(Ok(r)) => r
@@ -511,9 +512,7 @@ async fn run_standalone(cfg: &crate::config::Config) {
 		task_q: Some(q),
 		cfg: Arc::new(cfg.clone()),
 		broadcast_pulse: None,
-		last_activity: Arc::new(std::sync::atomic::AtomicU64::new(
-			crate::util::now_ms(),
-		)),
+		last_activity: Arc::new(std::sync::atomic::AtomicU64::new(crate::util::now_ms())),
 	};
 	// KERN_TRANSPORT names one of the master transports (tcp:9401, ws:9402,
 	// http:9403, sse:9404, udp:9405, unix:/path); absent, the MCP-child stdio
@@ -522,8 +521,8 @@ async fn run_standalone(cfg: &crate::config::Config) {
 	match transport_from_env() {
 		Some(t) => {
 			let server = Arc::new(server);
-			if let Err(e) = tokio::task::spawn_blocking(move || crate::transport::serve_transport(t, server))
-				.await
+			if let Err(e) =
+				tokio::task::spawn_blocking(move || crate::transport::serve_transport(t, server)).await
 			{
 				tracing::warn!(target: "kern.mcp", error = %e, "transport serve loop");
 			}
@@ -601,9 +600,9 @@ pub(crate) fn ensure_mcp_registered(cwd: &std::path::Path) {
 #[cfg(all(test, unix))]
 mod standalone_tests {
 	use super::*;
+	use crate::transport::typed::{bind_kern_listener, BindOutcome};
 	use std::sync::Arc;
 	use std::time::Duration;
-	use crate::transport::typed::{bind_kern_listener, BindOutcome};
 
 	fn scratch_endpoint(tag: &str) -> Endpoint {
 		let dir = std::env::temp_dir().join(format!(

@@ -136,7 +136,11 @@ mod tests {
 				input_schema: None,
 			}]
 		}
-		fn call_tool(&self, name: &str, _args: &Value) -> Result<crate::transport::ToolResult, crate::transport::McpError> {
+		fn call_tool(
+			&self,
+			name: &str,
+			_args: &Value,
+		) -> Result<crate::transport::ToolResult, crate::transport::McpError> {
 			if name == "add" {
 				Ok(crate::transport::ToolResult {
 					content: vec![json!({ "type": "text", "text": "ok" })],

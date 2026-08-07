@@ -7,8 +7,8 @@
 //
 // Kept rather than deleted because both items are perf claims, and a perf claim
 // whose instrument was thrown away cannot be rechecked when the numbers move.
-use kern::base::graph::GraphGnn;
-use kern::base::types::{ChunkPart, ChunkPartKind, Entity, EntityKind, Kern, Reason};
+use kern::graph::GraphGnn;
+use kern::base_types::{ChunkPart, ChunkPartKind, Entity, EntityKind, Kern, Reason};
 use kern::config::RetrievalConfig;
 use kern::retrieval::query::retrieve_profiled;
 use kern::retrieval::seed::{seed_important, Mode, Weights};

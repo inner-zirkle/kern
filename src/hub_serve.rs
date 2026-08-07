@@ -2,11 +2,11 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use tokio::sync::Mutex;
 use crate::transport::hub_rpc::{
 	HubRpc, HubStatusRes, NodeLite, ResolveReq, ResolveRes, StopRes, UnloadReq, UnloadRes,
 };
 use crate::transport::typed::{Channel, Endpoint, JsonEnvelopeCodec};
+use tokio::sync::Mutex;
 
 use crate::hub_node::{self as node, NodeHandle};
 

@@ -9,15 +9,15 @@ use crate::base_constants::{
 	DEFAULT_SEED_K, KERN_INNER_RADIUS, KERN_OUTER_RADIUS, PROVENANCE_SCORE,
 	QUESTION_RESOLVE_THRESHOLD,
 };
+use crate::base_types::{Embedding, Reason, ReasonKind, Scoping};
+use crate::config::TickConfig;
 use crate::graph::GraphGnn;
 use crate::heat::HeatConfig;
+use crate::ingest::place::build_chunk_entity;
 use crate::math::reason_id;
 use crate::reason::{add_reason, remove_reason};
 use crate::search::search_all_unlocked;
-use crate::base_types::{Embedding, Reason, ReasonKind, Scoping};
 use crate::util;
-use crate::config::TickConfig;
-use crate::ingest::place::build_chunk_entity;
 
 use crate::tick_cluster::{
 	centroid_thought, graviton_prompt, largest_cohesive_cluster_for_naming, vector_cluster,
@@ -580,8 +580,8 @@ pub fn do_reembed(g: &Arc<RwLock<GraphGnn>>, kern_id: &str, embed: Option<&Embed
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::graph::GraphGnn;
 	use crate::base_types::{Entity, Kern};
+	use crate::graph::GraphGnn;
 	use parking_lot::RwLock;
 	use std::sync::Arc;
 

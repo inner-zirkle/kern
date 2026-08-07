@@ -3,11 +3,11 @@ use crate::transport::typed::Endpoint;
 
 use crate::util::short_id;
 
-use crate::commands_route::{route_to, Routed};
 use crate::commands::{
 	load_graph, save_graph_unguarded, with_graph, ClaimKindAction, Client, GravitonAction,
 	UnnamedAction,
 };
+use crate::commands_route::{route_to, Routed};
 
 pub(crate) fn cmd_compress(src: &str, mode_str: &str, out: Option<&str>) {
 	let Some(mode) = crate::quant::QuantizationMode::parse(mode_str) else {
@@ -122,7 +122,9 @@ pub(crate) async fn cmd_health(cfg: &crate::config::Config) {
 
 // The tick queue lives in the daemon; an offline CLI has no view of it. One
 // attempt, no retry: `kern health` must not stall when nothing is serving.
-async fn daemon_health(cfg: &crate::config::Config) -> Option<crate::transport::kern_rpc::HealthRes> {
+async fn daemon_health(
+	cfg: &crate::config::Config,
+) -> Option<crate::transport::kern_rpc::HealthRes> {
 	use crate::transport::kern_rpc::KernRpcClient;
 	use crate::transport::typed::{Endpoint, JsonEnvelopeCodec};
 
@@ -304,7 +306,7 @@ fn retrieval_health_lines(h: Option<&crate::transport::kern_rpc::HealthRes>) -> 
 			),
 		],
 		None => Vec::new(),
-		}
+	}
 }
 
 // Active source-trust map (ROADMAP item 20 measurement half). Daemon-sourced
@@ -751,8 +753,10 @@ mod degradation_lines_tests {
 			"hybrid weights line: {lines:?}"
 		);
 		assert!(
-			lines[4].contains("seed_k 30") && lines[4].contains("mmr false")
-						&& lines[4].contains("lexical true") && lines[4].contains("pagerank true"),
+			lines[4].contains("seed_k 30")
+				&& lines[4].contains("mmr false")
+				&& lines[4].contains("lexical true")
+				&& lines[4].contains("pagerank true"),
 			"knob line carries the four: {lines:?}"
 		);
 
@@ -1511,13 +1515,15 @@ pub(crate) async fn cmd_hub(action: Option<crate::commands::HubAction>, idle_unl
 			}
 		}
 		Some(crate::commands::HubAction::Merge { src, dst }) => cmd_hub_merge(&src, &dst).await,
-		Some(crate::commands::HubAction::Stop) => match HubRpcClient::<JsonEnvelopeCodec>::connect_hub().await {
-			Ok(client) => match client.stop().await {
-				Ok(_) => println!("hub stopped (nodes stay up)"),
-				Err(e) => eprintln!("hub stop: {e}"),
-			},
-			Err(e) => eprintln!("hub: not running ({e})"),
-		},
+		Some(crate::commands::HubAction::Stop) => {
+			match HubRpcClient::<JsonEnvelopeCodec>::connect_hub().await {
+				Ok(client) => match client.stop().await {
+					Ok(_) => println!("hub stopped (nodes stay up)"),
+					Err(e) => eprintln!("hub stop: {e}"),
+				},
+				Err(e) => eprintln!("hub: not running ({e})"),
+			}
+		}
 	}
 }
 

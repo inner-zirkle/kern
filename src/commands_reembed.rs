@@ -92,11 +92,7 @@ pub(crate) async fn cmd_reembed(cfg: &crate::config::Config, embed_url: &str, em
 // `check_embed_stamp` deliberately never adopts on mismatch — a config swap must
 // not rewrite the record of what produced the stored vectors. A completed
 // re-embed is the one legitimate transition, so it restamps explicitly here.
-fn restamp(
-	g: &crate::graph::GraphGnn,
-	embed_model: &str,
-	new_vecs: &HashMap<String, Vec<f32>>,
-) {
+fn restamp(g: &crate::graph::GraphGnn, embed_model: &str, new_vecs: &HashMap<String, Vec<f32>>) {
 	let (Some(store), Some(dim)) = (g.store(), new_vecs.values().next().map(|v| v.len())) else {
 		return;
 	};

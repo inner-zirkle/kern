@@ -1,6 +1,6 @@
 use super::graph::GraphGnn;
-use crate::base_types::Kern;
 use super::util;
+use crate::base_types::Kern;
 use crate::quant::QuantizationMode;
 use std::collections::HashMap;
 

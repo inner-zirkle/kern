@@ -92,8 +92,7 @@ impl RingView {
 	/// correctness beats everything), then for a far slot under harmonic
 	/// (1/d) sampling. Self-sightings are ignored.
 	pub fn observe(&mut self, entry: PeerEntry) {
-		if entry.id == [0u8; 32] || ring_distance(entry.loc, self.loc) == 0.0 && entry.addr.is_empty()
-		{
+		if entry.id == [0u8; 32] || ring_distance(entry.loc, self.loc) == 0.0 && entry.addr.is_empty() {
 			return;
 		}
 		for e in self.near.iter_mut().chain(self.far.iter_mut()) {
@@ -173,7 +172,8 @@ impl RingView {
 	/// than we are, or None — we are the terminal for this key.
 	pub fn route(&self, target: f64) -> Option<&PeerEntry> {
 		let own = ring_distance(self.loc, target);
-		self.near
+		self
+			.near
 			.iter()
 			.chain(self.far.iter())
 			.min_by(|a, b| {

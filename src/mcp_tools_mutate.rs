@@ -1,13 +1,13 @@
 use serde::Deserialize;
 
 use crate::base_constants::AGENT_SOURCE;
+use crate::base_types::{Scoping, Source};
+use crate::ingest;
 use crate::math::clamp_confidence;
 use crate::reason::move_entity;
 use crate::search::find_entity;
-use crate::base_types::{Scoping, Source};
 use crate::util::explain_relationship_prompt;
 use crate::validate::validate_conf;
-use crate::ingest;
 
 pub(crate) fn tool_schemas() -> Vec<serde_json::Value> {
 	vec![
@@ -540,10 +540,10 @@ impl Server {
 
 #[cfg(test)]
 mod tests {
-	use crate::reason::add_reason;
 	use crate::base_types::{Entity, EntityKind, Kern, Reason};
-	use crate::mcp::Server;
 	use crate::mcp::tools::is_error;
+	use crate::mcp::Server;
+	use crate::reason::add_reason;
 
 	fn make_server() -> Server {
 		crate::test_support::mcp_server()

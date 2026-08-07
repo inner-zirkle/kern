@@ -330,10 +330,7 @@ mod dto_serde_tests {
 				pagerank_enabled: true,
 			},
 			preset: "tight".into(),
-			source_trust: BTreeMap::from([
-				("file".to_string(), 0.8),
-				("ticket".to_string(), 0.9),
-			]),
+			source_trust: BTreeMap::from([("file".to_string(), 0.8), ("ticket".to_string(), 0.9)]),
 			ingest_dedup_threshold: 0.95,
 			ingest_dedup_threshold_by_kind: [Some(0.99), None, None, None, None],
 			llm_complete_failed: 19,
@@ -372,19 +369,13 @@ mod dto_serde_tests {
 		assert!((back.retrieval.weights_content.content - 0.7).abs() < 1e-12);
 		assert!((back.retrieval.weights_reason.reason - 0.8).abs() < 1e-12);
 		assert!((back.retrieval.weights_hybrid.edge - 0.2).abs() < 1e-12);
-	assert_eq!(back.retrieval.seed_k, 30);
-	assert!(!back.retrieval.mmr_enabled);
-	assert!(back.retrieval.lexical_enabled);
-	assert!(back.retrieval.pagerank_enabled);
+		assert_eq!(back.retrieval.seed_k, 30);
+		assert!(!back.retrieval.mmr_enabled);
+		assert!(back.retrieval.lexical_enabled);
+		assert!(back.retrieval.pagerank_enabled);
 		assert_eq!(back.preset, "tight");
-		assert_eq!(
-			back.source_trust.get("file").copied().unwrap_or(0.0),
-			0.8
-		);
-		assert_eq!(
-			back.source_trust.get("ticket").copied().unwrap_or(0.0),
-			0.9
-		);
+		assert_eq!(back.source_trust.get("file").copied().unwrap_or(0.0), 0.8);
+		assert_eq!(back.source_trust.get("ticket").copied().unwrap_or(0.0), 0.9);
 		assert!((back.ingest_dedup_threshold - 0.95).abs() < 1e-12);
 		assert_eq!(
 			back.ingest_dedup_threshold_by_kind,

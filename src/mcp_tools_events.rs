@@ -214,9 +214,9 @@ impl Server {
 mod tests {
 	use super::EventCursor;
 	use crate::base_types::{Entity, EntityKind, EntityStatus, Kern, Source};
+	use crate::mcp::tools::is_error;
 	use crate::mcp::Server;
 	use crate::test_support::tool_text as text;
-	use crate::mcp::tools::is_error;
 	use std::time::{Duration, UNIX_EPOCH};
 
 	fn at(secs: u64) -> std::time::SystemTime {
@@ -289,16 +289,32 @@ mod tests {
 			assert_eq!(e["change"], "created", "a fresh ingest is a `created`: {e}");
 			assert_eq!(e["kind"], "claim");
 			assert_eq!(e["source_scheme"], "inline");
-			assert!(e["at"].as_str().is_some(), "each event carries its own cursor");
+			assert!(
+				e["at"].as_str().is_some(),
+				"each event carries its own cursor"
+			);
 		}
-		let cursor = v["cursor"].as_str().expect("a cursor to resume from").to_string();
-		assert!(!cursor.is_empty() && cursor != "0", "a non-empty cursor: {cursor}");
+		let cursor = v["cursor"]
+			.as_str()
+			.expect("a cursor to resume from")
+			.to_string();
+		assert!(
+			!cursor.is_empty() && cursor != "0",
+			"a non-empty cursor: {cursor}"
+		);
 
 		// Second poll from that cursor: nothing new, and the cursor is not rewound.
 		let out = srv.tool_events(&serde_json::json!({"since": cursor}));
 		let v = body(&out);
-		assert!(events(&v).is_empty(), "a caught-up poll returns no events: {v}");
-		assert_eq!(v["cursor"].as_str().unwrap(), cursor, "a quiet poll echoes the position back");
+		assert!(
+			events(&v).is_empty(),
+			"a caught-up poll returns no events: {v}"
+		);
+		assert_eq!(
+			v["cursor"].as_str().unwrap(),
+			cursor,
+			"a quiet poll echoes the position back"
+		);
 	}
 
 	#[tokio::test]
@@ -323,7 +339,12 @@ mod tests {
 		let evs = events(&v);
 		let kinds: Vec<(&str, &str)> = evs
 			.iter()
-			.map(|e| (e["entity_id"].as_str().unwrap(), e["change"].as_str().unwrap()))
+			.map(|e| {
+				(
+					e["entity_id"].as_str().unwrap(),
+					e["change"].as_str().unwrap(),
+				)
+			})
 			.collect();
 		assert!(
 			kinds.contains(&("e2", "created")),
@@ -352,7 +373,11 @@ mod tests {
 		let out = srv.tool_events(&serde_json::json!({"since": cursor, "limit": 2}));
 		let v = body(&out);
 		let second = events(&v);
-		assert_eq!(second.len(), 1, "the remaining event resumes on the next poll: {v}");
+		assert_eq!(
+			second.len(),
+			1,
+			"the remaining event resumes on the next poll: {v}"
+		);
 
 		// No gap, no overlap: the three ids appear exactly once across both batches.
 		let mut seen: Vec<String> = first
@@ -362,14 +387,25 @@ mod tests {
 			.collect();
 		seen.sort();
 		seen.dedup();
-		assert_eq!(seen, vec!["e1", "e2", "e3"], "every id delivered once: {seen:?}");
+		assert_eq!(
+			seen,
+			vec!["e1", "e2", "e3"],
+			"every id delivered once: {seen:?}"
+		);
 	}
 
 	#[tokio::test]
 	async fn a_malformed_string_cursor_is_rejected() {
 		let srv = server_with(vec![ent("e1", 100)]);
 		let out = srv.tool_events(&serde_json::json!({"since": "garbage"}));
-		assert!(is_error(&out), "a cursor that cannot be decoded is an error, not a silent rewind");
-		assert!(text(&out).contains("since"), "the error names the field: {}", text(&out));
+		assert!(
+			is_error(&out),
+			"a cursor that cannot be decoded is an error, not a silent rewind"
+		);
+		assert!(
+			text(&out).contains("since"),
+			"the error names the field: {}",
+			text(&out)
+		);
 	}
 }

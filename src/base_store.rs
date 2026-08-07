@@ -6,8 +6,8 @@ use heed::{CompactionOption, Database, Env, EnvOpenOptions};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
-use crate::log_throttle::LogThrottle;
 use crate::base_types::{Embedding, Entity, Kern};
+use crate::log_throttle::LogThrottle;
 use crate::quant::{QuantizationMode, QuantizedVec};
 
 // Headroom is a DURABILITY requirement: a full env fails even the deletes that

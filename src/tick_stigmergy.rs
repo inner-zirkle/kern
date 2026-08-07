@@ -7,10 +7,10 @@ use crate::log_throttle::LogThrottle;
 use parking_lot::RwLock;
 
 use crate::base_constants::{COLD_GC_AGE, COLD_HEAT_THRESHOLD, EVIDENCE_HALF_LIFE_SECS};
+use crate::base_types::{Entity, EntityKind};
 use crate::graph::GraphGnn;
 use crate::heat::{self, HeatConfig};
 use crate::reason::remove_entity;
-use crate::base_types::{Entity, EntityKind};
 
 const SKEW_WARN_SECS: u64 = 300;
 static CLOCK_SKEW: AtomicU64 = AtomicU64::new(0);
@@ -104,7 +104,7 @@ pub fn run_gc(graph: &Arc<RwLock<GraphGnn>>, kern_id: &str, heat_cfg: &HeatConfi
 	// bit-identical to today). Runs on the GC cadence (hourly) per resident
 	// non-superseded entity; local-only mutable state, no gossip/wire change
 	// (item 57). Decaying (α-1)/(β-1) toward 0 keeps (1,1) as the floor.
-	if EVIDENCE_HALF_LIFE_SECS > 0 {
+	if EVIDENCE_HALF_LIFE_SECS != 0 {
 		if let Some(kern) = g.kerns.get_mut(kern_id) {
 			decay_evidence(kern, now, EVIDENCE_HALF_LIFE_SECS);
 		}

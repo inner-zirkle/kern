@@ -473,7 +473,7 @@ mod tests {
 			.collect::<Vec<_>>()
 			.join("\n\n");
 		let claims = distill(&conv, &[], &llm, now()).expect("some");
-		let expected = (n + DISTILL_CHUNK_TURNS - 1) / DISTILL_CHUNK_TURNS;
+		let expected = n.div_ceil(DISTILL_CHUNK_TURNS);
 		assert_eq!(
 			calls.load(std::sync::atomic::Ordering::SeqCst),
 			expected,

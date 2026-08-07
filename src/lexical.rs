@@ -452,8 +452,8 @@ mod tests {
 	// survive exactly until the next reload and nothing would say so.
 	#[test]
 	fn a_rebuild_keeps_the_alternate_wording_a_dedup_merged_on() {
-		use crate::reason::add_reason;
 		use crate::base_types::Reason;
+		use crate::reason::add_reason;
 
 		let mut g = GraphGnn::new();
 		let mut k = Kern::new("k", "");

@@ -1,5 +1,5 @@
-use crate::math::cosine;
 use crate::config::RetrievalConfig;
+use crate::math::cosine;
 use crate::retrieval::expand::Scored;
 use std::collections::HashMap;
 

@@ -6,8 +6,8 @@ use parking_lot::RwLock;
 use crate::base_store::FlushOutcome;
 use crate::ingest::intake_status::{scan, Report};
 
-use crate::commands_route::{route, u64_field, Routed};
 use crate::commands::{load_graph, Client, Endpoint, IntakeAction};
+use crate::commands_route::{route, u64_field, Routed};
 
 const WRITE_RETRIES: u32 = 5;
 

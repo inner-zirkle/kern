@@ -4,11 +4,11 @@
 // compares the ranked ids.
 //
 //   cargo test --release --test spill_transparency -- --nocapture
-use kern::base::constants::KERN_CAP_DISABLED;
-use kern::base::graph::GraphGnn;
-use kern::base::search::search_all_unlocked;
-use kern::base::types::{ChunkPart, ChunkPartKind, Entity, EntityKind, Kern};
-use kern::base::vector_backend::VectorBackend;
+use kern::base_constants::KERN_CAP_DISABLED;
+use kern::graph::GraphGnn;
+use kern::search::search_all_unlocked;
+use kern::base_types::{ChunkPart, ChunkPartKind, Entity, EntityKind, Kern};
+use kern::vector_backend::VectorBackend;
 
 const DIM: usize = 64;
 const N: usize = 1_000;
@@ -85,7 +85,7 @@ fn brute_ids(g: &GraphGnn, seed: usize, k: usize) -> Vec<String> {
 			(e.id.clone(), dot as f64)
 		})
 		.collect();
-	scored.sort_by(|a, b| kern::base::util::cmp_rank(a.1, &a.0, b.1, &b.0));
+	scored.sort_by(|a, b| kern::util::cmp_rank(a.1, &a.0, b.1, &b.0));
 	scored.truncate(k);
 	scored.into_iter().map(|(id, _)| id).collect()
 }

@@ -4,9 +4,9 @@ use crate::log_throttle::LogThrottle;
 use std::time::SystemTime;
 
 use crate::base_constants as constants;
-use crate::graph::GraphGnn;
 use crate::base_types::{Entity, EntityStatus, Reason};
 use crate::crdt::{lww_wins, GCounter};
+use crate::graph::GraphGnn;
 
 // Gossip files every peer's rows into a `remote-<network_id>-<kern_id>` phantom kern
 // (see `gossip::handler`), so the kern id is the one durable "this came off the wire"
@@ -302,8 +302,8 @@ pub fn absorb_graph(local: &mut GraphGnn, disk: GraphGnn) -> usize {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::graph::GraphGnn;
 	use crate::base_types::{mk_entity, EntityKind, Kern};
+	use crate::graph::GraphGnn;
 	use std::time::{Duration, UNIX_EPOCH};
 
 	fn t(secs: u64) -> Option<SystemTime> {

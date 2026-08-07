@@ -1,8 +1,8 @@
 use crate::base_constants::{
 	KERN_COHESION_THRESHOLD, KERN_NAMING_COHESION_THRESHOLD, KERN_NAMING_MIN_CLUSTER_SIZE,
 };
-use crate::math::cosine;
 use crate::base_types::Entity;
+use crate::math::cosine;
 use crate::util::cmp_partial;
 use rayon::prelude::*;
 

@@ -272,7 +272,15 @@ mod tests {
 		let digest = frame_digest(b"payload", 0);
 		let sig = id.sign_digest(&digest);
 		assert!(verify_sig_by(&id.pubkey(), &digest, &sig));
-		assert!(!verify_sig_by(&id.pubkey(), &frame_digest(b"other", 0), &sig));
-		assert!(!verify_sig_by(&PeerIdentity::generate().pubkey(), &digest, &sig));
+		assert!(!verify_sig_by(
+			&id.pubkey(),
+			&frame_digest(b"other", 0),
+			&sig
+		));
+		assert!(!verify_sig_by(
+			&PeerIdentity::generate().pubkey(),
+			&digest,
+			&sig
+		));
 	}
 }

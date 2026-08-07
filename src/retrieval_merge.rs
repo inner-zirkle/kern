@@ -1,7 +1,7 @@
 use crate::graph::GraphGnn;
 use crate::math::OnlineSoftmax;
-use crate::search::EntityHit;
 use crate::retrieval::expand::{find_entity_ref_in_graph, ScoredRef};
+use crate::search::EntityHit;
 use std::collections::HashMap;
 
 // Log-sum-exp score pool: an entity in both sources earns +ln(count). Result is a magnitude, not a probability — may exceed 1.0.

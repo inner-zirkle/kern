@@ -1,5 +1,5 @@
-use crate::gnn_tensor::Tensor;
 use crate::gnn::GnnError;
+use crate::gnn_tensor::Tensor;
 
 pub trait Layer {
 	fn forward(&mut self, input: &Tensor) -> Tensor;

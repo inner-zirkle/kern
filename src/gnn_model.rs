@@ -1,9 +1,9 @@
+use crate::gnn::GnnError;
 use crate::gnn_backward::{BackwardGraphLayer, GraphLayer};
 use crate::gnn_gcn::GCNLayer;
 use crate::gnn_graph::Graph;
 use crate::gnn_layer::{Backward, Layer, LinearLayer};
 use crate::gnn_tensor::Tensor;
-use crate::gnn::GnnError;
 
 // A `forward` must precede its `backward`; call `zero_grads` before each backward.
 pub struct Model {

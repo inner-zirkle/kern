@@ -225,7 +225,10 @@ mod tests {
 	fn dedup_threshold_for_kind_resolves() {
 		let mut cfg = Config::default();
 		// None -> global.
-		assert_eq!(cfg.dedup_threshold_for(EntityKind::Fact), cfg.dedup_threshold);
+		assert_eq!(
+			cfg.dedup_threshold_for(EntityKind::Fact),
+			cfg.dedup_threshold
+		);
 		assert_eq!(
 			cfg.dedup_threshold_for(EntityKind::Claim),
 			cfg.dedup_threshold,

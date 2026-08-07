@@ -273,8 +273,8 @@ mod claim_kind_tests {
 		(server, counter)
 	}
 
-	use crate::test_support::tool_text as text;
 	use crate::mcp::tools::is_error;
+	use crate::test_support::tool_text as text;
 
 	#[tokio::test]
 	async fn health_stats_aggregates_entities_and_claim_kinds() {
@@ -423,7 +423,10 @@ mod claim_kind_tests {
 			"sub-kind reachable from the parent's closure: {closure:?}"
 		);
 		assert!(
-			!g.root.claim_kind_closure("preference").iter().any(|k| k == "rust-fact"),
+			!g.root
+				.claim_kind_closure("preference")
+				.iter()
+				.any(|k| k == "rust-fact"),
 			"unrelated kind's closure stays untouched"
 		);
 	}
@@ -436,7 +439,11 @@ mod claim_kind_tests {
 		}));
 		assert!(is_error(&out));
 		assert!(text(&out).contains("unknown parent claim kind"));
-		assert_eq!(counter.load(Ordering::SeqCst), 0, "refusal persists nothing");
+		assert_eq!(
+			counter.load(Ordering::SeqCst),
+			0,
+			"refusal persists nothing"
+		);
 	}
 
 	#[tokio::test]
@@ -460,16 +467,26 @@ mod claim_kind_tests {
 	#[tokio::test]
 	async fn rm_drops_the_kinds_own_edge_and_its_childrens_edges() {
 		let (srv, _) = make_server();
-		srv.tool_claim_kind(&serde_json::json!({"action": "add", "name": "mid", "description": "d", "parent": "fact"}));
-		srv.tool_claim_kind(&serde_json::json!({"action": "add", "name": "leaf", "description": "d", "parent": "mid"}));
+		srv.tool_claim_kind(
+			&serde_json::json!({"action": "add", "name": "mid", "description": "d", "parent": "fact"}),
+		);
+		srv.tool_claim_kind(
+			&serde_json::json!({"action": "add", "name": "leaf", "description": "d", "parent": "mid"}),
+		);
 		srv.tool_claim_kind(&serde_json::json!({"action": "rm", "name": "mid"}));
 		let g = srv.graph.read();
 		assert!(g.root.claim_kind_parents.is_empty(), "both edges gone");
 		assert!(
-			!g.root.claim_kind_closure("fact").iter().any(|k| k == "leaf"),
+			!g.root
+				.claim_kind_closure("fact")
+				.iter()
+				.any(|k| k == "leaf"),
 			"orphaned child floats to top level, not into the grandparent"
 		);
-		assert!(g.root.claim_kinds.contains_key("leaf"), "child kind itself survives");
+		assert!(
+			g.root.claim_kinds.contains_key("leaf"),
+			"child kind itself survives"
+		);
 	}
 
 	#[tokio::test]

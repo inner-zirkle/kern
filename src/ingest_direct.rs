@@ -2,9 +2,9 @@ use std::path::Path;
 
 use crate::base_constants::AGENT_SOURCE;
 use crate::base_types::{EntityKind, Scoping, Source};
-use crate::util;
-use crate::ingest_outcome::OutcomeStatus;
 use crate::ingest::Worker;
+use crate::ingest_outcome::OutcomeStatus;
+use crate::util;
 
 use serde::{Deserialize, Serialize};
 
@@ -149,7 +149,7 @@ mod tests {
 			source_tag: AGENT_SOURCE.to_string(),
 			scoping: Scoping::default(),
 		}
-}
+	}
 
 	#[test]
 	fn intake_direct_writes_idempotent_json_named_by_content_hash() {

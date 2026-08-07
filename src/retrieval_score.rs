@@ -1,14 +1,14 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::base_constants::CONFIDENCE_BOUND_K;
+use crate::base_types::{Entity, EntityKind, EntityStatus, ReviewState};
+use crate::config::RetrievalConfig;
 use crate::graph::GraphGnn;
 use crate::heat::{self, HeatConfig};
 use crate::lexical::LexicalIndex;
 use crate::log_throttle::LogThrottle;
-use crate::base_types::{Entity, EntityKind, EntityStatus, ReviewState};
-use crate::util::cmp_partial;
-use crate::config::RetrievalConfig;
 use crate::retrieval::expand::{Scored, ScoredEntity};
+use crate::util::cmp_partial;
 use std::collections::HashMap;
 use std::time::{Duration, SystemTime};
 
@@ -218,9 +218,8 @@ pub fn filter_delivery<T: Scored>(cfg: &RetrievalConfig, results: &mut Vec<T>) {
 	// Sort HERE, not just in apply_query_options: the truncation below is the delivery
 	// cut, so it has to see post-boost order. Without this every boost, gravity pull and
 	// trust penalty is invisible whenever no QueryOptions is supplied.
-	results.sort_by(|a, b| {
-		crate::util::cmp_rank(a.score(), &a.entity().id, b.score(), &b.entity().id)
-	});
+	results
+		.sort_by(|a, b| crate::util::cmp_rank(a.score(), &a.entity().id, b.score(), &b.entity().id));
 	let floor = cfg.min_deliver_score;
 	if results.iter().any(|r| r.score() >= floor) {
 		results.retain(|r| r.score() >= floor);
@@ -806,8 +805,8 @@ mod query_filter_tests {
 
 	mod remote_trust {
 		use super::*;
-		use crate::merge::merge_remote_entity;
 		use crate::base_types::{mk_entity, Kern};
+		use crate::merge::merge_remote_entity;
 		use crate::retrieval::query::retrieve;
 		use crate::retrieval::seed::{Mode, Weights};
 

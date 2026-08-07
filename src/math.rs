@@ -1,6 +1,6 @@
+use super::util;
 use crate::base_constants::*;
 use crate::base_types::{EntityKind, ReasonKind};
-use super::util;
 
 pub fn cosine(a: &[f32], b: &[f32]) -> f64 {
 	#[cfg(target_arch = "x86_64")]

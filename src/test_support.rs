@@ -119,9 +119,7 @@ pub(crate) fn mcp_server_with_embed_url(url: &str) -> crate::mcp::Server {
 		task_q: None,
 		cfg: Arc::new(crate::config::Config::default()),
 		broadcast_pulse: None,
-		last_activity: Arc::new(std::sync::atomic::AtomicU64::new(
-			crate::util::now_ms(),
-		)),
+		last_activity: Arc::new(std::sync::atomic::AtomicU64::new(crate::util::now_ms())),
 	}
 }
 
@@ -157,8 +155,8 @@ pub(crate) fn test_caller() -> crate::transport::kern_rpc::AuthReq {
 
 #[cfg(unix)]
 pub(crate) async fn serving(srv: crate::mcp::Server, endpoint: &crate::transport::typed::Endpoint) {
-	use std::sync::Arc;
 	use crate::transport::typed::{bind_kern_listener, BindOutcome};
+	use std::sync::Arc;
 
 	let BindOutcome::Bound(listener) = bind_kern_listener(endpoint).await.expect("bind") else {
 		panic!("scratch endpoint already bound");
@@ -230,6 +228,11 @@ pub(crate) fn commit_extra_kern_via_store(
 	kerns.insert(gg.root.id.clone(), gg.root.clone());
 	kerns.insert(kern.id.clone(), kern);
 	store
-		.save_all_kerns(&kerns, &gg.network_id, gg.quant_mode, &std::collections::HashSet::new())
+		.save_all_kerns(
+			&kerns,
+			&gg.network_id,
+			gg.quant_mode,
+			&std::collections::HashSet::new(),
+		)
 		.expect("external commit through the shared store");
 }

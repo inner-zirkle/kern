@@ -2,9 +2,9 @@ use crate::log_throttle::LogThrottle;
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::net::Ipv4Addr;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
-use std::net::Ipv4Addr;
 use std::time::Duration;
 
 #[derive(Debug, thiserror::Error)]

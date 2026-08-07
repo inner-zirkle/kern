@@ -1,4 +1,6 @@
-use crate::transport_kern_rpc_dto::{CallToolReq, CallToolRes, HealthRes, ListToolsReq, ListToolsRes, ShutdownRes};
+use crate::transport_kern_rpc_dto::{
+	CallToolReq, CallToolRes, HealthRes, ListToolsReq, ListToolsRes, ShutdownRes,
+};
 
 crate::transport::service! {
 		pub trait KernRpc {

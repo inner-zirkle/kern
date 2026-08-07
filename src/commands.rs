@@ -274,7 +274,9 @@ pub enum ClaimKindAction {
 		#[arg(long)]
 		parent: Option<String>,
 	},
-	Rm { name: String },
+	Rm {
+		name: String,
+	},
 }
 
 #[derive(Subcommand)]
@@ -369,10 +371,7 @@ pub(crate) fn save_graph_guarded(
 	for attempt in 0..FLUSH_RETRIES {
 		let (snapshot, expected) = {
 			let g = graph.read();
-			(
-				crate::persist::snapshot_for_flush(&g),
-				g.flushed_epoch(),
-			)
+			(crate::persist::snapshot_for_flush(&g), g.flushed_epoch())
 		};
 		let Some(snapshot) = snapshot else {
 			return;
@@ -639,7 +638,9 @@ pub async fn dispatch(cmd: Commands, cfg: &crate::config::Config) {
 
 		Commands::Status => crate::commands_status::cmd_status(cfg).await,
 		Commands::Health => crate::commands_admin::cmd_health(cfg).await,
-		Commands::Profile { text, no_llm } => crate::commands_profile_cmd::cmd_profile(cfg, &text, no_llm).await,
+		Commands::Profile { text, no_llm } => {
+			crate::commands_profile_cmd::cmd_profile(cfg, &text, no_llm).await
+		}
 		Commands::Gc => crate::commands_admin::cmd_gc(cfg),
 		Commands::Compact => crate::commands_admin::cmd_compact(cfg),
 
@@ -659,7 +660,9 @@ pub async fn dispatch(cmd: Commands, cfg: &crate::config::Config) {
 			embed.apply_to(&mut cfg);
 			crate::commands_mcp_cmd::cmd_mcp(&cfg).await
 		}
-		Commands::Compress { src, mode, out } => crate::commands_admin::cmd_compress(&src, &mode, out.as_deref()),
+		Commands::Compress { src, mode, out } => {
+			crate::commands_admin::cmd_compress(&src, &mode, out.as_deref())
+		}
 		Commands::Daemon => {
 			// main.rs intercepts Daemon first; this arm is kept as a fallthrough.
 			run_server(&Cli::daemon(), cfg).await;
@@ -822,9 +825,7 @@ pub(crate) async fn bootstrap(cli: &Cli, cfg: &crate::config::Config) -> EngineH
 		task_q: Some(q.clone()),
 		cfg: std::sync::Arc::new(cfg.clone()),
 		broadcast_pulse: broadcast_pulse.clone(),
-		last_activity: std::sync::Arc::new(std::sync::atomic::AtomicU64::new(
-			crate::util::now_ms(),
-		)),
+		last_activity: std::sync::Arc::new(std::sync::atomic::AtomicU64::new(crate::util::now_ms())),
 	});
 
 	spawn_maintenance_tick(cfg, &g, &q, broadcast_pulse.clone());
@@ -1237,12 +1238,8 @@ async fn start_gossip(
 			std::sync::Arc::new(crate::gossip_identity::PeerIdentity::generate())
 		}
 	};
-	let node = crate::gossip_node::Node::new_with_identity(
-		&cfg.gossip.addr,
-		&network_id,
-		bootstrap,
-		identity,
-	);
+	let node =
+		crate::gossip_node::Node::new_with_identity(&cfg.gossip.addr, &network_id, bootstrap, identity);
 	node.ledger.set_max_entries(cfg.graph.max_ledger_entries);
 	// Contracts this node hosts: each `[[gossip.contracts]]` table whose keys
 	// parse. A table that fails to parse is refused loudly — hosting it with a
@@ -1256,10 +1253,8 @@ async fn start_gossip(
 		.iter()
 		.filter_map(|c| match crate::gossip_contract::params_from_config(c) {
 			Some(params) => {
-				let cid = crate::gossip_contract::contract_id(
-					crate::gossip_contract::SIGNED_CRDT_V0_TAG,
-					&params,
-				);
+				let cid =
+					crate::gossip_contract::contract_id(crate::gossip_contract::SIGNED_CRDT_V0_TAG, &params);
 				tracing::info!(
 					target: "kern.gossip",
 					contract = %crate::util::hex::encode(cid),
@@ -1323,10 +1318,7 @@ async fn start_gossip(
 						),
 					}
 				}
-				crate::gossip_handler::start_contract_sync(
-					deps.clone(),
-					cfg.gossip.sync_interval_secs,
-				);
+				crate::gossip_handler::start_contract_sync(deps.clone(), cfg.gossip.sync_interval_secs);
 			}
 			if cfg.gossip.discovery {
 				crate::gossip_discovery::start_broadcast(&node, cfg.gossip.discovery_port);
@@ -1536,9 +1528,9 @@ mod entry_point_tests {
 	// model must reach health as a mismatch.
 	#[test]
 	fn a_normal_open_stamps_the_model_and_a_swap_reaches_health() {
-		use crate::health::graph_health_stats;
 		use crate::base_store::EmbedStamp;
 		use crate::base_types::{mk_entity, EntityKind, Kern};
+		use crate::health::graph_health_stats;
 
 		let dir = tempfile::tempdir().unwrap();
 		let data_dir = dir.path().to_string_lossy().into_owned();
@@ -1840,10 +1832,10 @@ mod entry_point_tests {
 	#[test]
 	fn apply_graph_config_spills_to_disk_when_threshold_enabled() {
 		use crate::base_constants::KERN_CAP_DISABLED;
-		use crate::graph::GraphGnn;
 		use crate::base_types::{Entity, EntityStatus, Kern};
-		use crate::vector_backend::VectorBackend;
 		use crate::config::GraphConfig;
+		use crate::graph::GraphGnn;
+		use crate::vector_backend::VectorBackend;
 
 		let dir = tempfile::tempdir().unwrap();
 		let mut g = GraphGnn::new();

@@ -1,8 +1,8 @@
 use crate::accept::root_graviton_ids;
-use crate::graph::GraphGnn;
-use crate::math::cosine;
 use crate::base_types::Kern;
 use crate::config::RetrievalConfig;
+use crate::graph::GraphGnn;
+use crate::math::cosine;
 use crate::retrieval::expand::Scored;
 
 // Max over gravitons, not sum — overlapping gravitons must not double-count.

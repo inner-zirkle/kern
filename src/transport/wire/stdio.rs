@@ -8,18 +8,18 @@ use std::io::{self, BufRead, Write};
 use std::sync::Arc;
 
 pub fn serve(dispatch: Arc<dyn Dispatch>) -> Result<(), String> {
-    let stdin = io::stdin();
-    let mut stdout = io::stdout();
-    for line in stdin.lock().lines() {
-        let line = line.map_err(|e| format!("stdio read: {e}"))?;
-        let trimmed = line.trim();
-        if trimmed.is_empty() {
-            continue;
-        }
-        if let Some(frame) = line_frame(trimmed, dispatch.as_ref(), &mut |_| {}) {
-            writeln!(stdout, "{frame}").map_err(|e| format!("stdio write: {e}"))?;
-            stdout.flush().map_err(|e| format!("stdio flush: {e}"))?;
-        }
-    }
-    Ok(())
+	let stdin = io::stdin();
+	let mut stdout = io::stdout();
+	for line in stdin.lock().lines() {
+		let line = line.map_err(|e| format!("stdio read: {e}"))?;
+		let trimmed = line.trim();
+		if trimmed.is_empty() {
+			continue;
+		}
+		if let Some(frame) = line_frame(trimmed, dispatch.as_ref(), &mut |_| {}) {
+			writeln!(stdout, "{frame}").map_err(|e| format!("stdio write: {e}"))?;
+			stdout.flush().map_err(|e| format!("stdio flush: {e}"))?;
+		}
+	}
+	Ok(())
 }

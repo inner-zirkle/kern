@@ -2,9 +2,9 @@ use std::sync::Arc;
 
 use parking_lot::RwLock;
 
-use crate::math::clamp_confidence;
 use crate::base_store::FlushOutcome;
 use crate::base_types::Source;
+use crate::math::clamp_confidence;
 use crate::util::truncate;
 
 use crate::commands::{load_graph, Client, Endpoint};

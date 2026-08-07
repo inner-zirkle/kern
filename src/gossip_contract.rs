@@ -3,8 +3,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use serde::{Deserialize, Serialize};
 
-use crate::graph::GraphGnn;
 use crate::base_types::{Entity, EntityKind};
+use crate::graph::GraphGnn;
 
 use crate::gossip_identity::{loc_of, verify_sig_by};
 
@@ -52,7 +52,6 @@ pub struct ParamsV0 {
 	/// Forced TTL stamped on every entity at apply time.
 	pub retention_secs: Option<u64>,
 	pub private: Option<PrivacyV0>,
-
 }
 
 impl ParamsV0 {
@@ -95,8 +94,6 @@ pub fn contract_loc(id: &ContractId) -> f64 {
 pub fn contract_kern_id(id: &ContractId) -> String {
 	format!("remote-contract-{}", crate::util::hex::encode(id))
 }
-
-
 
 /// What a writer signs: blake3 over a domain tag, the entity id and the
 /// writer's lamport. The id already binds the body (content addressing), so
@@ -482,8 +479,6 @@ mod tests {
 			contract_id("other-kind", &base),
 			"the kind tag participates in the key"
 		);
-
-
 	}
 
 	#[test]
@@ -515,7 +510,9 @@ mod tests {
 
 		// Bad signature: right writer, wrong digest.
 		let mut unsigned = signed(&writer, "honest text", EntityKind::Fact, 1);
-		unsigned.sig = writer.sign_digest(&entity_sig_digest("other-id", 1)).clone();
+		unsigned.sig = writer
+			.sign_digest(&entity_sig_digest("other-id", 1))
+			.clone();
 		assert_eq!(
 			c.validate_delta(
 				&owners_only,

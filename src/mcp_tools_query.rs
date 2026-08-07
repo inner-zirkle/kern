@@ -1,7 +1,7 @@
 use serde::Deserialize;
 
-use crate::search::find_entity_by_prefix;
 use crate::base_types::EntityKind;
+use crate::search::find_entity_by_prefix;
 use crate::util::truncate;
 
 use crate::retrieval;
@@ -494,7 +494,11 @@ pub(crate) fn base_entity_json(
 	entity: &crate::base_types::Entity,
 	score: f64,
 ) -> serde_json::Value {
-	let status_str = if entity.is_superseded() { "superseded" } else { "active" };
+	let status_str = if entity.is_superseded() {
+		"superseded"
+	} else {
+		"active"
+	};
 	serde_json::json!({
 		"id": entity.id,
 		"source": {
@@ -586,7 +590,10 @@ mod envelope_shape_tests {
 		// A scheme with no url still carries the backlink block, with object_id set
 		// to what `Source::object_id` returns for it (the inline hash).
 		let source = v.get("source").expect("envelope carries a source backlink");
-		assert_eq!(source.get("scheme").and_then(|x| x.as_str()), Some("inline"));
+		assert_eq!(
+			source.get("scheme").and_then(|x| x.as_str()),
+			Some("inline")
+		);
 		assert_eq!(source.get("object_id").and_then(|x| x.as_str()), Some("h"));
 		assert_eq!(source.get("url").and_then(|x| x.as_str()), Some(""));
 	}
@@ -610,9 +617,9 @@ mod envelope_shape_tests {
 #[cfg(test)]
 mod id_filter_tests {
 	use crate::base_types::{Entity, EntityKind, Kern, Source};
+	use crate::mcp::tools::is_error;
 	use crate::mcp::Server;
 	use crate::test_support::tool_text as text;
-	use crate::mcp::tools::is_error;
 
 	fn server_with(thought: Entity) -> Server {
 		let srv = crate::test_support::mcp_server();
@@ -691,7 +698,8 @@ mod id_filter_tests {
 	#[tokio::test]
 	async fn claim_kind_filter_admits_registered_sub_kinds_of_the_asked_parent() {
 		let srv = server_with(distilled_claim("c1", "rust-fact"));
-		srv.graph
+		srv
+			.graph
 			.write()
 			.root
 			.add_claim_kind(

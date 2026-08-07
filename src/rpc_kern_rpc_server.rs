@@ -1,12 +1,12 @@
 use std::sync::Arc;
 
-use serde_json::Value;
 use crate::transport::kern_rpc::{
 	serve_kern_rpc, verify_auth, CallToolReq, CallToolRes, HealthRes, KernRpc, ListToolsReq,
 	ListToolsRes, ShutdownRes,
 };
 use crate::transport::typed::{AdapterError, Channel, JsonEnvelopeCodec, LocalListener};
 use crate::transport::McpServer;
+use serde_json::Value;
 
 #[derive(Clone)]
 pub struct KernRpcHandler {
@@ -168,7 +168,8 @@ impl KernRpc for KernRpcHandler {
 					.get("source_trust")
 					.and_then(|v| v.as_object())
 					.map(|obj| {
-						obj.iter()
+						obj
+							.iter()
 							.filter_map(|(k, v)| v.as_f64().map(|w| (k.clone(), w)))
 							.collect()
 					})
@@ -330,7 +331,9 @@ mod tests {
 	// through the health stats and the MCP payload to the RPC DTO an operator polls.
 	#[tokio::test]
 	async fn a_refused_ingest_reaches_the_rpc_health_surface() {
-		let _serial = crate::ingest::worker::queue_refused_test_lock().lock().await;
+		let _serial = crate::ingest::worker::queue_refused_test_lock()
+			.lock()
+			.await;
 		let (url, _server) =
 			crate::test_support::spawn_http(crate::test_support::hanging_embed_app()).await;
 		let srv = crate::test_support::mcp_server_with_embed_url(&url);
@@ -418,9 +421,9 @@ mod tests {
 #[cfg(test)]
 mod auth_gate_tests {
 	use super::*;
-	use std::sync::atomic::{AtomicUsize, Ordering};
 	use crate::transport::kern_rpc::AuthReq;
 	use crate::transport::typed::InprocAdapter;
+	use std::sync::atomic::{AtomicUsize, Ordering};
 
 	const TOKEN: &str = "the-real-token";
 

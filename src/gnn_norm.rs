@@ -1,6 +1,6 @@
+use crate::gnn::GnnError;
 use crate::gnn_layer::{Backward, Layer};
 use crate::gnn_tensor::Tensor;
-use crate::gnn::GnnError;
 
 pub struct LayerNorm {
 	pub gamma: Tensor, // 1×D

@@ -131,7 +131,7 @@ mod tests {
 		let identity = PeerIdentity::generate();
 
 		// Sign one body, then ship a different one under the same signature.
-		let body = bincode::serde::encode_to_vec(&sample_msg(), bincode::config::standard()).unwrap();
+		let body = bincode::serde::encode_to_vec(sample_msg(), bincode::config::standard()).unwrap();
 		let mut frame = identity.sign_frame(3, body);
 		frame.body = bincode::serde::encode_to_vec(
 			&GossipMessage {
@@ -185,6 +185,9 @@ mod tests {
 		client.flush().await.unwrap();
 
 		let got = server.await.unwrap();
-		assert!(got.is_none(), "an oversized prefix is refused, not buffered");
+		assert!(
+			got.is_none(),
+			"an oversized prefix is refused, not buffered"
+		);
 	}
 }

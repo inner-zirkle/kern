@@ -1,14 +1,14 @@
 use crate::base_constants::QUERY_MAX_CHAINS;
+use crate::config::RetrievalConfig;
 use crate::graph::GraphGnn;
 use crate::heat::HeatConfig;
-use crate::search::{find_entity, find_reason};
-use crate::util;
-use crate::config::RetrievalConfig;
 use crate::profile::Profiler;
 use crate::retrieval::expand::{self, PathChain, ScoredEntity, ScoredRef};
 use crate::retrieval::score::{self, QueryOptions};
 use crate::retrieval::seed::{self, Mode, Weights};
 use crate::retrieval::{diversify, fuse, gravity, merge, pagerank};
+use crate::search::{find_entity, find_reason};
+use crate::util;
 
 // Marks peer-held content in delivered chain text. kern does no synthesis — the
 // calling agent does — so the trust vocabulary must survive into the output.
@@ -222,8 +222,7 @@ pub fn retrieve_profiled(
 	if cfg.lexical_top_boost > 0.0 {
 		if let Some(lex) = lex_ref {
 			score::apply_lexical_boost(lex, cfg, query_text, &mut results);
-			results
-				.sort_by(|a, b| crate::util::cmp_rank(a.score, &a.entity.id, b.score, &b.entity.id));
+			results.sort_by(|a, b| crate::util::cmp_rank(a.score, &a.entity.id, b.score, &b.entity.id));
 		}
 	}
 
@@ -314,8 +313,8 @@ pub fn format_chains(g: &GraphGnn, chains: &[PathChain]) -> String {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::reason::add_reason;
 	use crate::base_types::{mk_entity, EntityKind, Kern, Reason, ReasonKind};
+	use crate::reason::add_reason;
 
 	// ROADMAP item 94. A dedup keeps the incoming wording on a `Rephrase` reason
 	// and nothing else, so the exact phrasing a user might search for sat in the
