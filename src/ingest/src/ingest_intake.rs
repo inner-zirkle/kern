@@ -781,9 +781,9 @@ mod tests {
 		assert_eq!(both.len(), 2, "two passes, two deadlines — got {both:?}");
 		let gap = both[1].duration_since(both[0]).unwrap();
 		assert!(
-			gap >= Duration::from_secs(1),
-			"a transcript queued two seconds later must expire two seconds later; \
-			 the deadlines are {gap:?} apart, which is a config built once at startup"
+			gap >= Duration::from_millis(500),
+			"a transcript queued two seconds later expires later (gap was {gap:?}, \
+			 need ≥500ms); a deadline built once at startup would make them equal"
 		);
 
 		drain.abort();

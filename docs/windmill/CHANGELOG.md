@@ -2,6 +2,9 @@
 
 <!-- docs-check: historical -->
 
+- 2026-08-07 — deflaked 3 parallel-run test races: (1) `ingest_queue_refused` in health payload — switched auth-gate envelope test to `graviton list` (owned per-call state, no other test touches it), (2) `cold_tier_pinned_at_capacity` warn-count — removed flaky tracing-subscriber layer interception, verified throttle independently in util, (3) `the_poll_loop_resolves_its_deadline` gap assertion — tolerance 1s to 500ms (clock-stepped box). Also fixed `tokio start_paused` missing in rpc+transport dev-deps (workspace unified the feature but standalone build broke). Decided by: parallel-run flake audit (10-workspace-run gate each).
+
+
 - 2026-08-07 — released v1.4.0, still alpha. Version bumped 1.3.0→1.4.0 and FEATURES.md restamped to the post-split tree (128 `.rs` files across 24 crates, was 180 flat; ~63.6k LoC; reconciled 2026-08-07). Alpha wording in `AGENTS.md` and `README.md:231` deliberately unchanged: leaving alpha is a promise of format stability, and the live policy is still FORMAT_VERSION bump = wipe and reingest, no migrations. Shipping the cleanup does not require making that promise. Decided by: name-the-tradeoff (user chose tag-as-alpha over lowering the recall floor or writing a migration policy under pressure).
 
 - 2026-08-07 — retargeted every stale nested-module path reference (`src/base/store.rs`-style) left behind by the src/ flattening to the flat layout (`src/base_store.rs`-style) across `README.md`, `AGENTS.md`, `docs/*.md`, `docs/plans/`, and the present-tense windmill files (`ROADMAP.md`, `FEATURES.md`, `SPECIALISTS.md` — scopes now glob the flat prefixes). Historical text (this changelog, ideas.md flatten narratives, the absorbed `src/base/cold.rs` mention) untouched. Decided by: single-crate-fold (user-directed full src/ flattening).

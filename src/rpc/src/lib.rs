@@ -607,6 +607,15 @@ mod auth_gate_tests {
 		})
 	}
 
+	/// The same frame, aimed at a tool whose answer no other test can move.
+	fn graviton_list_frame() -> Value {
+		serde_json::json!({
+			"id": 1,
+			"method": "call_tool",
+			"params": { "req": { "name": "graviton", "args": { "action": "list" } } },
+		})
+	}
+
 	/// Drive one connection through the real gate. `auth` is what the client
 	/// sends first — `None` means it sends nothing and goes straight for the
 	/// tool, which is exactly what an unauthenticated caller would do.
@@ -722,6 +731,11 @@ mod auth_gate_tests {
 	// The compatibility half: past the gate, the wire is byte-for-byte what it
 	// was. Compared against the same handler called in-process, so a drift in
 	// the envelope shows up here rather than in an agent's tool output.
+	//
+	// `graviton`, not `health`: the two calls happen at two instants, and half
+	// of health is process-global counters that a test running beside this one
+	// bumps in between. Byte-equality is a claim about the envelope, so the
+	// payload under it has to be one this server alone owns.
 	#[tokio::test(flavor = "multi_thread")]
 	async fn an_authenticated_call_answers_exactly_what_the_handler_answers_directly() {
 		let handler = KernRpcHandler::new(
@@ -730,8 +744,8 @@ mod auth_gate_tests {
 		);
 		let direct = handler
 			.call_tool(CallToolReq {
-				name: "health".into(),
-				args: serde_json::json!({}),
+				name: "graviton".into(),
+				args: serde_json::json!({ "action": "list" }),
 			})
 			.await
 			.envelope;
@@ -749,7 +763,7 @@ mod auth_gate_tests {
 			.await
 			.unwrap();
 		client.recv().await.unwrap().expect("a verdict frame");
-		client.send(call_tool_frame()).await.unwrap();
+		client.send(graviton_list_frame()).await.unwrap();
 		let frame = client.recv().await.unwrap().expect("a reply frame");
 		drop(client);
 		let _ = server.await;
