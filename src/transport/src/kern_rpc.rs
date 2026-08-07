@@ -6,9 +6,9 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::transport::typed::{AdapterError, Channel, JsonEnvelopeCodec};
+use crate::typed::{AdapterError, Channel, JsonEnvelopeCodec};
 
-use crate::transport::http::ct_eq;
+use crate::http::ct_eq;
 
 /// The one frame a caller sends before any `KernRpc` method is reachable.
 ///
@@ -122,8 +122,8 @@ mod tests {
 	use tokio::io::{AsyncRead, ReadBuf};
 
 	use super::*;
-	use crate::transport::typed::InprocAdapter;
-	use crate::transport::typed::{Adapter, DynRead, DynWrite};
+	use crate::typed::InprocAdapter;
+	use crate::typed::{Adapter, DynRead, DynWrite};
 
 	fn pair() -> (Channel<JsonEnvelopeCodec>, Channel<JsonEnvelopeCodec>) {
 		let (a, b) = InprocAdapter::pair();
@@ -318,7 +318,7 @@ mod tests {
 
 use std::time::Duration;
 
-use crate::transport::typed::{connect_kern, Endpoint};
+use crate::typed::{connect_kern, Endpoint};
 
 pub const RETRIES: u32 = 5;
 pub const RETRY_DELAY_MS: u64 = 100;
@@ -853,7 +853,7 @@ mod dto_serde_tests {
 	}
 }
 
-crate::transport::service! {
+crate::service! {
 		pub trait KernRpc {
 				async fn health() -> HealthRes;
 				async fn shutdown() -> ShutdownRes;

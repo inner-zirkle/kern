@@ -464,8 +464,7 @@ mod tests {
 	#[tokio::test]
 	async fn the_sink_waits_for_queue_capacity_rather_than_losing_the_file() {
 		let _serial = crate::ingest_worker::queue_refused_test_lock().lock().await;
-		let (url, _server) =
-			test_support::spawn_http(test_support::hanging_embed_app()).await;
+		let (url, _server) = test_support::spawn_http(test_support::hanging_embed_app()).await;
 		let embedder = llm::Client::new_embed_only(&url, "m", "");
 		let worker = Arc::new(crate::ingest::Worker::new(
 			Arc::new(RwLock::new(GraphGnn::new())),
@@ -526,8 +525,7 @@ mod tests {
 	// assertion gets. A file appearing on disk is not an assertion at all.
 	#[tokio::test]
 	async fn a_watched_file_is_capped_below_a_deliberate_agent_assertion() {
-		let (url, _server) =
-			test_support::spawn_http(test_support::fixed_vec_embed_app()).await;
+		let (url, _server) = test_support::spawn_http(test_support::fixed_vec_embed_app()).await;
 		let g = Arc::new(RwLock::new(GraphGnn::new()));
 		let embedder = llm::Client::new_embed_only(&url, "m", "");
 		let worker = Arc::new(crate::ingest::Worker::new(
@@ -589,8 +587,7 @@ mod tests {
 	// the drain used to name AGENT_SOURCE for everything it read.
 	#[tokio::test]
 	async fn a_watched_file_is_parked_on_disk_and_drains_back_as_a_file_not_an_agent() {
-		let (url, _server) =
-			test_support::spawn_http(test_support::fixed_vec_embed_app()).await;
+		let (url, _server) = test_support::spawn_http(test_support::fixed_vec_embed_app()).await;
 		let g = Arc::new(RwLock::new(GraphGnn::new()));
 		let embedder = llm::Client::new_embed_only(&url, "m", "");
 		let worker = Arc::new(crate::ingest::Worker::new(
@@ -669,8 +666,7 @@ mod tests {
 	// so there is no half-success that both parks a payload and re-submits it.
 	#[tokio::test]
 	async fn an_unwritable_intake_falls_through_to_the_queue_instead_of_dropping_the_file() {
-		let (url, _server) =
-			test_support::spawn_http(test_support::fixed_vec_embed_app()).await;
+		let (url, _server) = test_support::spawn_http(test_support::fixed_vec_embed_app()).await;
 		let g = Arc::new(RwLock::new(GraphGnn::new()));
 		let embedder = llm::Client::new_embed_only(&url, "m", "");
 		let worker = Arc::new(crate::ingest::Worker::new(

@@ -2,11 +2,11 @@
 //! never leaves the process) and `contract_grant` (owner-signed contract
 //! amendment) — the federation operations a host asks the daemon to perform.
 
+use crate::mcp::{tool_error, tool_result_json, Server};
 use gossip::gossip_contract::{
 	contract_id, params_from_config, tombstone_digest, WritePolicy, SIGNED_CRDT_V0_TAG,
 };
 use gossip::gossip_identity::PeerIdentity;
-use crate::mcp::{tool_error, tool_result_json, Server};
 
 pub(crate) fn tool_schemas() -> Vec<serde_json::Value> {
 	vec![

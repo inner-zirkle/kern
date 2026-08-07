@@ -12,7 +12,7 @@ use serde_json::{json, Value};
 use std::io::{self, BufRead, BufReader, Write};
 use std::sync::Arc;
 
-use crate::transport::wire::{serve, Dispatch, Sink, Transport};
+use crate::wire::{serve, Dispatch, Sink, Transport};
 
 pub const PROTOCOL_VERSION: &str = "2024-11-05";
 

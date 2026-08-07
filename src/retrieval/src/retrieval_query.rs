@@ -1044,8 +1044,8 @@ mod merge_tests {
 	use super::*;
 	use base::base_types::Kern;
 
-	use test_support::entity as ent;
 	use base::base_types::Entity;
+	use test_support::entity as ent;
 	fn hit(id: &str, score: f64) -> EntityHit {
 		EntityHit {
 			entity_id: id.into(),

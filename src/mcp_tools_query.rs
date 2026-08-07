@@ -8,7 +8,6 @@ use base::base_types::EntityKind;
 use graph::search::find_entity_by_prefix;
 use util::truncate;
 
-
 pub(crate) fn tool_schemas() -> Vec<serde_json::Value> {
 	vec![serde_json::json!({
 		"name": "query",

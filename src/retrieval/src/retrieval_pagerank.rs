@@ -508,8 +508,8 @@ mod tests {
 	#[test]
 	#[ignore = "measurement, not an assertion; run explicitly in release"]
 	fn allocation_and_floor_by_reach() {
-		use test_support::alloc_probe;
 		use std::time::Instant;
+		use test_support::alloc_probe;
 		const N: usize = 100_000;
 		for pct in [1usize, 10, 50, 90, 100] {
 			let block = (N * pct / 100).max(1);
@@ -547,8 +547,8 @@ mod tests {
 	#[test]
 	#[ignore = "measurement, not an assertion; run explicitly in release"]
 	fn floor_by_graph_width_at_fixed_reach() {
-		use test_support::alloc_probe;
 		use std::time::Instant;
+		use test_support::alloc_probe;
 		const BLOCK: usize = 1_000;
 		let seeds: Vec<EntityHit> = (0..75)
 			.map(|i| hit(&format!("e{:05}", (i * 13) | 1), 1.0))

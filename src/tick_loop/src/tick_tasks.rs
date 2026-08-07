@@ -7,7 +7,6 @@ use std::sync::Arc;
 
 use parking_lot::RwLock;
 
-use ingest::place::build_chunk_entity;
 use base::base_constants::{
 	DEFAULT_SEED_K, KERN_INNER_RADIUS, KERN_OUTER_RADIUS, PROVENANCE_SCORE,
 	QUESTION_RESOLVE_THRESHOLD,
@@ -21,6 +20,7 @@ use graph::accept::{
 use graph::graph::GraphGnn;
 use graph::reason::{add_reason, remove_reason};
 use graph::search::search_all_unlocked;
+use ingest::place::build_chunk_entity;
 use math::reason_id;
 
 use crate::tick_cluster::{

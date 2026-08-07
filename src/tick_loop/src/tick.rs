@@ -8,19 +8,19 @@ use std::time::{Duration, Instant};
 
 use parking_lot::RwLock;
 
-use gnn::gnn::propagate::GnnConfig;
 use base::base_constants::{KERN_COHESION_THRESHOLD, KERN_MIN_CLUSTER_SIZE};
 use config::HeatConfig;
 use config::TickConfig;
+use gnn::gnn::propagate::GnnConfig;
 use graph::graph::GraphGnn;
 
 use crate::tick_cluster::{cohesion, is_core_cluster, vector_cluster, Cluster};
 use crate::tick_gnn_propagate::do_gnn_propagate;
-use tick::tick_queue::{task, task_extra, Queue, Task, TaskKind};
 use crate::tick_tasks::{
 	do_classify_contradiction, do_commit_access, do_disk_consolidate, do_enrich, do_name, do_persist,
 	do_reembed, do_resolve, do_seed_questions, BroadcastQuestionFunc, EmbedFunc, LlmFunc,
 };
+use tick::tick_queue::{task, task_extra, Queue, Task, TaskKind};
 
 pub struct TickContext {
 	pub llm: Option<LlmFunc>,

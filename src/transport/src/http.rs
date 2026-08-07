@@ -10,8 +10,8 @@ use axum::response::IntoResponse;
 use axum::routing::{get, post};
 use axum::Router;
 
-use crate::transport::mcp::{dispatch, error_response};
-use crate::transport::McpServer;
+use crate::mcp::{dispatch, error_response};
+use crate::McpServer;
 
 pub struct AppState<S> {
 	server: Arc<S>,
@@ -132,26 +132,22 @@ mod tests {
 
 	struct MockServer;
 	impl McpServer for MockServer {
-		fn tools_list(&self) -> Vec<crate::transport::ToolSchema> {
-			vec![crate::transport::ToolSchema {
+		fn tools_list(&self) -> Vec<crate::ToolSchema> {
+			vec![crate::ToolSchema {
 				name: "add".into(),
 				description: Some("a+b".into()),
 				input_schema: None,
 			}]
 		}
-		fn call_tool(
-			&self,
-			name: &str,
-			_args: &Value,
-		) -> Result<crate::transport::ToolResult, crate::transport::McpError> {
+		fn call_tool(&self, name: &str, _args: &Value) -> Result<crate::ToolResult, crate::McpError> {
 			if name == "add" {
-				Ok(crate::transport::ToolResult {
+				Ok(crate::ToolResult {
 					content: vec![json!({ "type": "text", "text": "ok" })],
 					is_error: false,
 					structured_content: None,
 				})
 			} else {
-				Err(crate::transport::McpError::Rpc {
+				Err(crate::McpError::Rpc {
 					code: -32601,
 					message: format!("unknown tool: {name}"),
 				})

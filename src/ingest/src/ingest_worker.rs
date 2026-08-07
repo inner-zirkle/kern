@@ -660,8 +660,7 @@ mod tests {
 		const OFFERED: usize = 500;
 
 		let _serial = queue_refused_test_lock().lock().await;
-		let (url, _server) =
-			test_support::spawn_http(test_support::hanging_embed_app()).await;
+		let (url, _server) = test_support::spawn_http(test_support::hanging_embed_app()).await;
 		let embedder = LlmClient::new_embed_only(&url, "m", "");
 		let worker = Worker::new(
 			Arc::new(RwLock::new(GraphGnn::new())),
@@ -860,8 +859,7 @@ mod tests {
 	#[tokio::test]
 	async fn a_second_gate_dedup_reports_deduped_and_the_surviving_id() {
 		let graph = Arc::new(RwLock::new(GraphGnn::new()));
-		let (url, _server) =
-			test_support::spawn_http(test_support::fixed_vec_embed_app()).await;
+		let (url, _server) = test_support::spawn_http(test_support::fixed_vec_embed_app()).await;
 		let embedder = LlmClient::new_embed_only(&url, "m", "");
 
 		let first = job_for("alpha beta gamma");
@@ -971,8 +969,7 @@ mod tests {
 	#[tokio::test]
 	async fn every_public_entry_point_walks_through_the_clamp() {
 		let graph = Arc::new(RwLock::new(GraphGnn::new()));
-		let (url, _server) =
-			test_support::spawn_http(test_support::fixed_vec_embed_app()).await;
+		let (url, _server) = test_support::spawn_http(test_support::fixed_vec_embed_app()).await;
 		let worker = Worker::new(
 			graph.clone(),
 			LlmClient::new_embed_only(&url, "m", ""),

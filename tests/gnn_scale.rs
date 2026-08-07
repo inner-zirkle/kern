@@ -17,11 +17,11 @@ use parking_lot::RwLock;
 use base::base_types::{Entity, EntityKind, Kern, Reason};
 use config::HeatConfig;
 use config::TickConfig;
+use gnn::gnn::propagate::GnnConfig;
 use graph::graph::GraphGnn;
 use graph::reason::add_reason;
-use gnn::gnn::propagate::GnnConfig;
-use tick_loop::tick_gnn_propagate::do_gnn_propagate;
 use tick::tick_queue::{task, task_commit_access, Queue, TaskKind};
+use tick_loop::tick_gnn_propagate::do_gnn_propagate;
 
 const DIM: usize = 384;
 
@@ -159,7 +159,8 @@ fn gnn_cost_breakdown() {
 
 	for n in [1024usize, 2048, 4096] {
 		let k = kern_with(n, 2);
-		let snap = tick_loop::tick_gnn_propagate::build_gnn_snapshot(&k, &cfg).expect("snapshot builds");
+		let snap =
+			tick_loop::tick_gnn_propagate::build_gnn_snapshot(&k, &cfg).expect("snapshot builds");
 		let narrow = gnn::gnn::tensor::Tensor::zeros(n, hidden);
 
 		let t = Instant::now();

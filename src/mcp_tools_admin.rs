@@ -360,8 +360,8 @@ mod claim_kind_tests {
 
 	#[tokio::test]
 	async fn health_stats_reports_queue_depth_and_task_latency() {
-		use tick::tick_queue::{task, Queue, TaskKind};
 		use std::time::Duration;
+		use tick::tick_queue::{task, Queue, TaskKind};
 
 		let (mut srv, _c) = make_server();
 		let q = Arc::new(Queue::new(8));

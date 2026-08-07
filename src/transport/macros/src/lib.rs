@@ -93,15 +93,15 @@ fn expand(input: ItemTrait) -> syn::Result<TokenStream> {
 	let server_arms = methods.iter().map(|m| server_arm(&trait_name, m));
 
 	let codec_bound = quote! {
-			crate::transport::typed::Codec<Frame = crate::transport::__private::serde_json::Value>
+			::transport::typed::Codec<Frame = ::transport::__private::serde_json::Value>
 					+ ::core::default::Default
-					+ crate::transport::__private::tokio_util::codec::Encoder<
-							crate::transport::__private::serde_json::Value,
-							Error = crate::transport::typed::CodecError,
+					+ ::transport::__private::tokio_util::codec::Encoder<
+							::transport::__private::serde_json::Value,
+							Error = ::transport::typed::CodecError,
 					>
-					+ crate::transport::__private::tokio_util::codec::Decoder<
-							Item = crate::transport::__private::serde_json::Value,
-							Error = crate::transport::typed::CodecError,
+					+ ::transport::__private::tokio_util::codec::Decoder<
+							Item = ::transport::__private::serde_json::Value,
+							Error = ::transport::typed::CodecError,
 					>
 	};
 
@@ -110,10 +110,10 @@ fn expand(input: ItemTrait) -> syn::Result<TokenStream> {
 			where
 					C: #codec_bound,
 			{
-					channel: crate::transport::__private::tokio::sync::Mutex<crate::transport::typed::Channel<C>>,
+					channel: ::transport::__private::tokio::sync::Mutex<::transport::typed::Channel<C>>,
 					next_id: ::core::sync::atomic::AtomicU64,
-					pending: crate::transport::__private::tokio::sync::Mutex<
-							::std::collections::HashMap<u64, crate::transport::__private::serde_json::Value>,
+					pending: ::transport::__private::tokio::sync::Mutex<
+							::std::collections::HashMap<u64, ::transport::__private::serde_json::Value>,
 					>,
 			}
 
@@ -121,11 +121,11 @@ fn expand(input: ItemTrait) -> syn::Result<TokenStream> {
 			where
 					C: #codec_bound,
 			{
-					pub fn new(channel: crate::transport::typed::Channel<C>) -> Self {
+					pub fn new(channel: ::transport::typed::Channel<C>) -> Self {
 							Self {
-									channel: crate::transport::__private::tokio::sync::Mutex::new(channel),
+									channel: ::transport::__private::tokio::sync::Mutex::new(channel),
 									next_id: ::core::sync::atomic::AtomicU64::new(1),
-									pending: crate::transport::__private::tokio::sync::Mutex::new(
+									pending: ::transport::__private::tokio::sync::Mutex::new(
 											::std::collections::HashMap::new(),
 									),
 							}
@@ -134,14 +134,14 @@ fn expand(input: ItemTrait) -> syn::Result<TokenStream> {
 					async fn __call(
 							&self,
 							method: &'static str,
-							params: crate::transport::__private::serde_json::Value,
+							params: ::transport::__private::serde_json::Value,
 					) -> ::core::result::Result<
-							crate::transport::__private::serde_json::Value,
-							crate::transport::typed::RpcError,
+							::transport::__private::serde_json::Value,
+							::transport::typed::RpcError,
 					> {
 							use ::core::sync::atomic::Ordering;
 							let id = self.next_id.fetch_add(1, Ordering::Relaxed);
-							let envelope = crate::transport::__private::serde_json::json!({
+							let envelope = ::transport::__private::serde_json::json!({
 									"id": id,
 									"method": method,
 									"params": params,
@@ -149,7 +149,7 @@ fn expand(input: ItemTrait) -> syn::Result<TokenStream> {
 							{
 									let mut chan = self.channel.lock().await;
 									chan.send(envelope).await
-											.map_err(|e| crate::transport::typed::RpcError::Adapter(e.to_string()))?;
+											.map_err(|e| ::transport::typed::RpcError::Adapter(e.to_string()))?;
 							}
 							loop {
 									{
@@ -161,8 +161,8 @@ fn expand(input: ItemTrait) -> syn::Result<TokenStream> {
 									let frame = {
 											let mut chan = self.channel.lock().await;
 											chan.recv().await
-													.map_err(|e| crate::transport::typed::RpcError::Adapter(e.to_string()))?
-													.ok_or_else(|| crate::transport::typed::RpcError::Adapter("eof".into()))?
+													.map_err(|e| ::transport::typed::RpcError::Adapter(e.to_string()))?
+													.ok_or_else(|| ::transport::typed::RpcError::Adapter("eof".into()))?
 									};
 									let rid = frame.get("id").and_then(|v| v.as_u64()).unwrap_or(0);
 									if rid == id {
@@ -175,20 +175,20 @@ fn expand(input: ItemTrait) -> syn::Result<TokenStream> {
 					}
 
 					fn __decode_reply(
-							frame: crate::transport::__private::serde_json::Value,
+							frame: ::transport::__private::serde_json::Value,
 					) -> ::core::result::Result<
-							crate::transport::__private::serde_json::Value,
-							crate::transport::typed::RpcError,
+							::transport::__private::serde_json::Value,
+							::transport::typed::RpcError,
 					> {
 							if let Some(err) = frame.get("error") {
 									let msg = err.get("message")
 											.and_then(|v| v.as_str())
 											.unwrap_or("rpc error")
 											.to_string();
-									return Err(crate::transport::typed::RpcError::Application(msg));
+									return Err(::transport::typed::RpcError::Application(msg));
 							}
 							Ok(frame.get("result").cloned().unwrap_or(
-									crate::transport::__private::serde_json::Value::Null,
+									::transport::__private::serde_json::Value::Null,
 							))
 					}
 
@@ -198,9 +198,9 @@ fn expand(input: ItemTrait) -> syn::Result<TokenStream> {
 
 	let serve_decl = quote! {
 			#trait_vis async fn #serve_ident<C, H>(
-					mut channel: crate::transport::typed::Channel<C>,
+					mut channel: ::transport::typed::Channel<C>,
 					handler: H,
-			) -> ::core::result::Result<(), crate::transport::typed::AdapterError>
+			) -> ::core::result::Result<(), ::transport::typed::AdapterError>
 			where
 					C: #codec_bound,
 					H: #trait_name,
@@ -211,18 +211,18 @@ fn expand(input: ItemTrait) -> syn::Result<TokenStream> {
 									None => return Ok(()),
 							};
 							let id = frame.get("id").cloned().unwrap_or(
-									crate::transport::__private::serde_json::Value::Null,
+									::transport::__private::serde_json::Value::Null,
 							);
 							let method = frame.get("method")
 									.and_then(|v| v.as_str())
 									.unwrap_or("")
 									.to_string();
 							let params = frame.get("params").cloned().unwrap_or(
-									crate::transport::__private::serde_json::Value::Null,
+									::transport::__private::serde_json::Value::Null,
 							);
 							let reply = match method.as_str() {
 									#( #server_arms )*
-									other => crate::transport::__private::serde_json::json!({
+									other => ::transport::__private::serde_json::json!({
 											"id": id,
 											"error": { "code": -32601, "message": format!("method not found: {}", other) }
 									}),
@@ -250,8 +250,8 @@ fn client_method(m: &Method) -> TokenStream2 {
 		quote! {
 				params_obj.insert(
 						#key.to_string(),
-						crate::transport::__private::serde_json::to_value(&#n)
-								.map_err(|e| crate::transport::typed::RpcError::Codec(e.to_string()))?,
+						::transport::__private::serde_json::to_value(&#n)
+								.map_err(|e| ::transport::typed::RpcError::Codec(e.to_string()))?,
 				);
 		}
 	});
@@ -259,13 +259,13 @@ fn client_method(m: &Method) -> TokenStream2 {
 			pub async fn #name(
 					&self,
 					#( #arg_decls ),*
-			) -> ::core::result::Result<#ret, crate::transport::typed::RpcError> {
-					let mut params_obj = crate::transport::__private::serde_json::Map::new();
+			) -> ::core::result::Result<#ret, ::transport::typed::RpcError> {
+					let mut params_obj = ::transport::__private::serde_json::Map::new();
 					#( #arg_inserts )*
-					let params = crate::transport::__private::serde_json::Value::Object(params_obj);
+					let params = ::transport::__private::serde_json::Value::Object(params_obj);
 					let result = self.__call(#method_str, params).await?;
-					crate::transport::__private::serde_json::from_value::<#ret>(result)
-							.map_err(|e| crate::transport::typed::RpcError::Codec(e.to_string()))
+					::transport::__private::serde_json::from_value::<#ret>(result)
+							.map_err(|e| ::transport::typed::RpcError::Codec(e.to_string()))
 			}
 	}
 }
@@ -277,10 +277,10 @@ fn server_arm(_trait_name: &syn::Ident, m: &Method) -> TokenStream2 {
 		let key = n.to_string();
 		quote! {
 				let #n: #t = match params.get(#key).cloned() {
-						Some(v) => match crate::transport::__private::serde_json::from_value::<#t>(v) {
+						Some(v) => match ::transport::__private::serde_json::from_value::<#t>(v) {
 								Ok(x) => x,
 								Err(e) => {
-										let reply = crate::transport::__private::serde_json::json!({
+										let reply = ::transport::__private::serde_json::json!({
 												"id": id,
 												"error": { "code": -32602, "message": format!("decode {}: {}", #key, e) }
 										});
@@ -289,7 +289,7 @@ fn server_arm(_trait_name: &syn::Ident, m: &Method) -> TokenStream2 {
 								}
 						},
 						None => {
-								let reply = crate::transport::__private::serde_json::json!({
+								let reply = ::transport::__private::serde_json::json!({
 										"id": id,
 										"error": { "code": -32602, "message": format!("missing param: {}", #key) }
 								});
@@ -304,9 +304,9 @@ fn server_arm(_trait_name: &syn::Ident, m: &Method) -> TokenStream2 {
 			#method_str => {
 					#( #arg_decodes )*
 					let out = handler.#name( #( #arg_names ),* ).await;
-					match crate::transport::__private::serde_json::to_value(&out) {
-							Ok(v) => crate::transport::__private::serde_json::json!({ "id": id, "result": v }),
-							Err(e) => crate::transport::__private::serde_json::json!({
+					match ::transport::__private::serde_json::to_value(&out) {
+							Ok(v) => ::transport::__private::serde_json::json!({ "id": id, "result": v }),
+							Err(e) => ::transport::__private::serde_json::json!({
 									"id": id,
 									"error": { "code": -32603, "message": format!("encode result: {}", e) }
 							}),

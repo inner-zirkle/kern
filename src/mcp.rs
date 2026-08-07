@@ -15,9 +15,9 @@ use parking_lot::RwLock;
 use serde::Serialize;
 use serde_json::value::RawValue;
 
-use ingest;
 use config::Config;
 use graph::graph::GraphGnn;
+use ingest;
 
 #[derive(Serialize)]
 pub(crate) struct Response {
@@ -102,11 +102,11 @@ impl Server {
 	pub fn run(&self, input: impl Read, output: impl Write) {
 		let mut reader = BufReader::with_capacity(1024 * 1024, input);
 		let mut output = output;
-		let _ = crate::transport::serve_rw(&mut reader, &mut output, self);
+		let _ = transport::serve_rw(&mut reader, &mut output, self);
 	}
 
 	pub fn run_stdio(&self) {
-		let _ = crate::transport::serve_stdio(self);
+		let _ = transport::serve_stdio(self);
 	}
 
 	pub(crate) fn health_stats(&self) -> serde_json::Value {
@@ -216,7 +216,7 @@ impl Server {
 	}
 }
 
-impl crate::transport::McpServer for Server {
+impl transport::McpServer for Server {
 	fn server_name(&self) -> &str {
 		"kern"
 	}
@@ -228,7 +228,7 @@ impl crate::transport::McpServer for Server {
 		serde_json::json!({"resources": {}, "prompts": {}})
 	}
 
-	fn tools_list(&self) -> Vec<crate::transport::ToolSchema> {
+	fn tools_list(&self) -> Vec<transport::ToolSchema> {
 		tools::typed_tool_schemas()
 	}
 
@@ -236,7 +236,7 @@ impl crate::transport::McpServer for Server {
 		&self,
 		name: &str,
 		args: &serde_json::Value,
-	) -> Result<crate::transport::ToolResult, crate::transport::McpError> {
+	) -> Result<transport::ToolResult, transport::McpError> {
 		if name != "health" {
 			self.touch();
 		}
@@ -268,7 +268,7 @@ impl crate::transport::McpServer for Server {
 				params_to_raw(args),
 			)),
 			_ => {
-				return Ok(crate::transport::ToolResult {
+				return Ok(transport::ToolResult {
 					content: vec![
 						serde_json::json!({"type": "text", "text": format!("unknown tool: {name}")}),
 					],
@@ -284,7 +284,7 @@ impl crate::transport::McpServer for Server {
 		&self,
 		method: &str,
 		params: serde_json::Value,
-	) -> Option<Result<serde_json::Value, crate::transport::McpError>> {
+	) -> Option<Result<serde_json::Value, transport::McpError>> {
 		if let Some(r) = handle_graphless_method(method, &params) {
 			return Some(r);
 		}
@@ -313,7 +313,7 @@ pub(crate) const RESOURCE_READ_TOOL: &str = "resource_read";
 pub(crate) fn handle_graphless_method(
 	method: &str,
 	params: &serde_json::Value,
-) -> Option<Result<serde_json::Value, crate::transport::McpError>> {
+) -> Option<Result<serde_json::Value, transport::McpError>> {
 	match method {
 		"resources/list" => Some(Ok(
 			serde_json::json!({"resources": resources::resource_definitions()}),
@@ -350,8 +350,8 @@ pub(crate) fn encode_resource_read(resp: Response) -> serde_json::Value {
 
 /// The inverse of [`encode_resource_read`], run by the proxy.
 pub(crate) fn decode_resource_read(
-	result: &crate::transport::ToolResult,
-) -> Result<serde_json::Value, crate::transport::McpError> {
+	result: &transport::ToolResult,
+) -> Result<serde_json::Value, transport::McpError> {
 	let text = result
 		.content
 		.first()
@@ -369,12 +369,12 @@ pub(crate) fn decode_resource_read(
 			.and_then(serde_json::Value::as_str)
 			.unwrap_or(text)
 			.to_string();
-		return Err(crate::transport::McpError::Rpc { code, message });
+		return Err(transport::McpError::Rpc { code, message });
 	}
 	Ok(parsed)
 }
 
-pub(crate) fn value_to_tool_result(v: &serde_json::Value) -> crate::transport::ToolResult {
+pub(crate) fn value_to_tool_result(v: &serde_json::Value) -> transport::ToolResult {
 	let is_error = v
 		.get("isError")
 		.and_then(serde_json::Value::as_bool)
@@ -384,17 +384,17 @@ pub(crate) fn value_to_tool_result(v: &serde_json::Value) -> crate::transport::T
 		.and_then(serde_json::Value::as_array)
 		.cloned()
 		.unwrap_or_default();
-	crate::transport::ToolResult {
+	transport::ToolResult {
 		content,
 		is_error,
 		structured_content: None,
 	}
 }
 
-fn response_to_result(resp: Response) -> Result<serde_json::Value, crate::transport::McpError> {
+fn response_to_result(resp: Response) -> Result<serde_json::Value, transport::McpError> {
 	match (resp.result, resp.error) {
 		(Some(v), _) => Ok(v),
-		(None, Some(e)) => Err(crate::transport::McpError::Rpc {
+		(None, Some(e)) => Err(transport::McpError::Rpc {
 			code: e.code as i64,
 			message: e.message,
 		}),
@@ -456,7 +456,7 @@ pub async fn run_sse(server: Arc<Server>, addr: &str) -> Result<(), std::io::Err
 		token_file = %config::mcp_token_path(Path::new(&server.cfg.data_dir)).display(),
 		"MCP-over-HTTP requires a bearer token"
 	);
-	crate::transport::serve_http(server, addr, Some(&token)).await
+	transport::serve_http(server, addr, Some(&token)).await
 }
 
 #[cfg(test)]
@@ -491,8 +491,8 @@ mod tests {
 
 	#[tokio::test]
 	async fn health_reports_degraded_maintenance_after_a_task_panic() {
-		use tick::tick_queue::{task, Queue, TaskKind};
 		use std::sync::Arc;
+		use tick::tick_queue::{task, Queue, TaskKind};
 
 		let mut srv = crate::test_support::mcp_server();
 		let q = Arc::new(Queue::new(8));
@@ -511,8 +511,8 @@ mod tests {
 
 	#[tokio::test]
 	async fn health_reports_contained_task_failures_beside_panics() {
-		use tick::tick_queue::{task, Queue, TaskKind};
 		use std::sync::Arc;
+		use tick::tick_queue::{task, Queue, TaskKind};
 
 		let mut srv = crate::test_support::mcp_server();
 		let q = Arc::new(Queue::new(8));

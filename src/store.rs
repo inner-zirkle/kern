@@ -10,12 +10,12 @@ use std::sync::Arc;
 use parking_lot::{Mutex, RwLock};
 use std::time::Instant;
 
-use ingest::Worker;
-use tick::tick_queue::Queue;
-use tick_loop::tick_tasks::{BroadcastQuestionFunc, EmbedFunc, LlmFunc as TickLlmFunc};
 use config::Config;
 use graph::graph::GraphGnn;
+use ingest::Worker;
 use llm::Client as LlmClient;
+use tick::tick_queue::Queue;
+use tick_loop::tick_tasks::{BroadcastQuestionFunc, EmbedFunc, LlmFunc as TickLlmFunc};
 
 pub type StoreKey = PathBuf;
 

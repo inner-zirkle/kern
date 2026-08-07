@@ -269,8 +269,7 @@ mod tests {
 	// user-tagged payload, whose 1.0 survives only if its own tag reached the clamp.
 	#[tokio::test]
 	async fn drain_direct_once_clamps_against_the_payloads_tag_not_a_fixed_principal() {
-		let (url, _server) =
-			test_support::spawn_http(test_support::fixed_vec_embed_app()).await;
+		let (url, _server) = test_support::spawn_http(test_support::fixed_vec_embed_app()).await;
 		let graph = Arc::new(RwLock::new(GraphGnn::new()));
 		let embedder = llm::Client::new_embed_only(&url, "m", "");
 		let worker = Worker::new(graph.clone(), embedder, None, None, None);

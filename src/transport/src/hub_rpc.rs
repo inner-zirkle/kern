@@ -3,7 +3,7 @@
 
 use std::time::Duration;
 
-use crate::transport::typed::{connect_kern, AdapterError, Channel, Endpoint, JsonEnvelopeCodec};
+use crate::typed::{connect_kern, AdapterError, Channel, Endpoint, JsonEnvelopeCodec};
 
 pub const RETRIES: u32 = 2;
 pub const RETRY_DELAY_MS: u64 = 100;
@@ -86,7 +86,7 @@ pub struct UnloadRes {
 	pub err: String,
 }
 
-crate::transport::service! {
+crate::service! {
 		pub trait HubRpc {
 				async fn resolve(req: ResolveReq) -> ResolveRes;
 				async fn status() -> HubStatusRes;

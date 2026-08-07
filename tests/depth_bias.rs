@@ -15,13 +15,13 @@ use base::base_constants::{COLD_GC_AGE, COLD_HEAT_THRESHOLD, PULSE_DECAY, PULSE_
 use base::base_types::{Entity, EntityKind, Kern};
 use config::HeatConfig;
 use graph::graph::GraphGnn;
+use parking_lot::RwLock;
 use retrieval::score::commit_access_ids;
+use std::sync::Arc;
+use std::time::{Duration, SystemTime};
 use tick::tick_pulse::pulse;
 use tick::tick_queue::Queue;
 use tick::tick_stigmergy::run_gc;
-use parking_lot::RwLock;
-use std::sync::Arc;
-use std::time::{Duration, SystemTime};
 
 const TICK: Duration = Duration::from_secs(60);
 const GC_EVERY_TICKS: usize = 60;

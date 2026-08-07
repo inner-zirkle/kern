@@ -87,8 +87,7 @@ pub(crate) async fn cmd_query(cfg: &config::Config, params: QueryParams<'_>) {
 		exclude_pending: true,
 		..Default::default()
 	});
-	let result =
-		retrieval::query::query(&g, &cfg.retrieval, &cfg.heat, &vec, text, mode, opts);
+	let result = retrieval::query::query(&g, &cfg.retrieval, &cfg.heat, &vec, text, mode, opts);
 	// No save: read-only — access/heat bumps land on cloned result entities, and
 	// persisting would risk clobbering a daemon's newer on-disk state.
 
@@ -213,15 +212,8 @@ pub(crate) async fn cmd_profile(cfg: &config::Config, text: &str, no_llm: bool) 
 		(Mode::Reason, "query reason (no llm)"),
 		(Mode::Hybrid, "query hybrid (no llm)"),
 	] {
-		let (_, p) = retrieval::query::query_profiled(
-			&g,
-			&cfg.retrieval,
-			&cfg.heat,
-			&qvec,
-			text,
-			mode,
-			None,
-		);
+		let (_, p) =
+			retrieval::query::query_profiled(&g, &cfg.retrieval, &cfg.heat, &qvec, text, mode, None);
 		profiles.push(renamed(p, label));
 	}
 

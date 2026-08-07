@@ -67,9 +67,6 @@ pub(crate) mod mcp_tools_query;
 pub(crate) mod mcp_tools_setup;
 pub mod rpc;
 pub mod store;
-pub mod transport;
-pub mod transport_hub_rpc;
-pub mod transport_kern_rpc;
 
 #[cfg(test)]
 mod test_support;

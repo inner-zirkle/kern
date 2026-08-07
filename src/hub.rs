@@ -6,8 +6,8 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::time::Duration;
 
-use crate::transport::kern_rpc::KernRpcClient;
-use crate::transport::typed::{Endpoint, JsonEnvelopeCodec};
+use transport::kern_rpc::KernRpcClient;
+use transport::typed::{Endpoint, JsonEnvelopeCodec};
 
 use gossip::identity::strip_deleted_marker;
 
@@ -40,7 +40,7 @@ impl NodeHandle {
 // FNV hash of the path, so the socket name cannot produce the node's token —
 // only the root can, via the config that names its data_dir. The endpoint is
 // derived here from the same root, so the two can never drift apart.
-fn node_caller(root: &Path) -> crate::transport::kern_rpc::AuthReq {
+fn node_caller(root: &Path) -> transport::kern_rpc::AuthReq {
 	crate::rpc::caller_at(root)
 }
 
@@ -183,11 +183,11 @@ mod self_exe_tests {
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::transport::hub_rpc::{
+use tokio::sync::Mutex;
+use transport::hub_rpc::{
 	HubRpc, HubStatusRes, NodeLite, ResolveReq, ResolveRes, StopRes, UnloadReq, UnloadRes,
 };
-use crate::transport::typed::Channel;
-use tokio::sync::Mutex;
+use transport::typed::Channel;
 
 const REAP_INTERVAL_SECS: u64 = 30;
 
@@ -472,9 +472,9 @@ async fn idle_pass(handler: &HubRpcHandler, cutoff_ms: u64) {
 
 pub async fn run_hub(idle_unload_secs: u64) {
 	let endpoint = Endpoint::hub();
-	let mut listener = match crate::transport::typed::bind_kern_listener(&endpoint).await {
-		Ok(crate::transport::typed::BindOutcome::Bound(l)) => l,
-		Ok(crate::transport::typed::BindOutcome::AlreadyRunning) => {
+	let mut listener = match transport::typed::bind_kern_listener(&endpoint).await {
+		Ok(transport::typed::BindOutcome::Bound(l)) => l,
+		Ok(transport::typed::BindOutcome::AlreadyRunning) => {
 			eprintln!(
 				"kern hub: already running at {} — exiting",
 				endpoint.display()
@@ -508,7 +508,7 @@ pub async fn run_hub(idle_unload_secs: u64) {
 			let handler = handler.clone();
 			tokio::spawn(async move {
 				let channel = Channel::new(adapter, JsonEnvelopeCodec::new());
-				if let Err(e) = crate::transport::hub_rpc::serve_hub_rpc(channel, handler).await {
+				if let Err(e) = transport::hub_rpc::serve_hub_rpc(channel, handler).await {
 					tracing::warn!(target: "kern.hub", error = %e, "serve loop");
 				}
 			});

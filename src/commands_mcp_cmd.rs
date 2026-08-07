@@ -4,10 +4,10 @@
 use parking_lot::RwLock as StdRwLock;
 use std::sync::Arc;
 
-use crate::transport::kern_rpc::{AuthReq, CallToolReq, KernRpcClient};
-use crate::transport::typed::{AdapterError, Endpoint, JsonEnvelopeCodec};
-use crate::transport::{McpError, McpServer, ToolResult, ToolSchema};
 use tokio::sync::Mutex as TokioMutex;
+use transport::kern_rpc::{AuthReq, CallToolReq, KernRpcClient};
+use transport::typed::{AdapterError, Endpoint, JsonEnvelopeCodec};
+use transport::{McpError, McpServer, ToolResult, ToolSchema};
 
 use crate::commands::load_graph;
 
@@ -74,7 +74,7 @@ async fn run_proxy(client: KernRpcClient<JsonEnvelopeCodec>, auth: AuthReq) {
 	};
 	// serve_stdio is sync — on a blocking thread so it doesn't park a worker;
 	// call_tool crosses back via block_in_place (multi-thread rt only).
-	if let Err(e) = tokio::task::spawn_blocking(move || crate::transport::serve_stdio(&proxy)).await {
+	if let Err(e) = tokio::task::spawn_blocking(move || transport::serve_stdio(&proxy)).await {
 		tracing::warn!(target: "kern.mcp_proxy", error = %e, "stdio loop");
 	}
 }
@@ -176,7 +176,7 @@ async fn attach_via_hub(
 	auto_start: bool,
 	log_dir: &std::path::Path,
 ) -> Option<KernRpcClient<JsonEnvelopeCodec>> {
-	use crate::transport::hub_rpc::{HubRpcClient, ResolveReq};
+	use transport::hub_rpc::{HubRpcClient, ResolveReq};
 	let hub = match HubRpcClient::<JsonEnvelopeCodec>::connect_hub().await {
 		Ok(h) => h,
 		Err(_) if auto_start => {
@@ -219,7 +219,7 @@ async fn attach_via_hub(
 		tracing::warn!(target: "kern.mcp", error = %res.err, "hub resolve failed — direct path");
 		return None;
 	}
-	let endpoint = crate::transport::typed::Endpoint::parse(&res.endpoint);
+	let endpoint = transport::typed::Endpoint::parse(&res.endpoint);
 	tracing::info!(
 		target: "kern.mcp",
 		endpoint = %res.endpoint,
@@ -301,14 +301,13 @@ impl McpServer for ProxyServer {
 		let client = self.client.clone();
 		let res = llm::block_on_in_place(async move {
 			let c = client.lock().await;
-			c.list_tools(crate::transport::kern_rpc::ListToolsReq {})
-				.await
+			c.list_tools(transport::kern_rpc::ListToolsReq {}).await
 		});
 		match res {
 			Some(Ok(r)) => r
 				.tools
 				.into_iter()
-				.filter_map(|v| crate::transport::ToolSchema::from_value(&v))
+				.filter_map(|v| transport::ToolSchema::from_value(&v))
 				.collect(),
 			_ => crate::mcp::tools::typed_tool_schemas(),
 		}
@@ -524,7 +523,7 @@ async fn run_standalone(cfg: &config::Config) {
 		Some(t) => {
 			let server = Arc::new(server);
 			if let Err(e) =
-				tokio::task::spawn_blocking(move || crate::transport::serve_transport(t, server)).await
+				tokio::task::spawn_blocking(move || transport::serve_transport(t, server)).await
 			{
 				tracing::warn!(target: "kern.mcp", error = %e, "transport serve loop");
 			}
@@ -534,13 +533,13 @@ async fn run_standalone(cfg: &config::Config) {
 }
 
 /// Parse `KERN_TRANSPORT` (`kind:arg`, e.g. `tcp:9401` or `unix:/tmp/k.sock`)
-/// into a master transport, reusing `crate::transport::select`'s own flag grammar. An
+/// into a master transport, reusing `transport::select`'s own flag grammar. An
 /// unset or unparseable value falls through to stdio by returning `None`.
-fn transport_from_env() -> Option<crate::transport::Transport> {
+fn transport_from_env() -> Option<transport::Transport> {
 	let spec = std::env::var("KERN_TRANSPORT").ok()?;
 	let (kind, arg) = spec.split_once(':')?;
 	let args = [format!("--{kind}"), arg.to_string()];
-	crate::transport::select(&args).ok()
+	transport::select(&args).ok()
 }
 
 // Idempotent: inserts only absent entries, never touches existing keys.
@@ -602,9 +601,9 @@ pub(crate) fn ensure_mcp_registered(cwd: &std::path::Path) {
 #[cfg(all(test, unix))]
 mod standalone_tests {
 	use super::*;
-	use crate::transport::typed::{bind_kern_listener, BindOutcome};
 	use std::sync::Arc;
 	use std::time::Duration;
+	use transport::typed::{bind_kern_listener, BindOutcome};
 
 	fn scratch_endpoint(tag: &str) -> Endpoint {
 		let dir = std::env::temp_dir().join(format!(
@@ -755,7 +754,7 @@ mod proxy_method_tests {
 		tokio::task::spawn_blocking(move || {
 			let mut reader = std::io::Cursor::new(input.into_bytes());
 			let mut out: Vec<u8> = Vec::new();
-			crate::transport::serve_rw(&mut reader, &mut out, &proxy).expect("stdio loop");
+			transport::serve_rw(&mut reader, &mut out, &proxy).expect("stdio loop");
 			String::from_utf8(out)
 				.unwrap()
 				.lines()
@@ -890,7 +889,7 @@ mod proxy_method_tests {
 	// copy.
 	#[tokio::test(flavor = "multi_thread")]
 	async fn the_graphless_methods_are_the_standalone_servers_own() {
-		use crate::transport::McpServer as _;
+		use transport::McpServer as _;
 		let standalone = crate::test_support::mcp_server();
 		let cases = [
 			("resources/list", json!({})),
@@ -914,7 +913,7 @@ mod proxy_method_tests {
 	}
 }
 
-use crate::transport::kern_rpc::HealthRes;
+use transport::kern_rpc::HealthRes;
 
 // Below this, a mismatching daemon is left alone. Two clients built from
 // different binaries — `target/debug/kern` and an installed `kern`, both

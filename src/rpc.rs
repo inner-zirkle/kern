@@ -4,7 +4,7 @@
 
 use std::path::{Path, PathBuf};
 
-use crate::transport::kern_rpc::AuthReq;
+use transport::kern_rpc::AuthReq;
 
 /// The secret a client presents to the daemon rooted at `root`.
 ///
@@ -140,13 +140,13 @@ mod caller_tests {
 
 use std::sync::Arc;
 
-use crate::transport::kern_rpc::{
+use serde_json::Value;
+use transport::kern_rpc::{
 	serve_kern_rpc, verify_auth, CallToolReq, CallToolRes, HealthRes, KernRpc, ListToolsReq,
 	ListToolsRes, ShutdownRes,
 };
-use crate::transport::typed::{AdapterError, Channel, JsonEnvelopeCodec, LocalListener};
-use crate::transport::McpServer;
-use serde_json::Value;
+use transport::typed::{AdapterError, Channel, JsonEnvelopeCodec, LocalListener};
+use transport::McpServer;
 
 #[derive(Clone)]
 pub struct KernRpcHandler {
@@ -256,7 +256,7 @@ impl KernRpc for KernRpcHandler {
 				qbst_recency_half_life_secs: u64_at("qbst_recency_half_life_secs"),
 				retrieval: {
 					let r = payload.get("retrieval");
-					let mw = |key: &str| crate::transport::kern_rpc::ModeWeightsHealth {
+					let mw = |key: &str| transport::kern_rpc::ModeWeightsHealth {
 						content: r
 							.and_then(|r| r.get(key))
 							.and_then(|w| w.get("content"))
@@ -273,7 +273,7 @@ impl KernRpc for KernRpcHandler {
 							.and_then(|v| v.as_f64())
 							.unwrap_or(0.0),
 					};
-					crate::transport::kern_rpc::RetrievalHealth {
+					transport::kern_rpc::RetrievalHealth {
 						rrf_k: r
 							.and_then(|r| r.get("rrf_k"))
 							.and_then(|v| v.as_f64())
@@ -471,9 +471,7 @@ mod tests {
 	// through the health stats and the MCP payload to the RPC DTO an operator polls.
 	#[tokio::test]
 	async fn a_refused_ingest_reaches_the_rpc_health_surface() {
-		let _serial = ingest::worker::queue_refused_test_lock()
-			.lock()
-			.await;
+		let _serial = ingest::worker::queue_refused_test_lock().lock().await;
 		let (url, _server) =
 			crate::test_support::spawn_http(crate::test_support::hanging_embed_app()).await;
 		let srv = crate::test_support::mcp_server_with_embed_url(&url);
@@ -561,9 +559,9 @@ mod tests {
 #[cfg(test)]
 mod auth_gate_tests {
 	use super::*;
-	use crate::transport::kern_rpc::AuthReq;
-	use crate::transport::typed::InprocAdapter;
 	use std::sync::atomic::{AtomicUsize, Ordering};
+	use transport::kern_rpc::AuthReq;
+	use transport::typed::InprocAdapter;
 
 	const TOKEN: &str = "the-real-token";
 

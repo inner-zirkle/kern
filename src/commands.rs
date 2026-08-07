@@ -884,10 +884,10 @@ pub async fn run_server(cli: &Cli, cfg: &config::Config) {
 			}
 		};
 		let handler = crate::rpc::KernRpcHandler::new(mcp_server.clone(), shutdown.clone());
-		let endpoint = crate::transport::typed::Endpoint::kern();
+		let endpoint = transport::typed::Endpoint::kern();
 		#[cfg(unix)]
 		let bound = if gossip::identity::is_takeover_boot() {
-			match crate::transport::typed::adopt_kern_listener(&endpoint) {
+			match transport::typed::adopt_kern_listener(&endpoint) {
 				Ok(listener) => {
 					tracing::info!(
 						target: "kern.kern_rpc",
@@ -905,12 +905,12 @@ pub async fn run_server(cli: &Cli, cfg: &config::Config) {
 			None
 		};
 		#[cfg(not(unix))]
-		let bound: Option<crate::transport::typed::LocalListener> = None;
+		let bound: Option<transport::typed::LocalListener> = None;
 
 		let listener = match bound {
 			Some(l) => l,
-			None => match crate::transport::typed::bind_kern_listener(&endpoint).await {
-				Ok(crate::transport::typed::BindOutcome::Bound(listener)) => {
+			None => match transport::typed::bind_kern_listener(&endpoint).await {
+				Ok(transport::typed::BindOutcome::Bound(listener)) => {
 					tracing::info!(
 						target: "kern.kern_rpc",
 						endpoint = %endpoint.display(),
@@ -918,7 +918,7 @@ pub async fn run_server(cli: &Cli, cfg: &config::Config) {
 					);
 					listener
 				}
-				Ok(crate::transport::typed::BindOutcome::AlreadyRunning) => {
+				Ok(transport::typed::BindOutcome::AlreadyRunning) => {
 					eprintln!(
 						"kern: another daemon already running at {} — exiting",
 						endpoint.display()
@@ -1239,8 +1239,12 @@ async fn start_gossip(
 			std::sync::Arc::new(gossip::gossip_identity::PeerIdentity::generate())
 		}
 	};
-	let node =
-		gossip::gossip_node::Node::new_with_identity(&cfg.gossip.addr, &network_id, bootstrap, identity);
+	let node = gossip::gossip_node::Node::new_with_identity(
+		&cfg.gossip.addr,
+		&network_id,
+		bootstrap,
+		identity,
+	);
 	node.ledger.set_max_entries(cfg.graph.max_ledger_entries);
 	// Contracts this node hosts: each `[[gossip.contracts]]` table whose keys
 	// parse. A table that fails to parse is refused loudly — hosting it with a
@@ -1254,8 +1258,10 @@ async fn start_gossip(
 		.iter()
 		.filter_map(|c| match gossip::gossip_contract::params_from_config(c) {
 			Some(params) => {
-				let cid =
-					gossip::gossip_contract::contract_id(gossip::gossip_contract::SIGNED_CRDT_V0_TAG, &params);
+				let cid = gossip::gossip_contract::contract_id(
+					gossip::gossip_contract::SIGNED_CRDT_V0_TAG,
+					&params,
+				);
 				tracing::info!(
 					target: "kern.gossip",
 					contract = %util::hex::encode(cid),
