@@ -8,7 +8,6 @@ use std::sync::Arc;
 
 use graph::graph::GraphGnn;
 use parking_lot::RwLock;
-use store_core;
 
 pub type SharedGraph = Arc<RwLock<GraphGnn>>;
 

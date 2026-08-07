@@ -27,7 +27,7 @@ use serde_json::value::RawValue;
 
 use config::Config;
 use graph::graph::GraphGnn;
-use ingest;
+
 
 #[derive(Serialize)]
 pub(crate) struct Response {

@@ -192,29 +192,6 @@ pub fn degrade_entity_reasons(g: &mut GraphGnn, kern_id: &str, id: &str) -> (usi
 	(decayed, removed)
 }
 
-#[cfg(test)]
-mod tests {
-	use super::*;
-	#[test]
-	fn link_vector_prefers_the_reason_embedding() {
-		let v = link_vector(
-			Some(vec![1.0, 2.0, 3.0]),
-			&[0.0, 0.0, 0.0],
-			&[9.0, 9.0, 9.0],
-		);
-		assert_eq!(
-			v, vec![1.0, 2.0, 3.0],
-			"an embedded reason wins over the midpoint"
-		);
-	}
-
-	#[test]
-	fn link_vector_falls_back_to_endpoint_midpoint() {
-		let v = link_vector(None, &[0.0, 2.0], &[4.0, 6.0]);
-		assert_eq!(v, vec![2.0, 4.0], "no embedding -> midpoint of the two endpoints");
-	}
-}
-
 /// A snapshot row for the graviton admin view: name, mass, and the live counts
 /// of thoughts and edges it currently pulls in. Rendered as a flat array for
 /// the JSON-RPC client.
@@ -236,4 +213,27 @@ pub fn graviton_rows(g: &crate::graph::GraphGnn) -> Vec<GravitonRow> {
 			reasons: c.reasons.len(),
 		})
 		.collect()
+}
+#[cfg(test)]
+mod tests {
+	use super::*;
+	#[test]
+	fn link_vector_prefers_the_reason_embedding() {
+		let v = link_vector(
+			Some(vec![1.0, 2.0, 3.0]),
+			&[0.0, 0.0, 0.0],
+			&[9.0, 9.0, 9.0],
+		);
+		assert_eq!(
+			v, vec![1.0, 2.0, 3.0],
+			"an embedded reason wins over the midpoint"
+		);
+	}
+
+	#[test]
+	fn link_vector_falls_back_to_endpoint_midpoint() {
+		let v = link_vector(None, &[0.0, 2.0], &[4.0, 6.0]);
+		assert_eq!(v, vec![2.0, 4.0], "no embedding -> midpoint of the two endpoints");
+		assert_eq!(v, vec![2.0, 4.0], "no embedding -> midpoint of the two endpoints");
+	}
 }

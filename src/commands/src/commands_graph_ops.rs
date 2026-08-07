@@ -237,6 +237,7 @@ pub(crate) async fn cmd_forget_source(cfg: &config::Config, source: &str, force:
 	});
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn cmd_link(
 	cfg: &config::Config,
 	from: &str,
