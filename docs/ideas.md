@@ -135,6 +135,10 @@ _(ranked across all four sections)_
 
 ## Closed
 
+### 2026-08-11 — B10: deleted dead re-export `bind_embed_model` in commands/src/lib.rs
+
+`pub(crate) use bootstrap::bind_embed_model` had zero callers in the commands crate — the function is only called internally by bootstrap itself. Removed from the re-export list. Remaining re-exports (`apply_graph_config` etc.) are used in `#[cfg(test)]` code only, so `#[allow(unused_imports)]` stays.
+
 ### 2026-08-11 — B8: deleted dead files `retrieval_importance_index.rs` + `test_optimization.rs`
 
 Neither file was declared in `lib.rs` (never compiled). `test_optimization.rs` referenced `seed_important_indexed` (doesn't exist) and `ImportanceIndex::build_from_graph` (only defined in the other dead file). Both are unreachable orphaned experiment code. Net -380 lines.

@@ -14,7 +14,7 @@ pub mod commands_route;
 pub(crate) use self::commands_mcp_cmd::ensure_mcp_registered;
 #[allow(unused_imports)]
 pub(crate) use bootstrap::{
-	apply_graph_config, bind_embed_model, load_graph, reconcile_if_stale, reload_graph,
+	apply_graph_config, load_graph, reconcile_if_stale, reload_graph,
 	save_graph_guarded, save_graph_unguarded, snapshot_if_dirty, SharedGraph,
 };
 
