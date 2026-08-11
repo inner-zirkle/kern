@@ -2,7 +2,7 @@
 
 <!-- docs-check: historical -->
 
-- 2026-08-11 — folded duplicated test-helpers in commands: `mcp_server`, `mcp_server_with_embed_url`, `mcp_server_with_config` were near-identical copies of functions in `mcp::test_helpers`. Since `commands` depends on `mcp`, replaced `mcp_server()` body with delegation and deleted the other two duplicates (-38 lines). Also closed stale `flatten transport nested subdirs` idea item (subdirs already flat, transport re-extracted post-inline).
+- 2026-08-11 — deleted two dead files in retrieval: `retrieval_importance_index.rs` + `test_optimization.rs` (neither declared in lib.rs, referenced nonexistent functions, never compiled; -380 lines). Also deleted five dead `test_support` re-exports + `#[allow(unused_imports)]` escape hatch in `commands/src/test_helpers.rs` (zero callers; -6 lines).
 
 - 2026-08-07 — deflaked 3 parallel-run test races: (1) `ingest_queue_refused` in health payload — switched auth-gate envelope test to `graviton list` (owned per-call state, no other test touches it), (2) `cold_tier_pinned_at_capacity` warn-count — removed flaky tracing-subscriber layer interception, verified throttle independently in util, (3) `the_poll_loop_resolves_its_deadline` gap assertion — tolerance 1s to 500ms (clock-stepped box). Also fixed `tokio start_paused` missing in rpc+transport dev-deps (workspace unified the feature but standalone build broke). Decided by: parallel-run flake audit (10-workspace-run gate each).
 

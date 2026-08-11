@@ -135,6 +135,14 @@ _(ranked across all four sections)_
 
 ## Closed
 
+### 2026-08-11 — B8: deleted dead files `retrieval_importance_index.rs` + `test_optimization.rs`
+
+Neither file was declared in `lib.rs` (never compiled). `test_optimization.rs` referenced `seed_important_indexed` (doesn't exist) and `ImportanceIndex::build_from_graph` (only defined in the other dead file). Both are unreachable orphaned experiment code. Net -380 lines.
+
+### 2026-08-11 — B9: deleted dead `test_support` re-exports in commands/test_helpers.rs
+
+Five `pub(crate) use test_support::{alloc_probe, edge, entity, hanging_embed_app, spawn_http, tool_text}` re-exports had zero callers in the entire workspace. The `#[allow(unused_imports)]` escape hatch was the only thing keeping the build green. Net -6 lines.
+
 ### 2026-08-11 — B7: duplicated `mcp_server`/`mcp_server_with_embed_url`/`mcp_server_with_config` folded into delegation
 
 Three test-helper functions in `commands/src/test_helpers.rs` were nearly byte-identical copies of functions in `mcp/src/test_helpers.rs`. Since `commands` depends on `mcp` and `mcp::test_helpers` is `pub mod`, the fold replaces `mcp_server()` body with `mcp::test_helpers::mcp_server()` and deletes `mcp_server_with_embed_url` (only called from the outer `mcp_server()`) and `mcp_server_with_config` (zero callers, carried a `#[allow(dead_code)]` escape hatch). Net -38 lines.

@@ -1,13 +1,6 @@
 //! Shared test fixtures that need the full kern stack: an MCP server wired to
 //! a stub embedder, a scratch daemon endpoint, and a second-writer commit
-//! helper. The leaf fixtures (entity/edge/embed stubs/alloc_probe) live in the
-//! `test_support` crate and are re-exported here so existing `crate::test_support`
-//! call sites keep working.
-
-#[allow(unused_imports)]
-pub(crate) use test_support::{
-	alloc_probe, edge, entity, hanging_embed_app, spawn_http, tool_text,
-};
+//! helper.
 
 // A dead port: nothing in the default rig should reach an embedder.
 pub(crate) fn mcp_server() -> mcp::Server {
