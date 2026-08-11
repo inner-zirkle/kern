@@ -6,9 +6,7 @@ item carrying the grep that produced it. Driven by the `/improve` skill.
 ## A. Combine
 ## B. Simplify
 
-### Flatten `transport` nested subdirs (kern_rpc, typed, wire) into src/ root — IN PROGRESS
 
-hub_rpc + kern_rpc done. Remaining: `src/transport/typed/` (5 files), `src/transport/wire/` (7 files), `transport/{http,mcp}.rs`. Same shim pattern: leaf → `src/transport_<subdir>_<name>.rs`, `mod.rs`→`src/transport_<subdir>.rs` shim, `transport/mod.rs` re-exports. wire/mod.rs holds real definitions (Sink/Dispatch/Transport/serve/select/error/line_frame) — those stay in the `transport_wire.rs` shim; its private `mod X;` leaves widen to `pub(crate)` at crate root.
 
 ### Flatten `ingest` subdir into src/ root — DONE 2026-08-06 (this fire)
 
@@ -136,6 +134,14 @@ _(ranked across all four sections)_
    then `cargo clippy --all-targets` → red. Out of scope for B1; pick per item.
 
 ## Closed
+
+### 2026-08-11 — B7: duplicated `mcp_server`/`mcp_server_with_embed_url`/`mcp_server_with_config` folded into delegation
+
+Three test-helper functions in `commands/src/test_helpers.rs` were nearly byte-identical copies of functions in `mcp/src/test_helpers.rs`. Since `commands` depends on `mcp` and `mcp::test_helpers` is `pub mod`, the fold replaces `mcp_server()` body with `mcp::test_helpers::mcp_server()` and deletes `mcp_server_with_embed_url` (only called from the outer `mcp_server()`) and `mcp_server_with_config` (zero callers, carried a `#[allow(dead_code)]` escape hatch). Net -38 lines.
+
+### 2026-08-11 — B-f: flatten transport nested subdirs — skipped; already done
+
+Evidence grep shows no nested subdirs under `src/transport/src/` (only `tests/`). The subdirs (`kern_rpc`, `typed`, `wire`) were already flattened into flat files by commit `5996f98`. The transport crate itself was extracted back out by `af27a6e` after having been folded in. No action.
 
 ### 2026-08-07 — flatten src/transport/hub_rpc/ into src/ root (transport_hub_rpc_* prefix)
 

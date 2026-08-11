@@ -11,44 +11,10 @@ pub(crate) use test_support::{
 
 // A dead port: nothing in the default rig should reach an embedder.
 pub(crate) fn mcp_server() -> mcp::Server {
-	mcp_server_with_embed_url("http://127.0.0.1:1")
+	mcp::test_helpers::mcp_server()
 }
 
-// Same server against a live stub embedder, for tests that have to follow an
-// ingest all the way into the graph rather than stop at the tool boundary.
-pub(crate) fn mcp_server_with_embed_url(url: &str) -> mcp::Server {
-	use parking_lot::RwLock;
-	use std::sync::Arc;
-	let graph = Arc::new(RwLock::new(graph::graph::GraphGnn::new()));
-	let embedder = llm::Client::new_embed_only(url, "test", "");
-	let worker = Arc::new(ingest::Worker::new(
-		graph.clone(),
-		embedder,
-		None,
-		None,
-		None,
-	));
-	mcp::Server {
-		graph,
-		worker,
-		llm: None,
-		save_fn: Arc::new(|| {}),
-		task_q: None,
-		cfg: Arc::new(config::Config::default()),
-		broadcast_pulse: None,
-		last_activity: Arc::new(std::sync::atomic::AtomicU64::new(util::now_ms())),
-	}
-}
 
-// The default rig with a caller-shaped config — for tools that resolve paths
-// (peer key, intake dir) off cfg rather than the graph.
-#[cfg(test)]
-#[allow(dead_code)]
-pub(crate) fn mcp_server_with_config(cfg: config::Config) -> mcp::Server {
-	let mut s = mcp_server();
-	s.cfg = std::sync::Arc::new(cfg);
-	s
-}
 
 #[cfg(unix)]
 pub(crate) fn scratch_endpoint(tag: &str) -> transport::typed::Endpoint {
