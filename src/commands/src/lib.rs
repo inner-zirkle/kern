@@ -126,6 +126,9 @@ pub enum Commands {
 		file: Option<String>,
 		#[arg(long, help = "expire this ingest after N seconds (0 = never)")]
 		retention_secs: Option<u64>,
+		/// Custom source object ID — re-ingest with the same ID updates in place.
+		#[arg(long)]
+		object_id: Option<String>,
 		#[command(flatten)]
 		llm: LlmArgs,
 	},
@@ -137,6 +140,9 @@ pub enum Commands {
 		/// without it an uncurated graph reads exactly as before.
 		#[arg(long)]
 		exclude_pending: bool,
+		/// Filter results by source prefix: `<scheme>://<object_id_prefix>`.
+		#[arg(long)]
+		source_prefix: Option<String>,
 		#[command(flatten)]
 		llm: LlmArgs,
 	},
@@ -154,7 +160,11 @@ pub enum Commands {
 	Get {
 		id: String,
 	},
-	List,
+	List {
+		/// Filter thoughts by source prefix: `<scheme>://<object_id_prefix>`.
+		#[arg(long)]
+		source_prefix: Option<String>,
+	},
 	/// Forget one thought by ID, or a whole source with --source.
 	Forget {
 		id: Option<String>,
@@ -393,6 +403,7 @@ pub async fn dispatch(cmd: Commands, cfg: &config::Config) {
 			text,
 			file,
 			retention_secs,
+			object_id,
 			llm,
 		} => {
 			let (embed_url, embed_model, reason_url, reason_model) = llm.resolve(cfg);
@@ -401,6 +412,7 @@ pub async fn dispatch(cmd: Commands, cfg: &config::Config) {
 				text,
 				file,
 				retention_secs.unwrap_or(0),
+				object_id,
 				embed_url,
 				embed_model,
 				reason_url,
@@ -413,6 +425,7 @@ pub async fn dispatch(cmd: Commands, cfg: &config::Config) {
 			text,
 			mode,
 			exclude_pending,
+			source_prefix,
 			llm,
 		} => {
 			let (embed_url, embed_model, _reason_url, _reason_model) = llm.resolve(cfg);
@@ -422,6 +435,7 @@ pub async fn dispatch(cmd: Commands, cfg: &config::Config) {
 					text: &text,
 					mode: &mode,
 					exclude_pending,
+					source_prefix: source_prefix.as_deref(),
 					embed_url,
 					embed_model,
 				},
@@ -440,7 +454,7 @@ pub async fn dispatch(cmd: Commands, cfg: &config::Config) {
 		}
 
 		Commands::Get { id } => crate::commands_graph_ops::cmd_get(cfg, &id).await,
-		Commands::List => crate::commands_graph_ops::cmd_list(cfg),
+		Commands::List { source_prefix } => crate::commands_graph_ops::cmd_list(cfg, source_prefix.as_deref()),
 		Commands::Forget { id, source, force } => match (id, source) {
 			(_, Some(source)) => crate::commands_graph_ops::cmd_forget_source(cfg, &source, force).await,
 			// A --force the per-id path would silently ignore is worse than no

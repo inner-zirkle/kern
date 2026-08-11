@@ -20,6 +20,7 @@ pub(crate) async fn cmd_ingest(
 	text_parts: Vec<String>,
 	file: Option<String>,
 	retention_secs: u64,
+	object_id: Option<String>,
 	embed_url: &str,
 	embed_model: &str,
 	reason_url: &str,
@@ -75,7 +76,7 @@ pub(crate) async fn cmd_ingest(
 	// Identity per ingest, not a shared constant: a constant hash made every
 	// CLI ingest the same source, so each one superseded the previous fact.
 	let src = Source::Inline {
-		hash: util::content_hash(&text),
+		hash: object_id.unwrap_or_else(|| util::content_hash(&text)),
 		section: String::new(),
 	};
 

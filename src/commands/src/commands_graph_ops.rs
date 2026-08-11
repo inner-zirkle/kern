@@ -119,9 +119,20 @@ pub(crate) async fn cmd_get(cfg: &config::Config, id: &str) {
 	}
 }
 
-pub(crate) fn cmd_list(cfg: &config::Config) {
+pub(crate) fn cmd_list(cfg: &config::Config, source_prefix: Option<&str>) {
 	let g: GraphGnn = load_graph(cfg);
-	print_kern(&g.root, &g, 0);
+	if let Some(prefix) = source_prefix {
+		let (scheme, obj_prefix) = match parse_source_prefix(prefix) {
+			Ok(p) => p,
+			Err(e) => {
+				eprintln!("{e}");
+				return;
+			}
+		};
+		list_by_source_prefix(&g, scheme, obj_prefix);
+	} else {
+		print_kern(&g.root, &g, 0);
+	}
 }
 
 fn print_forget(id: &str, removed: u64) {
@@ -195,6 +206,48 @@ fn parse_source_selector(arg: &str) -> Result<(&'static str, &str), String> {
 		return Err(bad());
 	}
 	Ok((scheme, object_id))
+}
+
+fn parse_source_prefix(arg: &str) -> Result<(&'static str, &str), String> {
+	let (scheme, pref) = arg.split_once("://").unwrap_or_else(|| {
+		// Allow bare scheme: e.g. "inline" matches all inline sources
+		(arg, "")
+	});
+	let scheme = Source::parse_scheme(scheme).ok_or_else(|| {
+		format!("unknown source scheme: {scheme} (file, ticket, session, agent, inline)")
+	})?;
+	Ok((scheme, pref))
+}
+
+fn source_matches_prefix(src: &Source, scheme: &str, obj_prefix: &str) -> bool {
+	let (src_scheme, src_obj) = match src {
+		Source::File { path, .. } => ("file", path.as_str()),
+		Source::Ticket { object_id, .. } => ("ticket", object_id.as_str()),
+		Source::Session { session_id, .. } => ("session", session_id.as_str()),
+		Source::Agent { object_id, .. } => ("agent", object_id.as_str()),
+		Source::Inline { hash, .. } => ("inline", hash.as_str()),
+	};
+	src_scheme == scheme && (obj_prefix.is_empty() || src_obj.starts_with(obj_prefix))
+}
+
+fn list_by_source_prefix(g: &GraphGnn, scheme: &str, obj_prefix: &str) {
+	let mut count = 0usize;
+	for k in g.all() {
+		for t in k.entities.values() {
+			if source_matches_prefix(&t.source, scheme, obj_prefix) {
+				println!(
+					"{}  {}  {:.4}",
+					short_id(&t.id),
+					truncate(&t.text(), 120),
+					t.score,
+				);
+				count += 1;
+			}
+		}
+	}
+	if count == 0 {
+		println!("no thoughts match source prefix {scheme}://{obj_prefix}");
+	}
 }
 
 fn print_forget_source(scheme: &str, object_id: &str, out: &SourceForget) {

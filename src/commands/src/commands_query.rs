@@ -12,6 +12,7 @@ pub(crate) struct QueryParams<'a> {
 	pub(crate) text: &'a str,
 	pub(crate) mode: &'a str,
 	pub(crate) exclude_pending: bool,
+	pub(crate) source_prefix: Option<&'a str>,
 	pub(crate) embed_url: &'a str,
 	pub(crate) embed_model: &'a str,
 }
@@ -47,6 +48,7 @@ pub(crate) async fn cmd_query(cfg: &config::Config, params: QueryParams<'_>) {
 		text,
 		mode,
 		exclude_pending,
+		source_prefix,
 		embed_url,
 		embed_model,
 	} = params;
@@ -96,8 +98,39 @@ pub(crate) async fn cmd_query(cfg: &config::Config, params: QueryParams<'_>) {
 		.iter()
 		.map(|st| base_entity_json(&st.entity, st.score))
 		.collect();
+	let entities = if let Some(prefix) = source_prefix {
+		filter_entities_by_source_prefix(entities, prefix)
+	} else {
+		entities
+	};
 	let chains = retrieval::query::format_chains(&g, &result.path_chains);
 	print_results(&serde_json::json!({"entities": entities, "chains": chains}));
+}
+
+fn filter_entities_by_source_prefix(
+	entities: Vec<serde_json::Value>,
+	prefix: &str,
+) -> Vec<serde_json::Value> {
+	let (scheme, obj_prefix) = match prefix.split_once("://") {
+		Some((s, p)) => (s, p),
+		None => (prefix, ""),
+	};
+	entities
+		.into_iter()
+		.filter(|e| {
+			let src = e.get("source");
+			let (src_scheme, src_obj) = match src.and_then(|s| {
+				Some((
+					s.get("scheme")?.as_str()?,
+					s.get("object_id")?.as_str()?,
+				))
+			}) {
+				Some(p) => p,
+				None => return false,
+			};
+			src_scheme == scheme && (obj_prefix.is_empty() || src_obj.starts_with(obj_prefix))
+		})
+		.collect()
 }
 
 pub(crate) async fn cmd_search(
