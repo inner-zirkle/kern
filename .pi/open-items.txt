@@ -1,0 +1,61 @@
+# Open Items from /Users/feb/dev/kern/ROADMAP.md
+
+## Tier 1 — live defects on the default path that fail silently
+9. Live writers: `ingest`/`link` still write locally `[surface]`
+102. The GNN re-embeds the same corpus differently in every process `[retrieval]`
+
+## Tier 3 — the embeddable-endpoint track  
+20. Source-trust weighting `[retrieval]`
+24. RPC socket authentication `[surface]`
+
+## Tier 4 — scaling cliffs
+25. O(N) importance scan per retrieve `[retrieval]`
+31. Structural debt in the hot types `[retrieval]`
+
+## Tier 5 — federation, the rest
+33. Transport security `[federation]`
+34. The `Question` path is an unauthenticated membership oracle `[federation]`
+35. Namespace rotation is unbounded storage `[federation]`
+36. Anti-entropy `[federation]`
+37. Backpressure, divergence metric, and delta write-lock starvation `[federation]`
+38. Peer authority is unbuilt, so Sybil defence has nothing to weight `[federation]`
+39. No Sybil defence is in effect `[federation]`
+40. Remote-injected text is retrievable and reaches an agent's context `[federation]`
+41. Two FL-derived bounds adopted on paper, neither in effect `[federation]`
+42. The gossip wire has no version negotiation `[federation]`
+43. CRDT growth and re-embedding across replicas `[federation]`
+44. Bi-temporal stamps are never federated `[federation]`
+45. Multicast discovery is unreliable with no health signal `[federation]`
+46. One fresh TCP connection per gossip message `[federation]`
+47. Hub phase 3: gossip moves hub-side `[hub]`
+
+## Tier 6 — ingest quality
+48. Source-keyed idempotency at ingest — beside half-closed 2026-07-23 `[ingest]`
+49. The distill prompt is one-shot and global — chunking half-closed 2026-07-22 `[ingest]`
+52. A single-line graviton seed still truncates at the embed context window `[ingest]`
+53. Clustering is vector-only `[lifecycle]`
+54. GC has no convergence gate `[lifecycle]`
+55. Two freshness signals, different half-lives, neither ever tuned `[retrieval]`
+
+## Tier 7 — belief model
+56. An agent cannot register disagreement at all `[ingest]`
+57. No evidence decay — mechanism half-closed 2026-07-22 (default-off) `[lifecycle]`
+58. Supersede chains are unbounded while contested — trigger #1 instrumented 2026-07-22 `[lifecycle]`
+59. `degrade` has no floor, no audit trail and no undo — floor half-closed 2026-07-22 `[retrieval]`
+
+## Tier 8 — retrieval quality, now measurable
+104. Benchmark the full pipeline, which needs turn-level claim provenance — ground half-closed 2026-07-23 `[ingest]`
+61. Move `merge_hits` onto RRF `[retrieval]`
+62. The self-organisation claim is unmeasured — half-closed 2026-07-22 `[retrieval]`
+64. Normalize and re-found the scoring stack `[retrieval]`
+66. RRF weights and mode blends are configurable but never auto-tuned — measurement half-closed 2026-07-23 `[retrieval]`
+69. Speculative decode for the distill leg `[ingest]`
+
+## Tier 9 — process, packaging, and things that rot unnoticed
+93. Line anchors cannot survive a merge, and `docs-check` cannot see it `[process]`
+75. Crash consistency on the DiskANN path `[store]`
+83. Nothing bounds memory deterministically: eviction and spill are both disarmed `[lifecycle]`
+84. Remaining operational odds and ends `[surface]`
+85. Documentation owed, tracked here so it is not lost `[docs]`
+87. Do the preset tiers earn their numbers, now that `relaxed` is the default? — measurement half-closed 2026-07-23 `[eval]`
+99. The watcher's off-limits set is a list of names, not an invariant `[ingest]`

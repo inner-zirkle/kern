@@ -1,0 +1,6 @@
+# pi backup branch — inverse gitignore: track only agent data.
+# The main branch ignores this; this branch ignores everything else.
+/*
+!.gitignore
+!/.pi/
+
