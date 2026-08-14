@@ -9,6 +9,7 @@ import json
 import os
 import subprocess
 import time
+from pathlib import Path
 
 
 class KernProject:
@@ -21,7 +22,10 @@ class KernProject:
 	def __init__(self, kern_bin, tmp_path, llm_url):
 		self.bin = str(kern_bin)
 		self.cwd = tmp_path / "proj"
-		self.runtime = tmp_path / "run"
+		# A short runtime dir, not tmp_path/run: the daemon socket lives under
+		# XDG_RUNTIME_DIR, and a deep pytest tmpdir would exceed SUN_LEN and kill
+		# the bind (kern falls back to /tmp, which this scan would then miss).
+		self.runtime = Path("/tmp") / f"kern-test-{os.getpid()}-{time.time_ns()}"
 		self.llm_url = llm_url
 		config_home = tmp_path / "config"
 		for d in (self.cwd / ".kern", self.runtime, config_home):

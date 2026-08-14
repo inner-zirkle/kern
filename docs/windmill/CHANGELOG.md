@@ -2,6 +2,19 @@
 
 <!-- docs-check: historical -->
 
+- 2026-08-14 — daemon socket bind survives a deep `XDG_RUNTIME_DIR`: the Unix
+  socket path exceeded SUN_LEN (~104) under long tmpdirs (CI, nested
+  worktrees), killing the bind with "path must be shorter than SUN_LEN".
+  `Endpoint::scoped` now falls back to `/tmp/kern-<tag>-<user>.sock` when the
+  runtime-dir path is too long; daemon and clients share the env, so both
+  resolve the same endpoint. e2e harness gives the daemon a short runtime dir
+  (`/tmp/kern-test-<pid>-<ns>`), which also un-flakes the GNN recall test on
+  deep pytest tmpdirs. Verified: recall gates still green — CLI recall@1
+  0.9861/recall@5 1.000/MRR 0.9931, GNN recall@1 0.9861/MRR 0.9931, both above
+  their floors; full quality suite 22 passed; `cargo test --workspace` 1109
+  passed, 0 failed. Decided by: measure-first — the flake was socket length,
+  not retrieval quality.
+
 - 2026-08-14 — retrieval recall/plumbing fix (docs/plans/RECALL_PLAN.md):
   the ~4.5s per-CLI-invocation cost was the resident HNSW rebuild of three
   indexes at process start, racing pi's 3s/5s tool timeouts. Load now opens
@@ -23,7 +36,6 @@
 - 2026-08-11 — deleted two dead files in retrieval: `retrieval_importance_index.rs` + `test_optimization.rs` (neither declared in lib.rs, referenced nonexistent functions, never compiled; -380 lines). Also deleted five dead `test_support` re-exports + `#[allow(unused_imports)]` escape hatch in `commands/src/test_helpers.rs` (zero callers; -6 lines).
 
 - 2026-08-07 — deflaked 3 parallel-run test races: (1) `ingest_queue_refused` in health payload — switched auth-gate envelope test to `graviton list` (owned per-call state, no other test touches it), (2) `cold_tier_pinned_at_capacity` warn-count — removed flaky tracing-subscriber layer interception, verified throttle independently in util, (3) `the_poll_loop_resolves_its_deadline` gap assertion — tolerance 1s to 500ms (clock-stepped box). Also fixed `tokio start_paused` missing in rpc+transport dev-deps (workspace unified the feature but standalone build broke). Decided by: parallel-run flake audit (10-workspace-run gate each).
-
 
 - 2026-08-07 — released v1.4.0, still alpha. Version bumped 1.3.0→1.4.0 and FEATURES.md restamped to the post-split tree (128 `.rs` files across 24 crates, was 180 flat; ~63.6k LoC; reconciled 2026-08-07). Alpha wording in `AGENTS.md` and `README.md:231` deliberately unchanged: leaving alpha is a promise of format stability, and the live policy is still FORMAT_VERSION bump = wipe and reingest, no migrations. Shipping the cleanup does not require making that promise. Decided by: name-the-tradeoff (user chose tag-as-alpha over lowering the recall floor or writing a migration policy under pressure).
 
@@ -102,124 +114,6 @@
   three unit tests pin the resolution branches. Surfaced by an agent-side
   batch writer that had been failing closed on this for weeks, which is why a
   per-item `kern ingest` subprocess storm was never replaced by the batch path.
-
-- 2026-07-27 — v1.3.0 cut. Workspace version 1.2.0 → 1.3.0 (`Cargo.toml`,
-  `Cargo.lock`, `FEATURES.md` header/footer): the surface grew since v1.2.0 —
-  federation plan v0 (signed envelopes on every gossip frame, ring routing,
-  contract kerns with five new wire kinds, the `sign` and `contract_grant`
-  mcp tools — eighteen tools now — and `[gossip]` config keys `ring`,
-  `identity_path`, `sync_interval_secs`, `subscriptions`,
-  `[[gossip.contracts]]`), plus the claim-kind `subClassOf` hierarchy
-  (`claim_kind_parents`, closed-world, query closure over parents).
-  Semver-minor; wire format changed (envelope) under alpha rules — peers
-  upgrade together, no shims. Deps: ed25519-dalek 3, chacha20poly1305 0.11,
-  toml 1; bincode held at 2 (persisted format) and heed at 0.20 (0.22 breaks
-  the external-commit reconcile test) — holds commented in `Cargo.toml`.
-
-  **Decided by:** verify-before-claiming (cut only after the full suite —
-  1020 tests — ran green on the exact tree being installed), supersedes the
-  v1.2.0 cut entry.
-
-- 2026-07-27 — Federation plan v0 implemented (`docs/plans/FEDERATION_PLAN.md`
-  §1–§6, all six phase gates green). ed25519 peer identity + signed wire
-  envelopes (`src/gossip/identity.rs`; verify precedes every per-peer state
-  touch, invalid frames counted); Kleinberg small-world ring with greedy
-  routing (`ring.rs`; 1k-peer sim reaches nearest in ≤ log²n hops for 99%,
-  survives 20% churn); contract-keyed shared kerns where
-  `ContractId = blake3(policy || params)` and `merge.rs` is the default
-  contract's `apply` (`contract.rs`; property-tested commutative/idempotent,
-  summary/diff converges byte-identical in one exchange each way);
-  subscription trees + anti-entropy (`subs.rs`, `handler.rs`; three-node
-  real-socket gate, partition heals in one sync pass); daemon-as-delegate
-  `sign`/`contract_grant` mcp tools (key never crosses the socket; grants
-  move the ContractId and mint the tombstone signature); xchacha20poly1305
-  private kerns (`privacy.rs`; relay-never-sees-plaintext proven by grepping
-  the relay's serialized kern for the sentinel). Question rate budget re-keyed
-  from spoofable `origin` to verified PeerId. Two tree-cycle guards added
-  after fuzzing the 3-node gate: first-parent-wins on SubAck, and a
-  downstream peer is never adopted as upstream. Deviations from the spec,
-  recorded in the plan: iterative (requester-driven) ring join instead of
-  recursive forwarding; `Summary` carries its `(id, lamport)` entries beside
-  the bucket hashes (one round trip instead of per-bucket fetches); the
-  signed-body cache is in-memory in v0. New deps: `ed25519-dalek`, `blake3`,
-  `chacha20poly1305` — all license-clean for MIT; no Freenet code read or
-  copied (clean-room, per the plan's legal note).
-
-  **Decided by:** fix-the-root (the SubAck race was fixed in the protocol
-  guards, not papered over in the test), verify-before-claiming (every phase
-  ships its plan-named gate: sim, property, socket-e2e, sentinel-grep —
-  1008 lib tests green), supersedes the 2026-07-26 federation direction
-  entry's "spec only" status.
-
-- 2026-07-25 — v1.2.0 cut. Workspace version 1.1.0 → 1.2.0 (`Cargo.toml`,
-  `Cargo.lock`, `FEATURES.md` header/footer): the surface grew since v1.1.0 —
-  the sixteenth tool `events` (the ctrl-Watcher change feed) and the
-  `kern mcp --embed-url/--embed-model` per-process override — semver-minor,
-  tagged `v1.2.0` so `release.yml` publishes the 15-target build. Checked and
-  deliberately NOT done: prefixing served tool names with `mcp__` — the
-  `mcp__kern__<tool>` spelling agents see is minted client-side from the
-  `.mcp.json` `mcpServers.kern` key (`ensure_mcp_registered`,
-  `src/commands/mcp_cmd.rs`); the wire names stay bare (`query`, `events`, …,
-  pinned by `definitions_are_well_formed_and_complete`), and renaming them
-  server-side would double-prefix every client to `mcp__kern__mcp__query`.
-
-  **Decided by:** verify-before-claiming (prefix mechanism read from the
-  registration code and the client convention, not assumed from the tool
-  list), fix-the-root (the version records the released surface; the prefix
-  "fix" was refused because the root already provides it).
-
-- 2026-07-25 — repo-state audit reconciled the inventory and site to the tree.
-  A full-feature audit (per-subsystem state, gaps, recorded numbers) found four
-  drifts, all the class the 2026-07-24 site pass named — new surface outrunning
-  the docs. (1) `tools/list` serves **sixteen** tools: `events`, the read-only
-  change feed a ctrl Watcher polls (`src/mcp/tools_events.rs`, pinned second in
-  `definitions_are_well_formed_and_complete`), landed after that pass, so
-  `FEATURES.md` §12 said 15 and the site (`howto/mcp.mdx`, `content/llms.md`)
-  still said fifteen — count, row and bullet added in all three. (2) `kern mcp
-  --embed-url/--embed-model` (`EmbedArgs::apply_to`, `src/commands.rs`), the
-  per-process embed override for container-spawned proxies, was recorded
-  nowhere — added to `FEATURES.md` §14. (3) `howto/mcp.mdx` still warned that
-  proxy mode answers `resources/list`/`prompts/list` with `-32601`, a claim
-  item 81 closed 2026-07-22 — the graphless methods dispatch through the one
-  `handle_graphless_method` on both paths, proven by
-  `every_capability_the_proxy_advertises_is_answered_over_the_stdio_loop`; the
-  callout now states what runs. (4) The `FEATURES.md` header's size stamp had
-  drifted to fiction: 174 tracked `.rs` files at ~59.1k raw lines against the
-  stated "~42.4k across 156" — restated with its measurement method so the next
-  drift is checkable. The audit's quality findings needed no doc change: every
-  number it surfaced (LoCoMo-10, LongMemEval-S, the ground distill-vs-direct
-  gap, the scale tables) is already recorded under items 103/104 and the
-  closed-items ledger. Beside the four, the audit found `docs-check` red on the
-  tree: `732b87b` renamed `src/trnsprt/` → `src/transport/` and no doc
-  followed — 54 dead references across `FEATURES.md` §13/§18 and `ROADMAP.md`,
-  plus one report citation spelled `tests/eval/reports/` for an uncommitted
-  artifact its sibling LoCoMo line spells `eval/reports/`. Paths rewritten to
-  the live tree (this file's own historical entries keep the old spelling —
-  they were true when recorded); `python3 tests/docs_check.py` exits 0 again.
-
-  **Decided by:** verify-before-claiming (tool set taken from
-  `tool_definitions()` and the test's expected array, proxy behavior from the
-  passing test, sizes from `git ls-files | xargs wc -l` — never from the docs'
-  own counts), fix-the-root (the missing tool and flags documented and the
-  false proxy claim corrected, not just numbers bumped).
-
-- 2026-07-24 — published docs reconciled to the live tool set. `tools/list`
-  serves fifteen (`query`, `ingest`, `link`, `forget`, `forget_by_source`,
-  `degrade`, `move`, `promote`, `health`, `graviton`, `claim_kind`, `pulse`,
-  `gc`, `intake_drain`, `setup` — pinned by `definitions_are_well_formed_and_complete`
-  in `src/mcp/tools.rs`), but the site still said thirteen and enumerated only
-  thirteen: `forget_by_source` (host-deletion cascade, item 19) and `promote`
-  (review-lifecycle release, item 21) landed after the last site pass and were
-  invisible to any agent reading the docs. Fixed `howto/mcp.mdx` (count at the
-  top and the verify step, plus a bullet for each missing tool) and
-  `content/llms.md` (count and list). `next build` green (30 static routes),
-  `docs_check` still exit 0. The published page is the one an agent wires
-  against, so a missing tool there is a capability the user never learns exists.
-
-  **Decided by:** verify-before-claiming (tool set taken from the source test's
-  expected array, not the doc's own count; site rebuilt to confirm), fix-the-root
-  (the drift is new tools outrunning the last site pass — added them, not just
-  bumped the number).
 
 - 2026-07-24 — item 93 tax paid again: `FEATURES.md` drifted line anchors
   re-pointed to current source. The live inventory had accumulated 56 anchor
@@ -456,7 +350,6 @@
   `cargo test -p kern --lib` 953 passed, 0 failed, 4 ignored.
   Decided by: fix-the-root, name-the-tradeoff, verify-before-claiming.
 
-
 - 2026-07-22 — item 84 last sub retired: hand-written MCP tool schemas
   accepted as style debt, not a correctness gap. The schemas are hand-written
   JSON in `tools.rs`, correct, unit-tested, and stable; deriving from types
@@ -514,9 +407,7 @@
   move. No code change. Decided by: name-the-tradeoff, the-oracle, fix-the-root.
   Supersedes: nothing.
 
-
 - 2026-08-07 — split the single `kern` crate into a 24-member workspace of concept crates (no `kern-` prefix, llm/src shape): util, base, math, store_core, store, bootstrap, graph, ingest_config, llm, config, gnn, retrieval, ingest, tick, gossip, tick_loop, transport, test_support, health, mcp, rpc, hub, commands, plus the `kern` binary. Each crate has Cargo.toml + README + its own `src/lib.rs`. Cycle-breaks by moving pure helpers into lower crates: `entity_detail_by_id`/`base_entity_json`→retrieval::id_detail; `link_entities`/`forget_entity`/`promote_entity`/`forget_by_source`/`degrade_entity_reasons`→graph::graph_ops; `graviton_rows`→graph::graph_ops; `load_graph`/`save_graph_guarded`/`snapshot_if_dirty`/`reconcile_if_stale`/`bind_embed_model`/`apply_graph_config`/`reload_graph`→bootstrap; `store::base_store`/`store::lock`→store_core (split out so graph→store_core stays acyclic with store::Registry needing them); `launch_dir_join`/`set_launch_dir`→commands. `kern` lib.rs reduced to 25 lines (just `pub use` re-exports). 1108 tests pass, `cargo clippy --all-targets --workspace` clean. Decided by: continue-folding (user-directed structural split, llm/src shape).
-
 
 - 2026-08-07 — release-readiness audit: the tree is **not** release-clean.
   `cargo fmt --check` failed on 20 files left unformatted by the 24-crate split
