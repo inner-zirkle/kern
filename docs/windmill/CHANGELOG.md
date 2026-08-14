@@ -2,6 +2,22 @@
 
 <!-- docs-check: historical -->
 
+- 2026-08-14 — retrieval recall/plumbing fix (docs/plans/RECALL_PLAN.md):
+  the ~4.5s per-CLI-invocation cost was the resident HNSW rebuild of three
+  indexes at process start, racing pi's 3s/5s tool timeouts. Load now opens
+  mmap'd DiskANN snapshots (entity/gnn/reason) stamped with the store epoch;
+  a changed store reconciles the diff into the delta overlay instead of
+  rebuilding (tombstone removed ids, insert changed/new vectors, amortized
+  full rebuild when the diff outgrows the snapshot). `from_saved_with_mode`
+  spills by default. Load: 4.5s → 0.09s. New `kern prune --pattern
+  [--source] [--dry-run] [--force]` subcommand for in-process data hygiene.
+  `lexical_top_boost` defaults to 0.5 (exact-term matches float above
+  embedding neighbours). Restored KERN_DIR env support (data_dir =
+  `$KERN_DIR/data`) — the source had lost it while the installed binary
+  honored it. `kern status` lists sibling stores with a KERN_DIR pin hint.
+  Workspace suite: 1109 tests pass. Decided by: measure-first — the
+  pipeline was 11ms; the failure was load+timeout+noise, not retrieval math.
+
 - 2026-08-11 — deleted dead re-export `bind_embed_model` in commands/src/lib.rs (zero callers in commands crate; only used internally by bootstrap).
 
 - 2026-08-11 — deleted two dead files in retrieval: `retrieval_importance_index.rs` + `test_optimization.rs` (neither declared in lib.rs, referenced nonexistent functions, never compiled; -380 lines). Also deleted five dead `test_support` re-exports + `#[allow(unused_imports)]` escape hatch in `commands/src/test_helpers.rs` (zero callers; -6 lines).
@@ -440,17 +456,6 @@
   `cargo test -p kern --lib` 953 passed, 0 failed, 4 ignored.
   Decided by: fix-the-root, name-the-tradeoff, verify-before-claiming.
 
-
-- 2026-07-22 — item 83 reembed double-alloc half closed: at reembed `vector`
-  and `gnn_vector` now share the `Arc` — `e.vector = v.clone().into();
-  e.gnn_vector = e.vector.clone();` (`src/tick/tasks.rs`,
-  `src/commands/reembed.rs`) — one alloc + one `Arc::clone` instead of two
-  `Arc::from(Vec)`, saving ~76.8 MB at 50k/dim384. No COW, no behavior change:
-  GNN propagation Arc-swaps `gnn_vector` (never in-place), dropping the shared
-  refcount. Proved by `do_reembed_shares_vector_allocation_with_gnn_vector`
-  (`Arc::ptr_eq` after `do_reembed`); negative control (revert → not ptr-equal)
-  reds, green on revert. `cargo test -p kern --lib` 945 passed, 0 failed, 4
-  ignored. Decided by: fix-the-root, name-the-tradeoff, verify-before-claiming.
 
 - 2026-07-22 — item 84 last sub retired: hand-written MCP tool schemas
   accepted as style debt, not a correctness gap. The schemas are hand-written
