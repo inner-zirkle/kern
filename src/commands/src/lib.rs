@@ -14,8 +14,8 @@ pub mod commands_route;
 pub(crate) use self::commands_mcp_cmd::ensure_mcp_registered;
 #[allow(unused_imports)]
 pub(crate) use bootstrap::{
-	apply_graph_config, load_graph, reconcile_if_stale, reload_graph,
-	save_graph_guarded, save_graph_unguarded, snapshot_if_dirty, SharedGraph,
+	apply_graph_config, load_graph, reconcile_if_stale, reload_graph, save_graph_guarded,
+	save_graph_unguarded, snapshot_if_dirty, SharedGraph,
 };
 
 use std::path::{Path, PathBuf};
@@ -166,6 +166,23 @@ pub enum Commands {
 		/// caller can see, not a source's worth of them. Paired in `dispatch`,
 		/// NOT with clap's `requires`: that does not fire for a SetTrue flag, so
 		/// `forget --force <id>` was accepted and silently ignored.
+		#[arg(long)]
+		force: bool,
+	},
+	/// Remove every thought whose text contains PATTERN (case-insensitive),
+	/// optionally narrowed to one source. In-process data hygiene — one store
+	/// load, no per-thought `forget` calls. Facts are kept unless --force
+	/// (same guard as `forget`).
+	Prune {
+		/// Substring matched case-insensitively against thought text.
+		pattern: String,
+		/// Narrow to one source: `<scheme>://<object_id>`.
+		#[arg(long)]
+		source: Option<String>,
+		/// Report what would be removed without mutating anything.
+		#[arg(long)]
+		dry_run: bool,
+		/// Also remove local Facts (the junk kind) — same guard as `forget`.
 		#[arg(long)]
 		force: bool,
 	},
@@ -441,6 +458,13 @@ pub async fn dispatch(cmd: Commands, cfg: &config::Config) {
 
 		Commands::Get { id } => crate::commands_graph_ops::cmd_get(cfg, &id).await,
 		Commands::List => crate::commands_graph_ops::cmd_list(cfg),
+		Commands::Prune {
+			pattern,
+			source,
+			dry_run,
+			force,
+		} => crate::commands_graph_ops::cmd_prune(cfg, &pattern, source.as_deref(), dry_run, force),
+
 		Commands::Forget { id, source, force } => match (id, source) {
 			(_, Some(source)) => crate::commands_graph_ops::cmd_forget_source(cfg, &source, force).await,
 			// A --force the per-id path would silently ignore is worse than no

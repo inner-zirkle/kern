@@ -43,6 +43,66 @@ pub fn forget_entity(g: &mut GraphGnn, id: &str, force: bool) -> Result<usize, &
 	Ok(edges_before.saturating_sub(edges_after))
 }
 
+/// Remove every thought whose text contains `pattern` (case-insensitive),
+/// optionally narrowed to one source. In-process data hygiene — one store load,
+/// the opposite of a `forget --source` per matching thought (RECALL_PLAN F2a).
+/// Facts are kept unless `force`, the same guard as [`forget_entity`]. `dry_run`
+/// classifies without mutating. Returns the forget tally plus up to 10 sample
+/// texts for the preview.
+pub fn prune_matching(
+	g: &mut GraphGnn,
+	pattern: &str,
+	scheme: Option<&str>,
+	object_id: Option<&str>,
+	force: bool,
+	dry_run: bool,
+) -> (SourceForget, Vec<String>) {
+	let pat = pattern.to_lowercase();
+	let mut samples = Vec::new();
+	// (id, guarded): guarded = a local Fact the guard would keep without --force.
+	let mut matched: Vec<(String, bool)> = Vec::new();
+	for kern in g.all() {
+		let remote = crate::merge::is_remote_kern_id(&kern.id);
+		for t in kern.entities.values() {
+			let src_ok = match (scheme, object_id) {
+				(Some(s), Some(o)) => t.source.scheme() == s && t.source.object_id() == o,
+				_ => true,
+			};
+			if !src_ok || !t.text().to_lowercase().contains(&pat) {
+				continue;
+			}
+			if samples.len() < 10 {
+				samples.push(t.text().chars().take(80).collect());
+			}
+			matched.push((t.id.clone(), t.is_fact() && !force && !remote));
+		}
+	}
+
+	let mut out = SourceForget::default();
+	for (id, guarded) in matched {
+		if dry_run {
+			if guarded {
+				out.kept_facts += 1;
+			} else {
+				out.removed_entities += 1;
+			}
+			continue;
+		}
+		match forget_entity(g, &id, force) {
+			Ok(edges) => {
+				out.removed_entities += 1;
+				out.removed_edges += edges;
+			}
+			// Same classification as the dry run: the guard refused it.
+			Err("cannot forget a fact") => out.kept_facts += 1,
+			// The id came out of the graph one statement ago; a miss means a
+			// duplicate id across kerns already took it.
+			Err(_) => {}
+		}
+	}
+	(out, samples)
+}
+
 pub fn forget_by_source(
 	g: &mut GraphGnn,
 	scheme: &str,
@@ -213,34 +273,5 @@ pub fn graviton_rows(g: &crate::graph::GraphGnn) -> Vec<GravitonRow> {
 		.collect()
 }
 #[cfg(test)]
-mod tests {
-	use super::*;
-	#[test]
-	fn link_vector_prefers_the_reason_embedding() {
-		let v = link_vector(
-			Some(vec![1.0, 2.0, 3.0]),
-			&[0.0, 0.0, 0.0],
-			&[9.0, 9.0, 9.0],
-		);
-		assert_eq!(
-			v,
-			vec![1.0, 2.0, 3.0],
-			"an embedded reason wins over the midpoint"
-		);
-	}
-
-	#[test]
-	fn link_vector_falls_back_to_endpoint_midpoint() {
-		let v = link_vector(None, &[0.0, 2.0], &[4.0, 6.0]);
-		assert_eq!(
-			v,
-			vec![2.0, 4.0],
-			"no embedding -> midpoint of the two endpoints"
-		);
-		assert_eq!(
-			v,
-			vec![2.0, 4.0],
-			"no embedding -> midpoint of the two endpoints"
-		);
-	}
-}
+#[path = "tests/graph_ops_test.rs"]
+mod graph_ops_tests;
