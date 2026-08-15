@@ -33,6 +33,12 @@ pub struct Config {
 	// whole pass of records whose sources differ, so the scheme is only known
 	// per job. `job()` resolves it — the single gate every producer passes.
 	pub review_policy: ReviewPolicy,
+	/// Enable the pre-ingestion noise filter. When `true`, text is checked
+	/// against a set of patterns (built-in or custom) before entering the
+	/// graph.
+	pub filter_enabled: bool,
+	/// Custom filter patterns. Empty = use built-in defaults.
+	pub filter_patterns: Vec<String>,
 }
 
 impl Default for Config {
@@ -43,6 +49,8 @@ impl Default for Config {
 			valid_from: None,
 			valid_until: None,
 			review_policy: ReviewPolicy::new(),
+			filter_enabled: true,
+			filter_patterns: Vec::new(),
 		}
 	}
 }

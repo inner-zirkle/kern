@@ -645,10 +645,20 @@ pub struct IngestConfig {
 	// an `exclude_pending` query until `promote` curates them. Like
 	// `source_trust` this weights the CHANNEL, not the author (ROADMAP 20).
 	pub review_policy: ReviewPolicy,
+	/// Enable the pre-ingestion noise filter. Default: true.
+	#[serde(default = "default_filter_enabled")]
+	pub filter_enabled: bool,
+	/// Custom filter patterns. Empty = use built-in defaults.
+	#[serde(default)]
+	pub filter_patterns: Vec<String>,
 }
 
 fn default_dedup_threshold_by_kind() -> [Option<f64>; EntityKind::Conclusion as usize + 1] {
 	[None; EntityKind::Conclusion as usize + 1]
+}
+
+const fn default_filter_enabled() -> bool {
+	true
 }
 
 impl Default for IngestConfig {
@@ -657,6 +667,8 @@ impl Default for IngestConfig {
 			dedup_threshold: INGEST_DEDUP_THRESHOLD,
 			dedup_threshold_by_kind: default_dedup_threshold_by_kind(),
 			review_policy: ReviewPolicy::new(),
+			filter_enabled: default_filter_enabled(),
+			filter_patterns: Vec::new(),
 		}
 	}
 }
@@ -675,6 +687,8 @@ impl IngestConfig {
 		ingest_config::Config {
 			dedup_threshold: self.dedup_threshold,
 			dedup_threshold_by_kind: self.dedup_threshold_by_kind,
+			filter_enabled: self.filter_enabled,
+			filter_patterns: self.filter_patterns.clone(),
 			..Default::default()
 		}
 		.validate()

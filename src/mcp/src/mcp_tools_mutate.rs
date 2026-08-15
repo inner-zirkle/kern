@@ -249,6 +249,24 @@ impl Server {
 			session_id: p.session_id,
 		};
 
+		// Pre-ingestion noise filter: reject known-pattern text before
+		// it enters any ingest path.
+		if self.cfg.ingest.filter_enabled {
+			let filter = ingest::WriteFilter::new(&self.cfg.ingest.filter_patterns);
+			match filter.check(&p.text) {
+				ingest::FilterResult::Reject { reason } => {
+					ingest::increment_filter_rejected();
+					tracing::info!(
+						target: "kern.ingest.filter",
+						reason = %reason,
+						"mcp ingest filtered (noise pattern rejected)"
+					);
+					return tool_error(&format!("text rejected by noise filter: {reason}"));
+				}
+				ingest::FilterResult::Pass => {}
+			}
+		}
+
 		if p.sync {
 			let fut = self.worker.run(
 				p.text,

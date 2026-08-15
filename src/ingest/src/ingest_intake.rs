@@ -163,6 +163,26 @@ async fn drain_entry(
 		archive(path, done);
 		return true;
 	}
+	// Pre-ingestion noise filter: reject known-pattern text before
+	// it enters the graph.
+	if cfg.filter_enabled {
+		let filter = crate::ingest_filter::WriteFilter::new(&cfg.filter_patterns);
+		match filter.check(&text) {
+			crate::ingest_filter::FilterResult::Reject { reason } => {
+				crate::ingest_filter::increment_filter_rejected();
+				tracing::info!(
+					target: "kern.ingest.filter",
+					reason = %reason,
+					path = %path.display(),
+					"intake entry rejected by noise filter; archiving to filtered/"
+				);
+				let filtered_dir = done.with_file_name("filtered");
+				archive(path, &filtered_dir);
+				return true;
+			}
+			crate::ingest_filter::FilterResult::Pass => {}
+		}
+	}
 	if path.extension().and_then(|s| s.to_str()) != Some("txt") {
 		return drain_document(path, &text, done, worker, cfg).await;
 	}

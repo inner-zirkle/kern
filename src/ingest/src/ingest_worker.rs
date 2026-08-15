@@ -204,6 +204,34 @@ impl Worker {
 		config: Config,
 		scoping: Scoping,
 	) -> Outcome {
+		// Pre-ingestion noise filter: reject known-pattern text before
+		// it enters the queue.
+		if config.filter_enabled {
+			let filter = crate::ingest_filter::WriteFilter::new(&config.filter_patterns);
+			match filter.check(&text) {
+				crate::ingest_filter::FilterResult::Reject { reason } => {
+					crate::ingest_filter::increment_filter_rejected();
+					tracing::info!(
+						target: "kern.ingest.filter",
+						reason = %reason,
+						"ingest filtered (noise pattern rejected)"
+					);
+					return Outcome {
+						status: OutcomeStatus::Filtered(reason),
+						doc_id: util::content_hash(&text),
+						total_chunks: 0,
+						embedded_chunks: 0,
+						failed_chunks: 0,
+						transient_failures: 0,
+						permanent_failures: 0,
+						failures: Vec::new(),
+						message: "rejected by noise filter".into(),
+					};
+				}
+				crate::ingest_filter::FilterResult::Pass => {}
+			}
+		}
+
 		let (result_tx, result_rx) = oneshot::channel();
 		let job = job(
 			text,
@@ -264,6 +292,7 @@ fn outcome_log_severity(o: &Outcome) -> &'static str {
 		OutcomeStatus::Failed => "error",
 		OutcomeStatus::Partial => "warn",
 		OutcomeStatus::Committed | OutcomeStatus::Deduped => "info",
+		OutcomeStatus::Filtered(_) => "info",
 	}
 }
 
@@ -415,11 +444,12 @@ fn classify_status(embedded_chunks: usize, failed_chunks: usize) -> OutcomeStatu
 
 // ==== [outcome] ====
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OutcomeStatus {
 	Committed,
 	Partial,
 	Deduped,
+	Filtered(String),
 	Failed,
 }
 
@@ -429,6 +459,7 @@ impl OutcomeStatus {
 			Self::Committed => "committed",
 			Self::Partial => "partial",
 			Self::Deduped => "deduped",
+			Self::Filtered(_) => "filtered",
 			Self::Failed => "failed",
 		}
 	}

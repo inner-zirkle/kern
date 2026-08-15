@@ -19,6 +19,9 @@ pub use ingest_config::{review_for, valid_until_from_retention, Config, ReviewPo
 pub use llm::LlmFunc;
 
 pub use crate::ingest_dedup as dedup;
+pub use crate::ingest_filter::{
+	filter_rejected_count, increment_filter_rejected, FilterResult, WriteFilter,
+};
 pub use crate::ingest_direct as direct;
 pub use crate::ingest_distill as distill;
 pub use crate::ingest_file_watcher as file_watcher;
