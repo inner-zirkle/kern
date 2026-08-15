@@ -1,0 +1,134 @@
+# Seed the graph
+
+> http://localhost:3000/kern/howto/seed/
+
+Push existing knowledge — design docs, ADRs, README, notes — into a fresh graph. Needs a running daemon ([Install & run](http://localhost:3000/kern/howto/install-run.txt)) and a reachable embedder — nothing is stored if the embedder is down.
+
+## Step 1 — Add gravitons
+
+Named focus areas: ingest routes each thought to the nearest one, ranking boosts thoughts near one. Seed first — content ingested before any graviton exists lands in `generic` and stays there.
+
+MCP `graviton` tool, once per focus area:
+
+```json
+{ "action": "add", "name": "decisions",   "text": "We chose LMDB over sled because readers never block writers.\nWe rejected a pluggable backend; an external store adds a network hop.\nDecision: contradiction detection runs on the background tick, with rationale recorded." }
+{ "action": "add", "name": "architecture", "text": "One long-running daemon per working directory owns the knowledge graph.\nRetrieval seeds candidates from HNSW and BM25, then expands over reason edges.\nPersistence is a single LMDB environment." }
+{ "action": "add", "name": "preferences",  "text": "Code style: as few comments as possible.\nOne responsibility per file, split early.\nAlways run the exact gate command before claiming green." }
+```
+
+CLI equivalent:
+
+```bash
+kern graviton add decisions "We chose LMDB over sled because readers never block writers.
+We rejected a pluggable backend; an external store adds a network hop."
+kern graviton list
+```
+
+Rules:
+
+- **Example statements, one per line** — shaped like the claims you want routed there. Each line embedded separately, mean-pooled into the pull vector; measured to route markedly better than an abstract description or one concatenated blob.
+- Each line is one embed call, no chunking — keep it under the embedding model's context window.
+- Optional `mass` (default `1.0`): routing compares `distance / mass`, so `mass = 2.0` claims content from roughly twice as far away.
+
+> **Three to six is usually right.**
+Too few: one bucket. Too many: each starved. Dense `generic` clusters promote themselves into new gravitons over time.
+
+
+## Step 2 — Register claim kinds (optional)
+
+Built-ins (`preference`, `decision`, `project`, `fact`, `code-fact`, `reference`, `procedural`) cover most material. Extras via `claim_kind`; registered kinds are offered to the distillation LLM alongside built-ins:
+
+```json
+{ "action": "add", "name": "incident",  "description": "A production incident: what broke, the impact, and the remediation." }
+{ "action": "add", "name": "benchmark", "description": "A measured performance result and the conditions it was measured under." }
+```
+
+```bash
+kern claim-kind add incident "A production incident: what broke, the impact, and the remediation."
+kern claim-kind rm incident
+```
+
+Per-ingest chunking context: free-text `hint` on the `ingest` call — a prompt hint, not a kind.
+
+## Step 3 — Push the content in
+
+### Direct ingest, per document
+
+`ingest` MCP tool, text plus optional provenance:
+
+```json
+{
+  "text": "<the document body>",
+  "source": "file",
+  "object_id": "docs/decisions/0007-storage-engine.md",
+  "title": "ADR 7 — storage engine",
+  "hint": "an architecture decision record",
+  "sync": true
+}
+```
+
+- `sync: true`: blocks until complete, returns the outcome — use when seeding; the fire-and-forget default gives a batch no way to report failures.
+- `source`: provenance shape — `inline` (default), `file`, `session`, `agent`, or any other string (treated as a ticket system id).
+- `object_id`: stable identity — re-ingest with the same `object_id` is a revision, not a new object.
+
+CLI equivalent:
+
+```bash
+kern ingest --file docs/decisions/0007-storage-engine.md
+kern ingest "We chose LMDB because readers never block writers."
+```
+
+> **The CLI and the daemon are separate writers.**
+`kern ingest` opens the graph directly and can race a running daemon — bulk seed via MCP against the live daemon, or CLI with the daemon stopped, never both. Also deliberate: CLI ingest is `user`-sourced at full confidence → **facts**, immune to eviction; MCP callers are agents, clamped below fact confidence, subject to decay. Material that must survive GC forever wants the CLI path.
+
+
+### Bulk, through the intake
+
+Drop files into `<cwd>/.kern/intake/`; daemon drains (default poll 5s):
+
+```bash
+mkdir -p .kern/intake
+cp docs/decisions/*.md .kern/intake/
+```
+
+| dropped file | becomes | needs |
+|---|---|---|
+| `*.txt` | a session transcript, distilled into typed claims | the reason LLM |
+| anything else | a `Document`, stored whole and chunked | the embedder only |
+| not valid UTF-8 | quarantined into `.kern/intake/failed/` | — |
+
+Drained files move to `.kern/intake/done/` once everything ingested; unreachable LLM/embedder leaves them queued for retry. Intake for prose that needs interpreting; direct ingest when the text already is the claim.
+
+## What happens to your text on the way in
+
+Direct ingest does no LLM work. Two behaviors shape seed files:
+
+- **Paragraph splitting.** Splits on blank lines; whole text also stored as one `Document` alongside the chunks. **One idea per paragraph** — a wall of text becomes one undifferentiated chunk.
+- **Normal acceptance per chunk.** Graph-wide near-duplicate check (cosine ≥ the preset's dedup threshold, `0.98` on the default `relaxed`), then routing to the nearest graviton. Re-running a seed collapses byte-identical content; a reworded version dedupes only above the threshold.
+
+Contradiction handling applies: a document may supersede a stored claim, but only on a same-kind near-duplicate with an unambiguous classifier verdict — anything less leaves both standing.
+
+→ [Acceptance & routing](http://localhost:3000/kern/concepts/acceptance.txt) · [Time & contradiction](http://localhost:3000/kern/concepts/time.txt)
+
+## Step 4 — Check it landed
+
+```bash
+kern health
+```
+
+- **Thought count moved** roughly as expected. Zero → embedding failed; see [Configure models](http://localhost:3000/kern/howto/configure.txt).
+- **Thoughts distributed across gravitons.** All-in-one: graviton texts too similar, or content seeded before gravitons existed.
+- **No `MISMATCH` on `embed:`.** If present: `kern reembed` before trusting the counts.
+
+Confirm retrieval (from MCP, the `query` tool exercises the full pipeline):
+
+```bash
+kern search "which storage engine did we choose" --k 5
+kern list
+```
+
+## After seeding
+
+Nothing further. Sessions populate via the intake; the tick folds seeded content into the same heat, decay, and clustering cycle.
+
+→ [Intake & recall](http://localhost:3000/kern/howto/intake-recall.txt) · [Heat, decay & self-compaction](http://localhost:3000/kern/concepts/heat-and-compaction.txt)

@@ -1,0 +1,51 @@
+# CRDTs over consensus
+
+> http://localhost:3000/kern/decisions/crdts-over-consensus/
+
+## Decision
+
+Federated state converges through per-field merge operations that commute — no leader, no lock, no consensus protocol; counters and LWW registers are live on the wire, anti-entropy is not built, federation itself off by default.
+
+## Why
+
+- kern daemons are laptops: they sleep, drop off, rejoin hours later. Gossip is best-effort flooding — any message can arrive late, twice, or never.
+- Commutative, associative, idempotent merges make the transport *allowed* to be unreliable — order and duplication stop mattering.
+- Target is strong eventual consistency: replicas that saw the same updates hold the same state, any order, no coordination round.
+
+Per-field joins:
+
+| Field | Join |
+| --- | --- |
+| access / traversal counters | G-Counter: per-replica slot, merge = pointwise max, value = sum |
+| `created_at` | min (earliest observation wins) |
+| `accessed_at`, `updated_at` | max |
+| edge score, `valid_until` | LWW on `(lamport, producer)` — never wall clock |
+| `status` | monotone toward `Superseded`, never back |
+
+Load-bearing details:
+
+- Deltas carry the sender's absolute slot total, not an increment — increments are lost if an earlier delta was missed; absolute totals self-heal.
+- LWW ties break on `(lamport, producer)`, so clock skew cannot lose an update.
+
+## Rejected
+
+| Alternative | Why it lost |
+| --- | --- |
+| Raft/Paxos leader | leader sleeps (laptops do) → fleet stalls or elects among unreachable peers; failover machinery for two laptops |
+| Distributed locks | network round trip on the write path; no correct behaviour when the holder is unreachable |
+| Wall-clock LWW everywhere | two concurrent `+1`s must sum to `+2` but LWW keeps one; clock skew makes "last" a lie |
+
+## Trade-off accepted
+
+- No anti-entropy — a replica that misses a delta stays behind until an absolute-total delta or entity sync covers the gap; entity sync carries only the hottest 32, so cold state has no bounded propagation guarantee.
+- Confidence never crosses the wire — `conf_alpha`/`conf_beta` exempt from merge; a max-join on belief would be an irreversible poisoning pin.
+- Statements never imported — an entity's id is the content hash of its text; a differing peer asserts text its id doesn't hash to and is rejected outright.
+- CRDT semantics enforced by hand at call sites, not by typed registers.
+- Convergence of state, not truth — two contradicting facts survive on both machines; adjudication belongs to supersession, not a merge thread.
+
+> **SEC is not Byzantine tolerance.**
+CRDTs guarantee convergence among honest replicas. Hostile peers are bounded
+by the inbound delta clamp, the quarantined remote namespace, and signal
+stripping at the boundary — see
+[Knowledge, not gradients](http://localhost:3000/kern/decisions/knowledge-not-gradients.txt) and
+[Federation](http://localhost:3000/kern/concepts/federation.txt).

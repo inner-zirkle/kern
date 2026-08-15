@@ -1,0 +1,15 @@
+# Design decisions
+
+> http://localhost:3000/kern/decisions/
+
+One page per non-obvious mechanism: what was decided, why, what lost, what we knowingly gave up — current behaviour lives in [Concepts](http://localhost:3000/kern/../concepts/why-kern.txt).
+
+| Decision | In one sentence |
+| --- | --- |
+| [Stigmergy over gardening](http://localhost:3000/kern/stigmergy-over-gardening.txt) | Forgetting is driven by a decaying heat scalar deposited by use, not by retention policies or manual curation. |
+| [PageRank for authority](http://localhost:3000/kern/pagerank-authority.txt) | Retrieval runs a damped, query-personalised PageRank over the reason graph and fuses it by rank. |
+| [Bayesian confidence](http://localhost:3000/kern/bayesian-confidence.txt) | Belief in a claim is a Beta distribution updated by weighted observations, not a scalar the last writer overwrites. |
+| [Edit convergence](http://localhost:3000/kern/edit-convergence.txt) | Conflicting statements resolve by supersession chains, not Wikipedia-style revision machinery. |
+| [CRDTs over consensus](http://localhost:3000/kern/crdts-over-consensus.txt) | Replicas converge through commutative per-field merges — no leader, no locks. |
+| [Knowledge, not gradients](http://localhost:3000/kern/knowledge-not-gradients.txt) | Peers gossip typed claims, never model updates; only federated learning's robustness tricks were kept. |
+| [DiskANN-style spill](http://localhost:3000/kern/diskann-spill.txt) | Past a size threshold the vector index spills to a memory-mapped Vamana snapshot; opt-in, not default. |

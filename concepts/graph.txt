@@ -1,0 +1,83 @@
+# The graph: nodes, edges, claims
+
+> http://localhost:3000/kern/concepts/graph/
+
+Memory is a graph: *thoughts* connected by *justified edges*, held in a tree of kerns, persisted to one LMDB file. The data model every other page assumes.
+
+## Why a graph, not a vector store
+
+Similarity is symmetric, unlabelled, query-time only. A kern edge is a stored, typed, directional assertion. Buys:
+
+- **Traversal** — retrieval expands from seeds along edges; a non-matching thought is reachable through one that matches. (Reaching is not yet ranking — caveat in [Retrieval](http://localhost:3000/kern/concepts/retrieval.txt).)
+- **Explanation** — edges carry a written reason; results return the chain walked.
+- **Non-similar relations** — "deadline is March" / "deadline is April": near-identical vectors, opposite meanings — stored explicitly as a supersede edge. See [Time](http://localhost:3000/kern/concepts/time.txt).
+
+## Thoughts
+
+One atomic unit of memory; `kind` decides treatment:
+
+| Kind | Meaning |
+| --- | --- |
+| `Fact` | Durable assertion from a trusted source. Never auto-forgotten while active. |
+| `Claim` | The default. Distilled from a session; may or may not survive. |
+| `Document` | A chunk of an ingested source document. |
+| `Question` / `Conclusion` | Internal-only — seeded and resolved by the system itself. |
+
+Callers may supply only `Fact` and `Claim` (rest rejected at the MCP surface); `Fact` additionally requires a trusted source (user or agent, not an arbitrary file).
+
+Also on a thought:
+
+- **Confidence** — Beta distribution; corroborations and contradictions are observations, so a claim seen five times outranks one seen once.
+- **Heat + access counts** — drive eviction; see [Heat](http://localhost:3000/kern/concepts/heat-and-compaction.txt).
+- **Two vectors** — content embedding + structural embedding recomputed from the neighbourhood; retrieval blends both.
+- **Validity window + status** (`Active`/`Superseded`) — bi-temporal machinery; see [Time](http://localhost:3000/kern/concepts/time.txt).
+- **Provenance** — typed source: file, ticket, session, agent, or inline.
+
+## Justified edges
+
+`from` → `to`, with a kind, optional explanatory text, own vector:
+
+| Kind | Meaning |
+| --- | --- |
+| `Similarity` | Attached at commit to the nearest neighbour — no thought is isolated. |
+| `Provenance` | Thought → its source document. |
+| `Supersedes` | New revision → the one it replaced. |
+| `Rephrase` | Same thought, different wording; alternate phrasing lives in the edge text. |
+| `Question` / `Spawn` / `Ratification` | Question linkage, kern lineage, corroboration. |
+
+## Claims, not raw transcripts
+
+A transcript in `.kern/intake/` is never stored as memory. One LLM pass distills typed claims — atomic (independently retrievable, supersedable), typed at birth (kind-aware retention), deduplicated against everything known. Empty distillation archives the delta; no output at all (outage) leaves it queued for retry — nothing silently lost. See [Acceptance](http://localhost:3000/kern/concepts/acceptance.txt).
+
+## Identity: content hashes
+
+Id = SHA-256 of the text.
+
+- Identical content = same node everywhere, forever. Federation merge is set union — no coordinator.
+- **Text and vector never overwritten under an existing id** — a near-duplicate with different phrasing gets a `Rephrase` edge; the tick decides contradiction later.
+- A duplicate (cosine above the preset's dedup threshold — 0.98 on default `relaxed`) is not discarded: it bumps the existing thought's confidence.
+
+## The kern tree
+
+Thoughts live in `Kern` containers in a tree. A named kern has a **graviton** — label, centroid vector, mass (default 1.0). Routing descends by `cosine_distance / mass` — a heavier graviton attracts more strongly. The root never holds thoughts; no match falls to a `generic` catch-all. See [Acceptance](http://localhost:3000/kern/concepts/acceptance.txt).
+
+```mermaid
+flowchart TD
+    C[intake delta .txt] -->|LLM distill| CL[typed claims]
+    CL -->|embed| A{dedup?}
+    A -->|near-duplicate| D[bump confidence<br/>+ Rephrase edge]
+    A -->|new| R[route down kern tree]
+    R --> K[commit into leaf kern]
+    K --> S[Similarity edge<br/>→ nearest neighbour]
+    K --> P[Provenance edge<br/>→ source document]
+    K --> H[hot tier]
+    H -->|"heat decay + GC"| CO[cold tier: capped 50k]
+```
+
+## Storage
+
+One LMDB environment per data directory, three tables: kern rows, cold tier, graph metadata. Values are versioned zstd — an older reader rejects a newer file rather than misparsing it.
+
+- **Int8-quantized vectors** on disk (~4× smaller); structural vectors recomputed, not persisted.
+- **Epoch-guarded writes** — a stale in-memory snapshot never overwrites newer disk state.
+- **Two tiers** — GC spills to the cold tier *before* dropping from memory; a failed spill keeps it hot. Cold tier: capped (50,000 entries), unindexed tail, searched only when the hot graph comes up short. Active `Fact`s and `Document`s never evicted. Past the cap the oldest rows genuinely go — each drop counted by `health`.

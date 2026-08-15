@@ -1,0 +1,73 @@
+# The retrieval pipeline
+
+> http://localhost:3000/kern/concepts/retrieval/
+
+A query seeds candidates from three sources (dense vectors, BM25, importance scan), fuses them by rank, walks the reason graph, then boosts, filters, diversifies. LLM-free except embedding the query text — no HyDE, no rerank, no synthesis; the caller gets scored thoughts, edges, and path chains, and synthesizes itself.
+
+```mermaid
+flowchart TD
+    Q[query text + embedding] --> S1[dense seed: ANN]
+    Q --> S2[lexical seed: BM25]
+    Q --> S3[importance scan: heat + facts]
+    S1 --> PR[personalized PageRank]
+    S2 --> PR
+    S1 --> F[RRF fusion]
+    S2 --> F
+    S3 --> F
+    PR --> F
+    F --> E[beam expansion over reason edges]
+    E --> M[merge seeds + neighbours]
+    M --> B[boosts: confidence, access, fact, gravity]
+    B --> FD[filter: superseded, floor, query options]
+    FD --> D[dedup by section + MMR]
+    D --> C[cold-tier backfill]
+```
+
+## Stages
+
+- **Dense seeding** — content-vector index + structural (GNN) index, blended 0.4/0.6 (fixed constant, not tuned). Query filters (kind, source, confidence, time window) applied *during* ANN traversal — a filtered top-15 is actually 15.
+- **Lexical seeding** — BM25 over an in-RAM inverted index. Catches the literal tokens embedders smooth away: identifiers, error codes, version strings.
+- **Importance scan** — query-independent third source: anything over a low cosine floor that is a `Fact` or accessed 3+ times. O(N) per query (the clearest scaling gap); down-weighted so popular-but-irrelevant cannot ride to the top.
+- **PageRank** — personalized: teleport to the query's seeds, damping 0.85. What the matching neighbourhood keeps pointing at — a signal cosine cannot produce. Rationale: [PageRank for authority](http://localhost:3000/kern/decisions/pagerank-authority.txt).
+- **RRF fusion** — by rank, not score: BM25, cosine, and rank mass are not comparable numbers, so no normalization to tune or break.
+- **Expansion** — bounded beam search over reason edges from every seed; each surviving path returned as a chain of entities and labelled edges.
+- **Merge + boosts** — corroboration bonus for entities found by two routes; then score × confidence, an access/recency term, a flat `Fact` bonus, graviton pull (max over gravitons — no double-count).
+- **Filter, dedup, MMR** — superseded dropped; delivery floor applies unless nothing clears it (weak results over nothing); same-section chunks collapse to their best; MMR λ 0.75.
+- **Cold backfill** — fewer than `k` hot results scans the cold tier, flags hits `cold:true`; `as_of` stays exact over backfill.
+
+> **A reason edge cannot yet lift its neighbour into the results.**
+Measured, not suspected: over 8 linked A→B pairs probed with text matching only A, the edge moves one pair by one rank. An entity reached both by content and across an edge keeps the larger of its two scores — the edge contributes nothing. **No claim that traversal improves what is recalled is true today.** Item 86 in [`ROADMAP.md`](https://github.com/inner-zirkle/kern/blob/main/docs/windmill/ROADMAP.md).
+
+
+## Indexes
+
+| Index | Notes |
+| --- | --- |
+| HNSW | Resident, the default. Memory for latency; rebuilt on load. |
+| DiskANN | Opt-in via `[graph] disk_threshold`, off by default. Mmapped disk graph for kerns too big to stay resident; held to recall@10 ≥ 0.90 vs brute force. [DiskANN-style spill](http://localhost:3000/kern/decisions/diskann-spill.txt). |
+| BM25 | In-RAM inverted index; memory proportional to vocabulary. |
+
+Vectors stored int8-quantized (4× smaller); a test pins int8 top-10 agreement with full-precision float at ≥ 75%. Binary quantization exists but is deliberately not user-selectable — recall floor too low without a rescoring pass.
+
+## Structural vector
+
+A background tick trains a small per-kern GNN over the real reason edges, writing each thought a second, structural vector — thoughts that never share vocabulary drift together if the graph keeps connecting them. Weighted 0.6 in dense seeding. Needs 128+ thoughts in a kern; the most expensive background cost.
+
+## Measurement
+
+e2e drives `kern query` over a self-authored corpus with no LLM in scoring: recall@1 **0.9583**, recall@5 **1.0000**, MRR **0.9792** (2026-07-21, reproducible bit-for-bit). Two limits travel with it:
+
+- Floors sit below the measured values — a **regression detector**: says kern got worse, never that kern is good.
+- Embedder is a deterministic feature-hashed bag of words — measures kern's machinery over a fixed lexical signal, not an embedding model's semantics.
+
+>
+No number here is comparable to anything Zep, Mem0, or Letta publish — different corpus, embedder, scoring. kern makes **no quality claim of any kind**. Never quote a retrieval number that did not come from a run.
+
+
+## Related
+
+- [The graph](http://localhost:3000/kern/concepts/graph.txt) — the structure retrieval walks.
+- [Acceptance](http://localhost:3000/kern/concepts/acceptance.txt) — how thoughts get in.
+- [Time](http://localhost:3000/kern/concepts/time.txt) — why superseded thoughts never seed; `as_of`.
+- [Heat & compaction](http://localhost:3000/kern/concepts/heat-and-compaction.txt) — where access counts come from.
+- [Configure](http://localhost:3000/kern/howto/configure.txt) — the knobs.

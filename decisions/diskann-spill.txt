@@ -1,0 +1,48 @@
+# DiskANN spill for large kerns
+
+> http://localhost:3000/kern/decisions/diskann-spill/
+
+## Decision
+
+When a kern's entity count crosses a configured `disk_threshold`, its vector index spills from resident HNSW to a memory-mapped DiskANN (Vamana) snapshot with an in-RAM write delta and tombstones; the default threshold is "never spill", so small deployments run the resident path byte-for-byte.
+
+## Why
+
+- The resident index holds every vector and HNSW layer on the heap; RSS and load time grow with the corpus without bound.
+- Vamana maps almost one-to-one onto existing code: single-layer, alpha-pruned proximity graph reusing HNSW's beam search and pruning — drop the layer hierarchy, put adjacency on disk.
+- Snapshot is flat mmapped files (vectors + fixed-degree adjacency), size-validated on open; the OS page cache holds the vectors, not the heap.
+- Build is reproducible — seeded RNG *and* order-stable containers, because the seed alone was not enough and this line claimed otherwise until 2026-07-21. Held to recall@10 ≥ 0.90 against brute force by an inline test — the trade is named, not assumed.
+- FreshDiskANN semantics for continuous ingest: post-snapshot inserts go into a small in-RAM HNSW delta and tombstone their id; search is `(snapshot − tombstones) ∪ delta`, so new captures are searchable immediately. A tick task folds the delta into a fresh snapshot past 10,000 entries, at most hourly.
+- Any build or open failure falls back to the resident index — a disk error never breaks the graph.
+
+```mermaid
+flowchart LR
+    W[insert / delete] --> T[tombstone id in snapshot]
+    W --> D[in-RAM delta HNSW]
+    Q[search] --> S[mmap snapshot, minus tombstones]
+    Q --> D
+    S --> U[rank-union, top k]
+    D --> U
+    C[tick: delta > 10k, at most hourly] --> R[rebuild snapshot, clear delta]
+```
+
+## Rejected
+
+| Alternative | Why it lost |
+| --- | --- |
+| Entity-eviction cap | silently deletes recall; the fact captured once and never yet recalled is what a memory exists to keep |
+| Harder quantization | int8 already cuts vector memory 4x, but quantization shrinks the constant, not the `O(N)` heap term; binary's recall floor needs a rescoring pass that doesn't exist |
+| External vector DB / ANN library | violates the constraint that every retrieval stage is hand-written and inspectable; contradicts one-daemon-per-directory deployment |
+| Fixing the cold tier | the original target, dissolved before wiring landed — cold tier moved to LMDB with a bounded scan; the real ceiling was the hot resident index |
+
+## Trade-off accepted
+
+- Entity index only — GNN-vector and reason-edge indexes always rebuild resident, so a spilled kern still carries two in-RAM indexes that grow with the corpus. Measured 2026-07-21: spilling those two as well costs 122 MB more at 50k entities, so this stays a trade-off accepted rather than a gap to close (`ROADMAP.md` item 29).
+- Not answer-preserving. Spilling swaps HNSW for Vamana, so the same query can return a different top-k: recall@10 against brute force is 1.0000 resident vs 0.9940 spilled, with 0.9940 overlap between them (`tests/spill_transparency.rs`).
+- Full `f32` on disk, no product quantization — PQ would shrink page-cache footprint later; its open questions (codebook training, drift on model swap) stay open.
+- Opt-in, not auto-tuned — an operator sets `[graph] disk_threshold` per deployment; nothing decides for you.
+
+## Where you see it
+
+- Crossing the threshold moves the entity vector set off the heap on the next index rebuild — but page faults *are* RAM, and the measurement says resident size does not fall: 510.3 MB resident vs 512.1 MB spilled once queries have touched the snapshot, at 50k entities. What changes is that ~97 MB becomes clean file-backed page cache the kernel can reclaim under pressure, instead of anonymous heap it cannot.
+- Same backend calls serve dense seeding either way — see [The retrieval pipeline](http://localhost:3000/kern/concepts/retrieval.txt).

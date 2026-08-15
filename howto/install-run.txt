@@ -1,0 +1,128 @@
+# Install & run
+
+> http://localhost:3000/kern/howto/install-run/
+
+Binary on PATH, one daemon per project, graph under `.kern/`.
+
+## Prerequisites
+
+Local [Ollama](https://ollama.com) with the default models:
+
+```bash
+ollama pull qwen3-embedding:0.6b   # embeddings
+ollama pull granite4:3b            # distillation / reasoning (write path)
+```
+
+No answer model — `query` returns scored passages; your agent synthesizes. Any OpenAI-compatible endpoint works: [Configure models](http://localhost:3000/kern/howto/configure.txt).
+
+## 1. Install
+
+```bash
+# Linux / macOS
+curl -fsSL https://raw.githubusercontent.com/inner-zirkle/kern/main/scripts/install.sh | sh
+```
+
+```powershell
+# Windows (PowerShell)
+irm https://raw.githubusercontent.com/inner-zirkle/kern/main/scripts/install.ps1 | iex
+```
+
+From source: `cargo build --release` or `cargo install --path .`.
+
+## 2. Opt the project in
+
+```bash
+cd /path/to/your/project
+mkdir .kern
+```
+
+>
+kern re-pins to the nearest ancestor with `.git` (else `.kern/`) — subdirectory launches attach to the project's graph.
+
+
+## 3. Start the daemon
+
+```bash
+kern --daemon                                  # foreground, ctrl-c to stop
+kern --daemon > .kern/daemon.log 2>&1 &        # detached, keep logs
+kern --daemon --mcp-addr 127.0.0.1:3000        # also serve MCP over HTTP
+```
+
+Usually unnecessary — `kern mcp` auto-spawns a detached daemon. See [Wire up MCP](http://localhost:3000/kern/howto/mcp.txt).
+
+> **A bad config stops the boot.**
+Invalid `kern.toml`: offending key on stderr, exit **78** (`EX_CONFIG`), every invocation. Absent config boots on defaults — deleting the file is a valid fix.
+
+
+## Where state lives
+
+All under `<project>/.kern/`:
+
+| Path | What it is |
+| --- | --- |
+| `.kern/data/data.mdb` | The LMDB environment: hot graph plus cold tier. |
+| `.kern/data/lock.mdb` | LMDB's lock file. Never edit or delete while running. |
+| `.kern/intake/*` | Dropped files waiting to drain: `.txt` distilled as transcripts, anything else stored as documents. |
+| `.kern/kern.toml` | Optional config overrides. Absent by default. |
+| `.kern/data/mcp-token` | Bearer token for the HTTP surface, minted on first use. |
+| `.kern/data/logs/*.log` | stdout+stderr of detached children (`daemon.log`, `hub.log`). Owner-only, append-only. |
+
+RPC socket, outside the project: `$XDG_RUNTIME_DIR/kern-<tag>.sock` (or `/tmp/kern-<user>-<tag>.sock`) on Unix; named pipe `\\.\pipe\kern-<user>-<tag>` on Windows. `<tag>` = hash of the canonical cwd — one daemon and graph per project. A second `kern --daemon` in the same directory loses the bind race:
+
+```
+kern: another daemon already running at /run/user/1000/kern-3f2a91c4.sock — exiting
+```
+
+## Is it healthy?
+
+`kern health` or the `health` MCP tool:
+
+- Non-zero entities: graph has content.
+- Growing `unnamed`: clustering has work queued.
+- Non-zero panics/failures: maintenance degraded but still running.
+- Climbing `cold_evicted`: 50k cold cap dropping old thoughts for good.
+- `MISMATCH` on the `embed:` line: index built with a different model — `kern reembed`.
+- No daemon: prints `tick: (no daemon serving this directory)` instead of blocking.
+- `.kern/intake/` should drain, not accumulate — `kern intake` names anything `STUCK` and why (usually a missing `[reason]` model). Nothing lost; deltas stay queued, and `kern intake drain` forces a pass — through the daemon when one is serving, in-process when none is.
+
+Logs: stderr, default level `warn`. Detached children append to `.kern/data/logs/daemon.log` / `hub.log` — never truncated.
+
+```bash
+RUST_LOG=kern=info kern --daemon
+```
+
+`kern status` answers who is serving and who is writing:
+
+```
+$ kern status
+data dir     /repo/.kern/data
+kern socket  /run/user/1000/kern-ef39084.sock
+daemon       serving  (4 kerns, 812 entities, idle 12s)
+hub          running   /run/user/1000/kern-hub.sock
+writer lock  held by daemon pid 1626183
+```
+
+The `kern <subcommand>` CLI opens the graph directly, so it can race a live daemon — use MCP tools for live state. The offline admin commands (`kern reembed`, `kern compact`, `kern gc`) now take the writer lock and **refuse** while a daemon holds it, naming the holder, rather than losing a rewrite to whichever process flushes last. The lock is released by the OS when its holder exits, kill included, so a crash never leaves a stale one to clean up.
+
+## Stopping
+
+Ctrl-C in the foreground, or `pkill -f 'kern --daemon'`. Runs a final flush, prints `shutting down...` then `done` — `SIGKILL` mid-flush drops whatever was only in RAM.
+
+## Starting over
+
+Daemon stopped:
+
+```bash
+rm -rf .kern/data          # wipe the graph, keep config and queued intake
+rm -rf .kern               # wipe everything, including opt-in
+```
+
+- `data.mdb` shrinks only on compaction — next restart auto-compacts, or `kern compact` offline.
+- Alpha: store format changes are not migrated — an old `data.mdb` is rejected; wipe `.kern/data` and reingest.
+
+## Next
+
+- [Wire up MCP](http://localhost:3000/kern/howto/mcp.txt)
+- [Intake & recall](http://localhost:3000/kern/howto/intake-recall.txt)
+- [Seed the graph](http://localhost:3000/kern/howto/seed.txt)
+- [Architecture](http://localhost:3000/kern/concepts/architecture.txt)

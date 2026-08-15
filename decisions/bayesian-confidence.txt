@@ -1,0 +1,54 @@
+# Bayesian confidence
+
+> http://localhost:3000/kern/decisions/bayesian-confidence/
+
+## Decision
+
+A thought's confidence is a Beta distribution — pseudo-counts `conf_alpha`/`conf_beta` updated by weighted observations, ranking multiplied by the posterior mean — not a scalar the latest writer overwrites.
+
+```
+observe_support(w):    α += clamp(w, 0, 1)
+observe_contradict(w): β += clamp(w, 0, 1)
+mean = α / (α + β)
+```
+
+Ingest seeds `(α, β) = (1 + conf, 1 + (1 − conf))` — a uniform prior nudged toward the observer's stated confidence.
+
+## Why
+
+- kern's truth signal is convergence across independent observers; a scalar has no sample count — "one observer, conf 0.9" and "twenty observers, mean 0.9" are indistinguishable, yet warrant opposite treatment on dissent.
+- Every scalar update rule fails: overwrite is last-writer-wins, max lets one overconfident source pin truth forever, averaging forgets how much evidence it stands on.
+- The clamp is the outvoting property: no observation is worth more than one vote. Ten concordant observations reach mean ≈ 0.83; one full-strength dissent drops it ~0.09 — visible, not decisive.
+
+Observers today:
+
+- Ingest dedup — a near-duplicate above the preset's dedup threshold (0.98 on default `relaxed`) adds support to the existing entity; text and vector never overwritten (id is the content hash).
+- GNN propagation — after each re-embedding pass, content-vector/structural-vector alignment supports, misalignment contradicts. The only contradiction writer.
+- Never peers — `conf_alpha`/`conf_beta` are never imported; a peer can gossip a claim, not belief in one.
+
+## Rejected
+
+| Alternative | Why it lost |
+| --- | --- |
+| Keep the scalar | a lone `conf=1.0` write fixes truth |
+| Integer support/oppose counters | a tentative guess and a firm assertion each count 1; no principled uncertainty |
+| Full belief networks | over-scoped; claims aren't a dependency DAG, and inference cost would sit on the ingest path |
+
+## Trade-off accepted
+
+- No `stance` parameter on ingest — disagreement requires asserting a conflicting claim and letting the classifier rule.
+- No observer-reputation weighting (planned composition with PageRank authority never built on either side).
+- No evidence decay: `α` and `β` only grow, so stale consensus takes proportionally many new observations to unseat.
+- Reason edges keep a plain last-writer-wins score, not a tuple.
+
+> **Contradiction resolves by supersession, not by β.**
+A same-kind near-duplicate whose text conflicts goes to an LLM classifier on
+the background tick; an unambiguous verdict supersedes the old claim outright.
+Beta confidence answers "how corroborated"; supersession answers "which
+revision is current". See [Time & contradiction](http://localhost:3000/kern/concepts/time.txt).
+
+
+## Where you see it
+
+- Corroborated claims outrank merely asserted ones, no extra machinery.
+- See [Acceptance & routing](http://localhost:3000/kern/concepts/acceptance.txt) and [The retrieval pipeline](http://localhost:3000/kern/concepts/retrieval.txt).

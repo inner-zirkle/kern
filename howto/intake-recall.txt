@@ -1,0 +1,172 @@
+# Intake & recall
+
+> http://localhost:3000/kern/howto/intake-recall/
+
+Start a daemon, seed the graph, drop an intake delta, confirm it landed.
+
+## Before you start
+
+`kern` on PATH, local [Ollama](https://ollama.com) with both default models:
+
+```bash
+ollama pull qwen3-embedding:0.6b   # embeddings
+ollama pull granite4:3b            # distillation and reasoning (write path)
+```
+
+>
+Embedding dimension locks into the graph on first ingest; switching models later requires `kern reembed`. Not silent: store stamps its model, `kern health` prints `MISMATCH` beside `embed:`, wrong-dimension query vectors are dropped and counted.
+
+
+## 1. Opt the project in
+
+```bash
+cd /path/to/your/project
+mkdir -p .kern
+```
+
+Pins to the nearest ancestor with `.git` or `.kern`. No config file required — create `.kern/kern.toml` only to override a default.
+
+## 2. Start the daemon
+
+Let your MCP client start it — `kern mcp` attaches to a running daemon, auto-spawns a detached one if none answers:
+
+```json
+{
+  "mcpServers": {
+    "kern": { "command": "kern", "args": ["mcp"] }
+  }
+}
+```
+
+The daemon writes this entry into `.mcp.json` on startup if absent. To watch the first run (logs on stderr only; stdout is reserved for JSON-RPC):
+
+```bash
+RUST_LOG=kern=info kern --daemon
+```
+
+## 3. Seed gravitons and claim kinds
+
+Once per project, via MCP against the running daemon (the CLI can race a live daemon).
+
+- `graviton` tool, `action: "add"` per focus area — e.g. *decisions*, *project state*, *preferences*.
+- Seed `text`: **example statements, one per line** — each line embedded separately, mean-pooled into the pull vector; routes far better than an abstract description.
+- Optional `mass` (default `1.0`): stronger attraction.
+- Unmatched claims → `generic`. See [Acceptance & routing](http://localhost:3000/kern/concepts/acceptance.txt).
+- Built-in claim kinds: `preference`, `decision`, `project`, `fact`, `code-fact`, `reference`, `procedural`. Extras via `claim_kind`; registered kinds are offered to the distillation LLM alongside built-ins.
+
+CLI equivalents, daemon stopped:
+
+```bash
+kern graviton add decisions "architectural choices and their rationale" --mass 1.5
+kern graviton list
+kern claim-kind add incident "a production incident: what broke and the fix"
+```
+
+## 4. Drop a session into the intake
+
+Anything writing a `.txt` delta into `.kern/intake/` feeds kern — client hook, shell wrapper, your own script:
+
+```bash
+cat > .kern/intake/session-$(date +%s).txt <<'EOF'
+user: we're standardizing on tabs for indentation across the repo
+assistant: noted — updated the editorconfig
+user: also the deploy key lives in the ops vault, not in CI secrets
+EOF
+```
+
+- Daemon polls every 5s, distills each delta in one LLM pass, ingests the typed claims.
+- Moves to `.kern/intake/done/` only once every claim committed; LLM outage → stays put, retried.
+- Archived deltas pruned after seven days.
+- Synchronous, already-typed ingest (skips distillation): `ingest` MCP tool or `kern ingest`.
+
+## 5. Recall in the next session
+
+`query` MCP tool: `mode`, `kind`, `source`, time ranges, `min_conf`, `as_of` (point-in-time), `include_history` (supersede chains). Returns scored passages, edges, chains — the agent synthesizes. See [Retrieval](http://localhost:3000/kern/concepts/retrieval.txt).
+
+Shell: `kern search "indentation" --k 5` or `kern query "what did we decide about indentation"`.
+
+## What a healthy graph looks like
+
+```
+data_dir:    /path/to/project/.kern/data
+gravitons:     decisions, project state, preferences
+kerns:       5
+thoughts:    47 (unnamed: 3)
+reasons:     91
+claim kinds: 0
+embed:       qwen3-embedding:0.6b (dim 1024)
+evicted:     0 cold rows dropped
+tick:        queue 0 | done 312 | avg 8 ms
+degraded:    0 panics | 0 failures | 0 refused GNN trainings
+  kern:decisions  thoughts:12  reasons:24
+  kern:generic  thoughts:9  reasons:15
+```
+
+- `reasons` well above `thoughts` — claims connecting, not just arriving.
+- `gravitons` non-empty — `(none)` means seeding never happened; everything piles into `generic`.
+- `unnamed` small relative to `thoughts` — large share means gravitons don't cover the content.
+- `done/` filling while `.kern/intake/` stays near empty — drain keeping pace.
+- Non-zero panics/failures — something dying; the line beneath names the task.
+
+## When it does not work
+
+Start with `kern intake`. A queued delta is retried forever rather than dropped, so a permanently stuck one looks exactly like a fresh one until you ask:
+
+```
+$ kern intake
+intake .kern/intake  pending=2 stuck=1 failed=1 done=37
+  wait   sess-a41.txt                     4s
+  STUCK  sess-a39.txt                     3h  the reason model returned no parseable claims (prose reply, or endpoint unreachable)
+  failed logo.png  (not text; quarantined, never retried)
+```
+
+`STUCK` carries the last failure and is the whole diagnosis; `wait` means not picked up yet. `kern intake drain` forces one pass — routed to the daemon when one is serving so it never drains twice, in this process when none is — so you can drive the queue with no daemon at all and read the error immediately.
+
+```mermaid
+flowchart TD
+    A["nothing in the graph"] --> B["kern intake"]
+    B -->|"pending=0, done=0"| C["nothing is writing deltas — kern ships no writer; wire your harness/script to drop files, or use MCP ingest instead"]
+    B -->|"STUCK entries"| D["the line names the cause: no [reason] endpoint, prose reply, or the embed/ingest failure verbatim"]
+    B -->|"pending>0, all wait"| E{"daemon running?"}
+    E -->|"no"| F["start it: kern --daemon, or drain once: kern intake drain"]
+    E -->|"yes"| G["drain is mid-pass; re-run kern intake"]
+    B -->|"done filling"| H{"kern health shows thoughts?"}
+    H -->|"no"| I["embed endpoint failing — check logs for kern.ingest"]
+    H -->|"yes"| J["graph is fine; recall is the problem"]
+```
+
+- **LLM endpoint unreachable.** Transient: deltas queue and retry forever. `kern intake` shows them `STUCK` with the reason; confirm with `curl http://localhost:11434/api/tags`. WSL (NAT) with Ollama on the Windows host: `localhost` resolves inside the VM — pin the URL to the host gateway (`ip route show default | awk '{print $3}'`) in `.kern/kern.toml`. Blanking both `[reason].url` and `[embed].url` disables distillation; the daemon logs a warning.
+- **Nothing landing.** Check in order: `.kern/` exists where the daemon pinned; `[intake].enabled` is `true`; something is writing files. Non-UTF-8 → `.kern/intake/failed/`. Endpoint answers but drain never finishes: prose-not-JSON — `kern intake` names it.
+- **Recall empty.** `kern health` shows content: check `MISMATCH` beside `embed:` (fix: `kern reembed`). Otherwise widen the query — `min_conf` gates out fresh claims, which start at 0.6 until reinforced.
+
+## Tuning
+
+```toml
+[intake]
+enabled = true              # set false to opt out of self-learning entirely
+dir = ".kern/intake"       # intake directory, cwd-relative
+poll_secs = 5               # drain cadence
+done_retention_secs = 604800
+retention_secs = 0          # TTL on what this queue ingests; 0 = never expires
+```
+
+`poll_secs = 0` rejected by the validator (busy-loop).
+
+`retention_secs` is the standing per-source policy behind `kern ingest
+--retention-secs`: "everything dropped in this queue expires in 30 days"
+(`2592000`), said once instead of per call. It becomes a `valid_until` on the
+entity — distinct from `done_retention_secs`, which prunes the archived *files*
+in `done/`. The file watcher has the same key for the same reason:
+
+```toml
+[watcher]
+enabled = true
+retention_secs = 0          # TTL on every watched file this ingests
+```
+
+Both live here rather than in `[ingest]` because that section is preset-owned
+and a user `kern.toml` is refused for setting it.
+
+---
+
+Related: [Acceptance & routing](http://localhost:3000/kern/concepts/acceptance.txt) · [Configure](http://localhost:3000/kern/howto/configure.txt) · [MCP](http://localhost:3000/kern/howto/mcp.txt)

@@ -1,0 +1,84 @@
+# Acceptance & routing
+
+> http://localhost:3000/kern/concepts/acceptance/
+
+One gate for everything entering the graph: a claim arrives via MCP `ingest` or intake distillation, is embedded, then merged into something already known or routed down the kern tree. Two stages, failing differently:
+
+1. **Distillation** — transcript → claims. The only LLM call on the path; decides *whether* anything is kept.
+2. **Acceptance** — places a claim. Pure vector math + traversal, no model; decides *where* it lives or whether it collapses into an existing thought.
+
+```mermaid
+flowchart TD
+    A[".kern/intake/*.txt"] --> B{"distill: one LLM pass"}
+    B -->|"no usable output"| C["leave delta queued, retry"]
+    B -->|"claims"| D["typed claims"]
+    B -->|"empty array"| E["archive, nothing kept"]
+    D --> F["split + embed"]
+    F --> G{"near-duplicate?"}
+    G -->|"yes"| H["reinforce existing + Rephrase edge"]
+    G -->|"no"| I["route down kern tree"]
+    I --> J{"graviton match?"}
+    J -->|"yes"| I
+    J -->|"no, at root"| K["generic catch-all"]
+    J -->|"no, at a named kern"| L["unnamed holding-pen child"]
+    K --> M["commit: index + Similarity + Provenance edges"]
+    L --> M
+```
+
+## Distillation
+
+One LLM pass over the whole delta → JSON array of `{text, kind, valid_from?}`. Forgiving parse — prose around the array, double-nesting, blank entries tolerated or dropped. Outage safety lives in the return value:
+
+| Result | Action |
+| --- | --- |
+| Claims | Process; archive the delta only after every claim committed. |
+| Empty array | Model judged nothing worth keeping; archive. |
+| Nothing usable (dead endpoint, timeout, no parseable JSON) | Leave queued, retry. Nothing silently lost. |
+
+>
+A reason model that persistently answers in prose looks like a permanent outage: deltas never lost, never archived, intake retries forever. `.kern/intake/` growing while the graph does not → suspect the model's instruction following.
+
+
+## Claim kinds
+
+Seven built-in; the `claim_kind` tool registers more:
+
+| Kind | What it holds |
+| --- | --- |
+| `preference` | How the user wants things done. |
+| `decision` | A choice made, with rationale. |
+| `project` | Ongoing state of the work. |
+| `fact` | A durable truth about the domain. |
+| `code-fact` | A structural truth about the codebase. |
+| `reference` | An external pointer worth keeping. |
+| `procedural` | A learned workflow or convention. |
+
+- Invented kind falls back to `fact` — type precision lost, never the claim.
+- `valid_from` kept only when it parses as a real ISO timestamp.
+- Distilled claims enter at confidence 0.6 — a model's reading, not your assertion.
+
+## Routing
+
+Descends the kern tree by graviton (focus vector + mass). Every child scored `cosine_distance / mass`, converted to an acceptance probability against the kern's radii; best probability below the floor (0.5) = no match. Mass is the tuning knob — heavier attracts from further away.
+
+- Root is a pure dispatcher; no match at the root falls into `generic` — dense `generic` clusters later promote into new gravitons.
+- A named kern can refuse — a poor fit lands in a reusable unnamed holding-pen child, descent continues.
+- Descent bounded at 64 levels.
+
+Commit: index the vector, `Similarity` edge to nearest neighbour, `Provenance` edge to source document, supersede path if the claim carries an external id.
+
+## Merge, not reject
+
+- Near-duplicate (cosine ≥ dedup threshold — 0.98 on default `relaxed`) is *evidence*: reinforces the existing thought's confidence.
+- Text/vector never overwritten (id = content hash). Different phrasing → `Rephrase` edge; only a *same-kind* rephrase reaches the contradiction detector — a claim must never supersede a fact.
+- Genuine rejection is narrow: empty text, an unembeddable chunk. Embedding failures retried with backoff; job outcomes distinguish partial from clean success.
+
+## Why distill at all
+
+Raw-transcript embedding: conversational noise in the vector space, no type (no kind-aware routing, same-kind supersede guard, or kind-filtered queries), no consolidation — five phrasings become five permanent neighbours.
+
+Cost: seconds of latency (async, never blocks a session), hard dependency on a reason endpoint, non-deterministic output. Buys: everything after distillation is deterministic — one non-deterministic step at write time, none at read time.
+
+---
+
+Next: [Retrieval](http://localhost:3000/kern/concepts/retrieval.txt) · [Heat & compaction](http://localhost:3000/kern/concepts/heat-and-compaction.txt) · [Time & supersede](http://localhost:3000/kern/concepts/time.txt) · [Intake & recall in a session](http://localhost:3000/kern/howto/intake-recall.txt)

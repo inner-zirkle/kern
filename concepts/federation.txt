@@ -1,0 +1,85 @@
+# Federation
+
+> http://localhost:3000/kern/concepts/federation/
+
+Several kern daemons on one network share what they have learned — no coordinator, no primary replica. kern's least mature subsystem; the transport protects nothing.
+
+> **Status: building, not shipped.**
+**Off by default** — keep it off unless deliberately experimenting.
+
+**Works today:** peer heartbeats, multicast discovery, scope announcements, entity-body sync into a quarantined remote namespace, CRDT counter and last-write-wins deltas, single-entity fetch.
+
+**Wired but dead:** OR-Set deltas for statement text — content-addressed ids make imported text a forgery; the sender emits empty, the receiver rejects.
+
+**Not built:** authentication, encryption, anti-entropy, any guarantee a cold entity eventually reaches every peer.
+
+
+## Why a daemon would want a peer
+
+One daemon per working directory is the right boundary except for **two machines doing the same work** — the incident debugged on the laptop at 11pm that the workstation daemon never saw. Federation: a fact learned once, available everywhere you work. Not scale, not sharding.
+
+Daemons are laptops — they sleep, miss messages, rejoin elsewhere. Leaderless design; the merge tolerates offline peers, out-of-order delivery, duplicates.
+
+## Discovery and gossip
+
+- **Discovery** — plaintext `kern:<network_id>:<tcp_addr>` broadcast to a UDP multicast group every 10 seconds. Adopted only on matching `network_id` — how unrelated fleets on one LAN stay apart; set a shared `network_id` to pair daemons.
+- Multicast is routinely dropped by wireless APs, container bridges, VPNs — the reliable path is an explicit `peers` list. An opt-in public seed exists and defaults off.
+- **Gossip** — push flooding with dedup, fanout 3 random peers. Delivery is *probabilistic* — nothing guarantees a message reaches a given peer.
+
+## What crosses the wire
+
+| Message | Content |
+|---|---|
+| PeerExchange | 30s heartbeat; unknown addresses adopted up to a 50-peer ceiling. |
+| Sphere | A node's root scope; stored by receivers as a read-only *phantom kern*. |
+| EntitySync | Each heartbeat: the 32 hottest local entities. |
+| Delta | Incremental CRDT updates: access/traversal counts, reason scores, validity windows. |
+| Pulse / Question / Fetch | Activation spreading, cross-network questions, the single-entity fetch backing them. |
+
+> **Top-32-by-heat is not replication.**
+Only the hottest entities are broadcast; a fact captured once and never recalled may never be selected, and there is no anti-entropy or catch-up snapshot. Opportunistic sharing, not a backup.
+
+
+## Why a CRDT and not a leader
+
+A leader among sometimes-offline laptops means stalling or failover; a lock puts a round trip on the write path. CRDT joins are commutative, associative, idempotent — duplicate, reordered, weeks-late messages converge: **strong eventual consistency**, no coordination.
+
+| Field | Join |
+|---|---|
+| `access_count`, `traversal_count` | per-replica-slot max (G-Counter) |
+| `heat` | max — moot, remote heat is zeroed at the boundary |
+| `created_at` | min — earliest observation wins |
+| `accessed_at`, `updated_at` | max |
+| `valid_until`, reason score | last-write-wins |
+| statement text | **never imported** — content-addressing forbids it |
+| `status` | monotone toward `Superseded`, never back |
+| confidence | **never imported** |
+
+Content-hash ids make this hold at the graph level: the same fact learned independently has the same id, existence is set union — a peer contributes ids, never mutates or deletes yours.
+
+Confidence is the deliberate exception: a max-join would be an irreversible poisoning pin. Trust stays replica-local.
+
+## Contradicting facts on two machines
+
+**The CRDT does not resolve them — by design.** Different content = different ids; both daemons hold both claims. Resolution is the same local machinery — supersession and validity windows ([Time](http://localhost:3000/kern/concepts/time.txt)). Federation adds only:
+
+- Supersession is monotone and one-way — superseded anywhere, superseded everywhere, never flipped back.
+- `superseded_by` converges deterministically (lexically greater id wins — a tiebreak for agreement, not correctness).
+
+Confidence never crosses the wire, so each daemon decides its own belief. Federation makes both claims *visible* everywhere; it does not make belief uniform.
+
+## Remote data is quarantined
+
+Inbound entities merge into a phantom `remote-<network>-<kern>` namespace, never your own kerns, with ranking signals stripped on entry — heat and access zeroed, confidence reset to neutral. An id already owned by a different kern is rejected as a hijack; each remote namespace caps at 50,000 entities.
+
+> **The transport is unauthenticated and unencrypted.**
+Raw TCP gossip, plaintext UDP discovery — no peer authentication, no signatures, no encryption. **Anyone who can reach the gossip port can read your federated graph in cleartext and inject entities into it.** `network_id` is not a credential — it is broadcast in the clear.
+
+Acceptable: a segment where you trust every host — home or lab LAN, private VPC subnet, WireGuard mesh (also the only confidentiality today). Firewall the gossip TCP and discovery UDP ports; bind `addr` to a private interface, not the default `0.0.0.0:7400`.
+
+Unacceptable: any public interface, coffee-shop or hotel networks, a shared office VLAN, anything internet-reachable. Full trust model: [Security](http://localhost:3000/kern/concepts/security.txt).
+
+
+## Turning it on
+
+`[gossip]` block ([Configure](http://localhost:3000/kern/howto/configure.txt)): `enabled = true`, a shared `network_id` across the daemons to pair, prefer an explicit `peers` list over discovery. Then re-read the callout above and confirm the segment qualifies.

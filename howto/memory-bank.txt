@@ -1,0 +1,66 @@
+# The Memory Bank
+
+> http://localhost:3000/kern/howto/memory-bank/
+
+kern is a self-learning, self-compacting, optionally self-distributing memory substrate.
+
+## Self-learning — intake → distill → recall
+
+One daemon per working directory owns one graph. No automatic session capture; knowledge enters two caller-driven ways:
+
+- MCP `ingest` tool, called directly.
+- `.txt` transcript dropped into `<cwd>/.kern/intake/` — by your agent, a wrapper, or `kern ingest`; kern ships no writer. Daemon drains each delta: one LLM distillation pass extracts durable facts / decisions / preferences as typed claims. Archived to `intake/done/` only after every claim commits; on LLM outage it stays queued — transient failure never loses knowledge.
+
+Recall: `query` MCP tool against the live graph, provenance on every result. Intake is best-effort — daemon or LLM down, the session proceeds and the delta queues.
+
+## Self-compacting — heat, decay, eviction, clustering
+
+- Every access deposits **heat**; heat decays with age (half-life based).
+- **Stigmergy GC** evicts cold, stale, non-durable thoughts (Facts immune), spilling each to the capped cold tier first.
+- **Clustering** consolidates similar thoughts into child kerns.
+
+Driven by the maintenance tick (`[tick] interval_secs`, default 60s). `interval_secs = 0`: event-driven only.
+
+## Self-distributing — gossip federation (opt-in)
+
+LAN gossip between nodes, no coordinator, optional UDP multicast discovery. **Off by default.**
+
+## Turning it on
+
+`<cwd>/.kern/kern.toml`:
+
+```toml
+[reason]
+# LLM for distillation. Local Ollama. Default granite4:3b; larger models are sharper.
+url = "http://localhost:11434"
+model = "granite4:3b"
+
+[intake]
+enabled = true          # self-learning
+
+[tick]
+interval_secs = 60      # self-compaction cadence (0 = off)
+
+[gossip]
+enabled = false         # self-distribution (opt-in)
+addr = "0.0.0.0:7400"
+discovery = true
+discovery_port = 7475
+# network_id = "team-alpha"  # optional shared discovery pool id (omit for an isolated per-daemon id)
+peers = []
+```
+
+Intake and recall no-op without `.kern/` — a single global MCP registration is safe across all projects.
+
+Seed once: add `graviton`s — named top-level buckets the root routes memories into (unmatched → `generic`). Built-in claim kinds: `preference`, `decision`, `project`, `fact`, `code-fact`, `reference`, `procedural`; register extras with `claim_kind`. See [Seed the graph](http://localhost:3000/kern/howto/seed.txt).
+
+## Status & known limits
+
+Self-learning and self-compaction run today. Self-distribution is wired and enableable, but narrower than the design:
+
+- **Graph CRDT.** Content-addressed, conflict-free merge. Peer ranking signals stripped on the way in — heat, access counts, confidence reset to neutral, so a compromised node cannot pin a poisoned claim hot federation-wide. Heat and confidence are earned by local use only.
+- **Capped cold tier.** GC spills evictions to a cold table holding the newest 50k entries. Drops past the cap are unrecoverable, counted as `cold_evicted` on `health`. Recall reaches the tier via `kern get <id>` and via `query` filling remaining slots from cold-tier cosine search (marked `cold:true`).
+- **Bi-temporal invalidation.** Same-kind near-duplicate that updates or contradicts a stored claim *supersedes* it (stamped `valid_to` / `invalidated_at`, `Supersedes` edge), never deletes. `query` takes `as_of` (point-in-time) and `include_history` (superseded revisions, marked `history:true`). Update-vs-contradiction is a background LLM classification; no LLM → differing near-dup kept as a `Rephrase` edge (fail open).
+- **Federation.** Verified end-to-end on one host: two daemons propagate scope and thought bodies bidirectionally. Manually seeding `peers` is the reliable path; multicast discovery only pairs nodes sharing a `network_id`. Still `building` — read [Federation](http://localhost:3000/kern/concepts/federation.txt) and [Security](http://localhost:3000/kern/concepts/security.txt) before enabling.
+
+Near-duplicate ingest is non-destructive: above the similarity threshold, it bumps the existing thought's confidence and records a `Rephrase` edge.

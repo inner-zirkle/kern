@@ -1,0 +1,35 @@
+# Edit convergence
+
+> http://localhost:3000/kern/decisions/edit-convergence/
+
+## Decision
+
+Conflicting statements resolve by supersession — a status flip, a `Supersedes` edge, bi-temporal stamps — with alternate phrasings kept as `Rephrase` edges and ambiguous conflicts adjudicated by an LLM on the background tick; Wikipedia-style revision machinery was evaluated and not built.
+
+## Why
+
+- The supersede chain is already a minimal history: nothing erased, both temporal clocks stamped, walkable via `as_of` / `include_history` — append-only revisions without a second storage mechanism.
+- Fails open to coexistence: a hedged or unparseable verdict keeps both claims standing. A wrongful supersede silently hides a true claim; when in doubt, keep both.
+- Kind gates the verdict: only a same-kind near-duplicate may supersede — a distilled `Claim` can never invalidate a user-asserted `Fact`. A two-level static rule, not a reputation system.
+- Adjudication runs on the background tick — not at query time, not synchronously at ingest.
+
+Example: "deadline is March" from ticket T-42; a month later the ticket says April. April supersedes March, closes its validity window, links the two. A query today returns April; `as_of` January returns March; `include_history` returns both, labelled.
+
+## Rejected
+
+| Alternative | Why it lost |
+| --- | --- |
+| Full Wikipedia model (revision vectors, reputation, three-revert rule, protected thoughts) | solves a threat kern doesn't have — its editors are anonymous adversaries, kern's writers are cooperating agents; four coupled mechanisms against zero observed incidents |
+| Bare supersede, no history | no record of why a statement changed, no "what did we believe last month", no convergence story for ping-ponging producers |
+
+## Trade-off accepted
+
+- No edit rationale — a `Rephrase` edge carries the wording, not why; no edit-summary text.
+- No revert rate-limit — supersede is asymmetric (ping-pong leaves a growing, visible chain), but nothing bounds it while it happens.
+- Minimal history, not archival — a cold superseded revision is evicted to the capped cold tier and the temporal side-map does not follow; kern is a memory, not an encyclopedia.
+- Deferred until triggers fire (none has): chains past ~5 hops, producers ping-ponging a source, byte-level blame.
+
+## Where you see it
+
+- Queries return the current claim; `as_of` returns what was believed then; `include_history` returns the labelled chain.
+- See [Time & contradiction](http://localhost:3000/kern/concepts/time.txt) and [Acceptance & routing](http://localhost:3000/kern/concepts/acceptance.txt).

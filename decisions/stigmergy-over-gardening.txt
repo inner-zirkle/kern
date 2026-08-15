@@ -1,0 +1,49 @@
+# Stigmergy over gardening
+
+> http://localhost:3000/kern/decisions/stigmergy-over-gardening/
+
+## Decision
+
+Forgetting is driven by a decaying `heat` scalar deposited by use — reads deposit, an hourly collector evicts what goes cold — with no retention policies, quotas, or manual curation.
+
+## Why
+
+- Three knobs total: deposit magnitude, evaporation rate, threshold floor. Everything else emergent.
+- Policy knobs multiply — every administered rule ("but keep facts") is another interacting special case.
+- Retention becomes a consequence of use, not a policy someone maintains.
+
+Shipped constants:
+
+- Read deposits `1.0` heat, off the query hot path. It is the only deposit.
+- Decay is lazy, from last-deposit age; half-life is preset-owned (`relaxed` 30 days by default); a deposit decays the stale value first, never resurrecting old magnitude.
+- Hourly GC demotes entities that are cold (aged heat below `0.01`), stale (untouched 7 days), and not durable — spilled to the cold tier, not deleted.
+- Net: one read survives 6.64 half-lives — ~**199 days** on `relaxed`, ~46 on `medium`, ~20 on `tight`; repeat reads never decay past half peak.
+
+## Rejected
+
+| Alternative | Why it lost |
+| --- | --- |
+| TTLs | delete the fact you needed on day 31 |
+| LRU / quotas | evict by an ordering (insertion, size, age) unrelated to usefulness |
+| Manual gardening | doesn't scale past one attentive operator; silently stops happening |
+| Per-edge pheromone | storage cost for a weak signal; traversal counts feed scoring, not retention |
+| Multiple pheromone types | one scalar suffices; entity kinds already provide orthogonal typing |
+| Cross-peer heat gossip | a peer's usage is not evidence of yours; an injection surface |
+
+## Trade-off accepted
+
+- Heat is retention-only; ranking keeps its own two-term freshness boost with a 24-hour half-life — two freshness signals, by design not unification.
+- The half-life errs heavily toward retention (6.64 half-lives per read, not one, because the cold gate is `0.01` and not half peak).
+- Convergence metrics never built — the access-distribution claim is design intent, not measurement.
+- The pulse used to deposit too, and a recurring deposit of *any* size settles far above the `0.01` gate: everything within its 5-level reach was permanently exempt from collection, used or not. Removed — retention is a consequence of use only (`tests/depth_bias.rs`).
+
+> **One administered exception.**
+Active `Fact` and `Document` entities are immune to collection (locally — peers
+cannot pin storage by labelling gossip `kind=Fact`). Supersession revokes the
+immunity. See [Heat & compaction](http://localhost:3000/kern/concepts/heat-and-compaction.txt).
+
+
+## Where you see it
+
+- Unused memories quietly demote to the cold tier once heat clears the floor — months on `relaxed`, weeks on `tight`; anything you recall stays hot.
+- Details: [Stigmergy GC & gravitons](http://localhost:3000/kern/concepts/stigmergy.txt), [Heat, decay & self-compaction](http://localhost:3000/kern/concepts/heat-and-compaction.txt).

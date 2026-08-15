@@ -1,0 +1,124 @@
+# Wire up MCP
+
+> http://localhost:3000/kern/howto/mcp/
+
+Get your agent listing kern's sixteen tools against the project's graph. Start from a project with `.kern/` — see [Install & run](http://localhost:3000/kern/howto/install-run.txt).
+
+## 1. Register the server
+
+stdio:
+
+```json
+{
+  "mcpServers": {
+    "kern": {
+      "command": "kern",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+- Daemon writes exactly this into `.mcp.json` on startup if the `kern` key is missing; a customised entry is never overwritten.
+- Windows clients that won't search PATH: absolute path as `command` (`C:\Users\<you>\.kern\bin\kern.exe` style).
+
+## 2. What `kern mcp` does
+
+```mermaid
+flowchart TD
+  A["client spawns<br/>kern mcp"] --> B{"socket for this cwd?"}
+  B -- yes --> C["proxy mode<br/>forward to daemon"]
+  B -- no --> D["spawn detached daemon"]
+  D --> E{"attached?"}
+  E -- yes --> C
+  E -- no --> F["standalone mode<br/>own graph in-process"]
+  C --> G["daemon owns the graph"]
+```
+
+One config entry brings kern up — no separate daemon start needed.
+
+>
+Standalone fallback is a second writer against the same LMDB environment — a safety net, not a mode. Tools work but the graph never grows across sessions: you are falling back silently; start a daemon by hand and check the socket.
+
+
+## 3. The tools
+
+### Reading
+
+- **`query`** — hybrid vector + lexical retrieval; scored thoughts with edges and path chains, no synthesis. Needs `text` or `id`. Filters: `kind` (`fact` / `document` / `normal`), `source`, `min_conf`; `since` / `before`, `sort` + `ascending`; `as_of` for what was believed at a past instant; `include_history: true` for superseded revisions (flagged `history: true`). Every filter applies to an `id` read too.
+- **`events`** — read-only change feed for pollers: `created` / `superseded` entities since an opaque `cursor`; pass the returned `cursor` back as `since` to resume without gap or overlap, `limit` bounds the batch. Derived from the bitemporal stamps — mutates nothing. `degraded` / `forgotten` are declared on the wire but never emitted.
+- **`health`** — counts plus degradation: tick queue and latency, `task_panics` / `task_failures`, `cold_evicted`, `embed_model` / `embed_dim` with `embed_mismatch`. kern fails open — a degraded daemon keeps serving and shows up only here.
+
+### Writing
+
+- **`ingest`** — put text in. `object_id` = update semantics for revisions; `hint` folded into the chunking prompt; `conf` weights the claim; `sync: true` blocks until complete.
+- **`link`** — reason edge between two thoughts. Empty `reason`: the LLM writes the justification.
+- **`forget`** — remove a thought, cascade-delete its edges. Facts immune; rewrite history via superseding `ingest` with the same `object_id`.
+- **`forget_by_source`** — the host-deletion cascade: remove every thought ingested from one source, all its sections, edges cascaded. Keys on `scheme` + `object_id`. Local Facts are spared unless `force: true`; a remote Fact goes either way.
+- **`degrade`** — feedback. Bad result's id as `query_id`: edges along that path lose score.
+- **`move`** — relocate a thought to another kern (`id`, `to_kern`), edges carried.
+- **`promote`** — the release half of the review lifecycle: mark a thought reviewed, moving it from `pending` back to `active` so a `query` asking `exclude_pending` returns it again. Idempotent.
+
+### Shaping and maintenance
+
+- **`graviton`** — focus attractors. `add` with name and seed `text` (example statements, one per line — [Seed the graph](http://localhost:3000/kern/howto/seed.txt)), optional `mass` (routing divides distance by mass); `list`, `remove`. Unmatched → `generic`.
+- **`claim_kind`** — `add` with a markdown `description`, or `rm`; extends the built-in set distillation may label with.
+- **`pulse`** — force a clustering pass now. Useful after a bulk seed.
+- **`setup`** — wiring instructions for the calling agent: seed gravitons, install the capture hook, verify with an ingest/health/query round-trip. Idempotent — reports what is already `[done]`. Once per new project or agent host.
+- **`gc`** — reap empty/orphan kerns live. Returns before/after counts and `data.mdb` size (may not drop — LMDB returns disk only on compaction: next restart or offline `kern compact`).
+- **`intake_drain`** — drain `.kern/intake/` now rather than at the next poll: queued `.txt` transcripts distilled, other readable files ingested whole, whatever committed archived into `done/`. No arguments; returns `archived`. `kern intake drain` routes through this, so the CLI and the daemon never drain the same file twice.
+
+>
+Default loop: `query` to recall, `ingest` durable conclusions, `degrade` on a misfire; leave `pulse`/`gc` to the tick unless you just bulk-loaded.
+
+
+## 4. Verify
+
+List tools in your client — expect all sixteen. Or drive stdio:
+
+```bash
+printf '%s\n' \
+  '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"probe","version":"0"}}}' \
+  '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' \
+  | kern mcp
+```
+
+Confirm the graph answers, not just the transport:
+
+```bash
+printf '%s\n' \
+  '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"probe","version":"0"}}}' \
+  '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"health","arguments":{}}}' \
+  | kern mcp
+```
+
+Non-zero `entities` = populated graph. Zero on a fresh project is expected — [seed it](http://localhost:3000/kern/howto/seed.txt).
+
+## 5. Zero tools in the client
+
+1. **`kern` on the client's PATH?** GUI clients often don't inherit shell PATH — use an absolute `command`.
+2. **stdout clean?** JSON-RPC rides stdout; logs go to stderr. A shell profile echoing on startup corrupts the stream.
+3. **Working directory right?** Daemon and socket are per-cwd; re-pins to the nearest ancestor with `.kern/` only if one exists above.
+4. **Stale socket?** Daemon died hard: remove `$XDG_RUNTIME_DIR/kern-*.sock`, let `kern mcp` respawn.
+5. **Config aborting the boot?** Invalid `kern.toml` exits **78** with the offending key on stderr — the client sees an immediately dying process. Deleting the file is a valid fix.
+6. **Read the logs.** `RUST_LOG=kern=info kern mcp` prints proxy ("attached to running daemon") vs standalone ("auto-spawn failed"). Spawned daemon output appends to `.kern/data/logs/daemon.log`.
+
+> **Prompts and resources ride both modes.**
+Proxy and standalone answer `resources/list`, `prompts/list`, `prompts/get` and `ping` through the same handler; `resources/read` rides the tool-call passthrough. The tools remain the stable surface.
+
+
+## MCP over HTTP
+
+```bash
+kern --daemon --mcp-addr 127.0.0.1:3000
+```
+
+- MCP Streamable HTTP, never unauthenticated: bearer token read from — or minted into — `.kern/data/mcp-token` on first use. Send `Authorization: Bearer <token>`.
+- Bind address from `--mcp-addr` only; `kern.toml` has no field for it.
+
+## Next
+
+- [Configure models](http://localhost:3000/kern/howto/configure.txt)
+- [Intake & recall](http://localhost:3000/kern/howto/intake-recall.txt)
+- [The retrieval pipeline](http://localhost:3000/kern/concepts/retrieval.txt)
+- [Stigmergy GC & gravitons](http://localhost:3000/kern/concepts/stigmergy.txt)

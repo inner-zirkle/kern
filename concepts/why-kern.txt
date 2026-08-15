@@ -1,0 +1,44 @@
+# Why kern exists
+
+> http://localhost:3000/kern/concepts/why-kern/
+
+Agent sessions forget — the next one re-asks settled questions, re-proposes rejected approaches. kern is a memory daemon: a self-maintaining knowledge graph per project, served back in under a millisecond with no LLM call at recall time.
+
+## Where chunk-embed-retrieve breaks
+
+RAG (chunk, embed, prepend top-k) has four structural gaps no `k` closes:
+
+| Gap | kern's answer | Page |
+|---|---|---|
+| No supersede — a stale chunk embeds as close as the current one | Bi-temporal claims: contradicted claim is **superseded**, never deleted; query `as_of` or `include_history`. | [Time](http://localhost:3000/kern/concepts/time.txt) |
+| No structure — a vector store is a flat bag | Graph of **thoughts** linked by **reason edges** — *why*s derived at write time, walked free at query time. | [Graph](http://localhost:3000/kern/concepts/graph.txt) · [Retrieval](http://localhost:3000/kern/concepts/retrieval.txt) |
+| Unbounded growth — every chunk scored forever | **Heat** on access, exponential decay, stigmergy GC spilling cold thoughts to a capped cold tier. `Fact`s immune. Nobody prunes. | [Heat](http://localhost:3000/kern/concepts/heat-and-compaction.txt) · [Stigmergy](http://localhost:3000/kern/concepts/stigmergy.txt) |
+| No sense of what matters here | **Gravitons** — named focus attractors bending ingest routing and ranking. One isolated graph per working directory; `degrade` down-weights paths that produced bad answers. | [Acceptance](http://localhost:3000/kern/concepts/acceptance.txt) · [Stigmergy](http://localhost:3000/kern/concepts/stigmergy.txt) |
+
+Premise: memory is a process that operates itself, not an index you operate.
+
+## The trade
+
+**Recall costs no LLM call — you pay at write time.** Ingest distills with an LLM; contradiction checks are more LLM work in the background tick; the read path is a sub-millisecond graph walk. Write-heavy, rarely-recalling workloads get this trade backwards.
+
+- Needs a model endpoint (local Ollama by default): an embedding model *and* a reasoning model.
+- Forgets by design — an untouched non-`Fact` eventually leaves the hot graph.
+- `Fact` is CLI-only (requires full confidence; only the user source reaches it). MCP durability levers: `Document`, or keep the thought warm.
+
+## Maturity
+
+> **Federation is off by default — keep it off unless you trust every host.**
+`building`, not shipped; transport unauthenticated and unencrypted. See [Federation](http://localhost:3000/kern/concepts/federation.txt) and [Security](http://localhost:3000/kern/concepts/security.txt).
+
+
+- Retrieval baseline is a **regression detector, not a quality claim**: recall@1 0.9583, recall@5 1.0000, MRR 0.9792 (2026-07-21) — deterministic fake embedder, self-authored corpus; can say kern got worse, never that kern is good; comparable to nothing anyone else publishes.
+- **A reason edge cannot yet lift its neighbour into the results** — stored and walkable, but the walk's evidence is discarded in scoring; the multi-hop gap is not yet closed. Item 86 in [`ROADMAP.md`](https://github.com/inner-zirkle/kern/blob/main/docs/windmill/ROADMAP.md).
+
+Architecture implemented, self-maintenance works; hop-dependent recall not delivered yet.
+
+## Next
+
+- [Install & run](http://localhost:3000/kern/howto/install-run.txt)
+- [Configure models](http://localhost:3000/kern/howto/configure.txt)
+- [Seed the graph](http://localhost:3000/kern/howto/seed.txt)
+- [Architecture](http://localhost:3000/kern/concepts/architecture.txt)

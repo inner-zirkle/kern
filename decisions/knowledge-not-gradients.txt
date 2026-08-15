@@ -1,0 +1,47 @@
+# Knowledge, not gradients
+
+> http://localhost:3000/kern/decisions/knowledge-not-gradients/
+
+## Decision
+
+kern federates knowledge artifacts — entities, reason edges, pulses — never model updates; from federated learning it borrows only robustness machinery, of which update clipping is the piece in code today.
+
+## Why
+
+FL is the nearest well-studied relative, but the analogy breaks in three places:
+
+- The delta is the payload — an FL gradient is a lossy summary of private data; a kern gossip message *is* the thought. No summary layer to add noise to; privacy lives at scope and membership.
+- No shared loss function — each node answers its own queries; "convergence" means eventual consistency over graph state, not loss minimisation.
+- Time is not rounds — kern is a continuous Lamport-ordered stream; anything indexed by round number means nothing here.
+
+What shipped (all bounding what one peer can do to you):
+
+- Delta clamp (the FL-clipping translation): inbound counter deltas rejected if zero, malformed, or above 1,000,000 — a peer can lie within the bound, not overflow a counter in one message.
+- Signals stripped at the boundary: synced entities arrive with heat, access counts, and confidence zeroed; confidence never merged. A remote assertion can make a fact *visible*, not *believed* or *hot*.
+- Remote quarantine: inbound entities land in a phantom `remote-*` kern, capped at 50,000 entities, never in your own.
+
+## Rejected
+
+| Alternative | Why it lost |
+| --- | --- |
+| A coordinator | single point of failure; gossip + CRDTs + local scoring converge without one |
+| DP noise on content | gradients tolerate noise because they're redundant; a thought is specific — noise destroys retrieval |
+| Cross-peer vector averaging | ids are content hashes: same-id vectors identical (no-op), different-model vectors meaningless arithmetic |
+| Shared model architecture | nodes are deliberately heterogeneous; local GNN weights excluded from federation |
+| Synchronous rounds | rounds need someone to fire them — the coordinator problem again |
+| Gradient compression | kern's deltas are a counter slot and a stamp; nothing to compress |
+
+## Trade-off accepted
+
+Adopted on paper, not built:
+
+- Per-peer ingest budgets — the quarantine cap is the only volume bound, per remote kern, not per peer.
+- Trimmed-mean materialisation of federated scalars — written once, never called, deleted.
+- Provenance ledger for retrospective down-weighting — the shipped ledger is a routing cache (where to fetch, not who told you what).
+- Secure aggregation for pulses.
+
+> **The rejections are the identity.**
+Every rejected primitive serves FL's goal of jointly training one model.
+kern's goal is that a fact learned once is available everywhere you work,
+each node deciding for itself what to believe. Import the wrong primitive
+and you quietly import the wrong goal.

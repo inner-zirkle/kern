@@ -1,0 +1,67 @@
+# Stigmergy GC & gravitons
+
+> http://localhost:3000/kern/concepts/stigmergy/
+
+kern forgets from the traces reads leave behind, not from a retention policy anyone wrote. This page: that trace, and gravitons — named, weighted attractors biasing which regions stay dense and which results surface first.
+
+## The metaphor
+
+Ants deposit pheromone; other ants prefer marked paths; pheromone evaporates — the route emerges from the medium. That is stigmergy. The loan ends there: kern's mechanism is exponential decay plus a threshold test. Why this over scheduled cleanup: [Stigmergy over gardening](http://localhost:3000/kern/decisions/stigmergy-over-gardening.txt).
+
+## The trace
+
+- **Reads deposit** — a returned thought gets an access-count bump, an `accessed_at` stamp, a heat deposit. Deferred to the tick — recall never blocks on a write, never counts as content mutation.
+- **The pulse does not deposit** — it walks from the root at half strength per level to *schedule* work, and lays no pheromone. It used to, and a deposit that recurs every tick never evaporates: everything the walk reached became permanently uncollectible. An idle daemon still maintains itself, on the clustering fan-out, not on manufactured heat.
+- **Evaporation** — exponential, lazy, from the age of the last deposit. See [Heat & compaction](http://localhost:3000/kern/concepts/heat-and-compaction.txt#decay-is-lazy).
+
+## From trace to collection
+
+Hourly, per kern: collect every thought that is **not durable** (active `Fact`/`Document` immune), **cold** (aged heat below 0.01), and **stale** (untouched > 7 days) — spilling each to the cold tier before dropping. Full guarantee: [Heat & compaction](http://localhost:3000/kern/concepts/heat-and-compaction.txt#the-guarantee-precisely).
+
+No LRU list, no quota, no "keep the last N" — a pure predicate over values already maintained for ranking. Retention emerges from usage, not administration.
+
+## Gravitons
+
+Heat says what has been *used*; gravitons say what the graph is *for* — set deliberately.
+
+A graviton: name, pull vector, scalar `mass` (default 1.0). Manage with the `graviton` MCP tool (`action=list|add|remove`). Seed text: **example statements, one per line** — each line embedded separately, mean = pull vector. Measured: pooled examples sit markedly closer to held-out same-focus claims than an abstract description. Keep each line under the embedding model's context window.
+
+Two action points:
+
+- **Ingest** — routing picks the child nearest by `cosine_distance / mass`; no match falls to the `generic` catch-all.
+- **Query** — boost proportional to best graviton match × mass (**max**, not sum — overlapping gravitons never double-count). Default weight 0.15; 0 disables; a graviton-free graph pays nothing.
+
+Heat and gravitons are not wired together and do not compound: a graviton biases what is *found*, and being found is what deposits heat. Position in the tree buys nothing on its own — aiming a graviton is a statement about what the graph should surface, and retention follows only if surfacing turns into use.
+
+```mermaid
+flowchart TD
+    I[new entity] --> R{nearest graviton by<br/>cosine distance / mass}
+    R -->|match| G1[graviton kern]
+    R -->|no match| GEN[generic catch-all]
+    GEN --> C{dense cluster forms}
+    C -->|yes, LLM names it| P{equivalent root<br/>graviton exists?}
+    C -->|no| GEN
+    P -->|no| PROMOTE[reparented to root:<br/>a new graviton]
+    P -->|yes| STAY[stays under generic]
+```
+
+### Auto-promotion out of `generic`
+
+When the tick names a kern under `generic` and no equivalent root graviton exists, it is reparented to the root — a new graviton nobody declared in advance.
+
+### Why plural, not singular
+
+Gravitons replaced a single per-kern `purpose` field. One purpose forces one answer to "what is this memory about"; the plural model allows overlapping focuses, weighting between them (mass means nothing without alternatives), and a query-time bias at all. Gravity is a bias knob by design, not a measured recall improvement.
+
+## Observing and forcing it
+
+- `health` — graviton, kern, entity, reason counts (fastest way to spot unnamed-kern churn), plus `cold_evicted` — the one place retention stops being lossless.
+- The `gc` tool is a *different* collector: reaps empty and orphan kerns (structure, not content).
+- Deleting rows frees LMDB pages, not disk size — the file compacts on restart or `kern compact`. A `gc` reaping thousands of kerns with unchanged `data.mdb` is correct.
+
+## See also
+
+- [Heat & compaction](http://localhost:3000/kern/concepts/heat-and-compaction.txt) — decay, the tick, the retention guarantee in full.
+- [Acceptance](http://localhost:3000/kern/concepts/acceptance.txt) — how effective distance places a thought.
+- [Retrieval](http://localhost:3000/kern/concepts/retrieval.txt) — where gravity sits in ranking.
+- [MCP tools](http://localhost:3000/kern/howto/mcp.txt) — the `graviton` and `gc` surfaces.

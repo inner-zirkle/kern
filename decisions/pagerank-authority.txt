@@ -1,0 +1,42 @@
+# PageRank for authority
+
+> http://localhost:3000/kern/decisions/pagerank-authority/
+
+## Decision
+
+Every query runs a damped, query-personalised PageRank over the reason graph (damping `0.85`, up to 25 iterations, teleporting at the query's seed hits) and fuses the top results into the seed set by rank (RRF); on by default.
+
+## Why
+
+- Vector similarity cannot see the well-cited hub whose own text doesn't match the query; the graph knows which entities are load-bearing.
+- Personalisation: the walk restarts at the query's dense and lexical seeds, so rank mass stays in the query's neighbourhood; dangling mass redistributes along the teleport vector, not uniformly, or personalisation leaks back into a global prior.
+- Damping `d = 0.85` → expected walk `1/(1−d) ≈ 6.7` hops — long enough to see structure, short enough that a mutual-citation chain cannot launder rank down its length; self-loops neutral by construction.
+- Fusion consumes ranks only, never raw PageRank masses — no score-magnitude knob to mis-calibrate.
+- Net: structure decides *within* the neighbourhood the query selects, never *instead of* it.
+
+## Rejected
+
+| Alternative | Why it lost |
+| --- | --- |
+| Degree centrality | N fake citers buy N rank; no transitivity |
+| Undamped eigenvector centrality | diverges on dangling nodes; no convergence guarantee on disconnected components |
+| HITS / SALSA | a second eigenvector to maintain; bipartite framing fits query/doc graphs, not a reason graph |
+| TrustRank | right Sybil defence for federation-level authority — a scope that is unbuilt |
+| Global (unpersonalised) PageRank | popular entities top every query, relevant or not |
+
+## Trade-off accepted
+
+- A power iteration per query, nothing persisted between queries — and nothing *can* be, because the teleport is personalised: a per-graph vector would be the global PageRank rejected above. The walk is confined to the seeds' reach, so it costs what the query touches, not what the graph holds; a query whose seeds reach the whole graph still pays for the whole graph. No incremental updates.
+- The federation half (per-peer authority, TrustRank seeding, Sybil defences) was not built; no rank crosses a machine boundary, so the targeted Sybil surface doesn't exist yet. Prerequisites if per-peer authority ever lands.
+
+> **Unit mechanism works; end-to-end effect measures near zero.**
+The mechanism is pinned by unit tests, but an end-to-end test that adds a
+reason edge between two ingested claims moves only one of 8 pairs by one
+rank. Graph structure currently decides very little of the delivered ranking;
+ROADMAP item 86 carries the diagnosis.
+
+
+## Where you see it
+
+- Within a query's neighbourhood, entities many reasons point at outrank textually-similar leaves.
+- Pipeline position (after seeding, before expansion): [The retrieval pipeline](http://localhost:3000/kern/concepts/retrieval.txt). Peer trust today: [Federation](http://localhost:3000/kern/concepts/federation.txt).

@@ -1,0 +1,164 @@
+# Configure models
+
+> http://localhost:3000/kern/howto/configure/
+
+kern talks to two model endpoints. With a local Ollama and the default models pulled, no config is needed.
+
+## You may not need a config file
+
+No `kern.toml`: defaults assume a local Ollama at `http://localhost:11434`:
+
+```bash
+ollama pull qwen3-embedding:0.6b   # embeddings
+ollama pull granite4:3b            # distillation / reasoning (write path)
+```
+
+A config file only overrides; omitted sections keep their defaults.
+
+## Presets — the whole tuning surface is one line
+
+The preset owns every heat, dedup, and retrieval-breadth setting. `[heat]`, `[ingest]`, `[retrieval]` sections are not accepted — a config that sets them refuses to load. The one exception is `[ingest] review_policy` below, which is curation rather than tuning. Unknown preset name: refuses to load.
+
+```toml
+preset = "tight"
+```
+
+| Preset | Posture | What it means |
+| --- | --- | --- |
+| `relaxed` | **The default.** Keep more, forget slower | 30-day heat half-life, near-identical-only dedup (0.98), broad search (`seed_k` 25, 800 expansions), up to 40 results |
+| `medium` | Balanced | 7-day half-life, 0.95 dedup, `seed_k` 15, 500 expansions, 25 results |
+| `tight` | Lean graph, sharp recall | 3-day half-life, aggressive dedup (0.90), narrow search (`seed_k` 10, 250 expansions), 12 results |
+
+`relaxed` when losing a stray fact hurts more than noise; `tight` for high-churn codebases where stale memory misleads.
+
+## Hold auto-distilled claims until someone reviews them
+
+`review_policy` keys a curation state on the source scheme — `file`, `ticket`, `session`, `agent`, `inline`. A scheme set to `pending` arrives held; a scheme you do not name arrives `active`, which is every ingest path today.
+
+```toml
+[ingest]
+review_policy = { file = "pending" }
+```
+
+Holding a claim does not hide it. `kern query` still returns it, because a filter that can hide data must be asked for:
+
+```bash
+kern query "how do we deploy" --exclude-pending   # skip anything still held
+kern promote <id>                                 # release one, then it comes back
+```
+
+A misspelled scheme refuses to load rather than holding nothing and reading as a working knob. `kern promote` is idempotent — releasing an already-active thought reports it and changes nothing.
+
+> **Who can `promote`.**
+`kern promote` routes to a running daemon over its local socket. The socket is owner-only (`0600`) and authenticated with the graph's `mcp-token`; any caller holding that token can release a held claim. kern has no finer-grained caller identity — the process boundary is the access model.
+
+
+## The two model roles
+
+### `embed`
+
+Critical path for every ingest and query — the highest-frequency call. Keep it small; default `qwen3-embedding:0.6b` is fine. `embed.url` and `embed.model` are the only required settings — validation rejects a config with either blank.
+
+> **The embedding dimension locks the graph.**
+First ingest fixes the vector dimension for the whole graph. Change the model later and stored vectors no longer match query vectors. Not silent — store stamps its model, `health` raises `embed_mismatch`, wrong-dimension query vectors are dropped and counted. Queries still answer — badly. `kern reembed` is the only escape; it re-embeds everything and restamps.
+
+
+### `reason`
+
+Critical path for the intake: one distillation pass per drained session decides what is remembered — an unextracted claim never enters the graph. Also used for contradiction classification and `link` reasons. Default `granite4:3b`, sized for a small GPU. **Spend headroom here first** — off the read path, so a slower model costs ingest latency, not recall latency.
+
+### There is no answer role
+
+`query` returns scored passages; the calling agent synthesizes. A config carrying an `[answer]` section refuses to load.
+
+## Where the config file lives
+
+Both optional:
+
+| Scope | Path |
+| --- | --- |
+| Project | `<project root>/.kern/kern.toml` |
+| User | `<XDG_CONFIG>/kern/kern.toml` |
+
+Project root: nearest ancestor with `.git`, else nearest with `.kern` — subdirectory launches find the same config.
+
+> **Precedence is per-key, and a redirect drops the key.**
+Scopes deep-merge: project key overrides user key, omitted keys inherited; arrays and scalars replace wholesale. Exception: **a scope that sets a section's `url` does not inherit that section's `key`** — otherwise a cloned repo's config could point `[embed] url` at its own endpoint and harvest your global credential. Redirect an endpoint → supply its key or go without.
+
+
+- Invalid config aborts startup: offending key on stderr, exit **78** (`EX_CONFIG`). Absent config defaults silently.
+- No environment-variable layer; API keys live in plaintext in the TOML — treat the file accordingly.
+
+## A complete Ollama config
+
+Every line is a default made explicit — delete any you are not changing:
+
+```toml
+[embed]
+url   = "http://localhost:11434"
+model = "qwen3-embedding:0.6b"
+key   = ""
+
+[reason]
+url   = "http://localhost:11434"
+model = "granite4:3b"
+key   = ""
+```
+
+Blank = "same as the leg above": `reason.url` blank → `embed.url`; `reason.key` blank → `embed.key`. One endpoint for both models: write the URL once, in `[embed]`.
+
+> **WSL2 loopback needs an explicit URL.**
+WSL2 NAT with Ollama on the Windows host: `localhost` resolves inside the VM. Set `embed.url` to the host gateway (`ip route show default | awk '{print $3}'`). Mirrored-mode WSL2 and in-distro Ollama keep plain `localhost`.
+
+
+## OpenAI-compatible and remote endpoints
+
+Protocol is picked from the URL: Ollama-native (`/api/embed`, `/api/chat`) only when the URL looks local *and* does not end in `/v1`; anything else gets the OpenAI-compatible API (`/v1/embeddings`, `/v1/chat/completions`) with `key` as bearer token. A trailing `/v1` is stripped before building the request path — writing it is what selects the protocol.
+
+**Hosted OpenAI-compatible provider:**
+
+```toml
+[embed]
+url   = "http://localhost:11434"          # keep embeddings local — highest call volume
+model = "qwen3-embedding:0.6b"
+
+[reason]
+url   = "https://api.example.com/v1"
+model = "some-instruct-model"
+key   = "sk-..."
+```
+
+**Local OpenAI-compatible server** (vLLM, llama.cpp, LM Studio) — `/v1` **required**, else a `localhost` URL is treated as Ollama-native and requests go to `/api/chat`, which your server does not serve:
+
+```toml
+[reason]
+url   = "http://localhost:8000/v1"
+model = "Qwen/Qwen2.5-7B-Instruct"
+```
+
+**Remote Ollama** on a non-local host: always driven OpenAI-compatible — point at `http://host:11434/v1` and be explicit.
+
+> **Context size and keep-alive are not config keys.**
+`num_ctx` (embed 2048, reason 8192) and `keep_alive` (embed 10m, reason 2m) are compiled-in constants, Ollama-native only. On the `/v1` path kern sends none of them.
+
+
+## Verify
+
+Restart the daemon, then:
+
+```bash
+kern health                                    # graph loads, config parsed
+kern search "anything" --k 3                   # exercises the embed leg
+kern query "what is this project about"        # full retrieval, LLM-free
+```
+
+- Reason leg is write-path only — drop a delta into `.kern/intake/` and watch it drain ([Intake & recall](http://localhost:3000/kern/howto/intake-recall.txt)).
+- `--embed-url`, `--embed-model`, `--reason-url`, `--reason-model` override config for a single command — test an endpoint before committing it.
+- Embedding failure: ingest and query return nothing rather than erroring (fail open) — check stderr for the connection error.
+- Mismatch is visible: `kern health` prints `MISMATCH: the index was built with a different model` beside `embed:`; fix with `kern reembed`. An unstamped store (pre-stamping build) adopts the current model on first open — not a mismatch.
+
+## Related
+
+- [Install & run](http://localhost:3000/kern/howto/install-run.txt)
+- [Seed the graph](http://localhost:3000/kern/howto/seed.txt)
+- [The retrieval pipeline](http://localhost:3000/kern/concepts/retrieval.txt)

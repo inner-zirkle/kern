@@ -1,0 +1,91 @@
+# Heat, decay & self-compaction
+
+> http://localhost:3000/kern/concepts/heat-and-compaction/
+
+One scalar per thought — *heat* — exponential decay, and a background tick that reorganises the graph and evicts what has gone cold, spilling to a cold tier first: eviction is a demotion, not a deletion. No manual gardening.
+
+## Heat
+
+Dimensionless usage signal; one deposit:
+
+- **Access** — a query returning a thought deposits 1.0 and stamps `accessed_at`. Nothing else deposits. The maintenance pulse walks the tree to schedule work, not to reinforce: it did deposit until it was measured, and because the deposit recurred every tick it settled orders of magnitude above the eviction floor, exempting everything within its reach from collection whether or not anyone used it. Survival is usage, never tree position.
+
+Half-life is preset-owned: `relaxed` 30 days (default), `medium` 7 days, `tight` 3 days. No `[heat]` section to set.
+
+> **The pulse is why an idle daemon still maintains itself.**
+On the way down it enqueues clustering for every non-empty kern — naming, enrichment, question resolution on a graph nobody is querying.
+
+
+## Decay is lazy
+
+Never decremented on a timer. Stored value written only on deposit; every read computes
+
+```
+decayed = heat * exp(-ln(2) * dt / half_life)
+```
+
+A deposit decays first, then adds — touching a stale thought does not resurrect its old magnitude. GC ages the value *before* comparing — no evading eviction on a stale stored number.
+
+## The tick
+
+Every 60 seconds (`tick.interval_secs`; 0 disables):
+
+1. Reconcile with the store (concurrent writers).
+2. Pulse the root.
+3. Fan clustering out to every non-empty kern.
+4. Snapshot if anything changed — crash loss bounded to one interval.
+
+A panicking task costs that task, not the loop — logged, counted, reported by `health` (`task_panics` / `task_failures`; a climbing failure count means a task gives up every beat). Hourly, not per beat: stigmergy GC and disk consolidation; both refuse to run under an unreadable or skewed clock.
+
+## Clustering
+
+The structural half of compaction. Per kern, the tick groups sampled thoughts by cosine; a cluster becomes its own child kern when the parent is named, the cluster is not restating the parent's graviton, size ≥ 10, cohesion ≥ 0.60. A cohesive child gets LLM-named — a graviton, a real routing target. Reverse in the same pass: unnamed, empty children fold back into their parent.
+
+## Eviction
+
+A GC victim only when **all three** hold:
+
+1. **Not durable** — active `Fact`s and `Document`s immune; supersession revokes the immunity.
+2. **Cold** — age-decayed heat below 0.01.
+3. **Stale** — untouched for more than 7 days.
+
+Missing or future timestamp (clock skew) = *not* a victim — the predicate fails closed.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Hot: ingest
+    Hot --> Hot: query deposit
+    Hot --> Cooling: no touch, heat decays
+    Cooling --> Hot: any access re-deposits
+    Cooling --> Victim: cold AND stale AND not durable
+    Victim --> Cold: spill succeeded
+    Victim --> Hot: spill failed, retried next pass
+    Cold --> Hot: recall backfills when hot results < k
+    Cold --> [*]: cold tier over 50k, oldest dropped
+```
+
+## Spill before drop
+
+Victim written to the cold LMDB table *first*; dropped from the hot graph only on success — a failed spill stays hot for the next hourly pass. Cold rows backfill queries returning fewer than `k` hot results; bi-temporal stamps kept, so `as_of` stays exact over the cold tail.
+
+## The guarantee, precisely
+
+- **Absolute:** an active `Fact` or `Document` is never collected — no heat or age overrides the kind check. A *superseded* fact loses the exemption (excluded from live recall anyway; still spilled, not erased).
+- **Bounded:** everything else survives on usage. RAM eviction is lossless; cold eviction is FIFO capped at 50,000 entries. A never-touched non-durable thought behind 50k newer entries is genuinely gone — each drop counted (`cold_evicted` on `health`).
+
+> **In-memory mode drops for real.**
+No store bound → no spill; the victim is simply removed. Spill-before-drop holds only for a persisted kern.
+
+
+Unconditional survival: ingest as a `Document`, keep it warm, or make it a `Fact` — a CLI-only lever (kind derives from confidence, `Fact` needs full confidence, only `kern ingest` writing as the user reaches it; MCP callers clamped below).
+
+## Steady state
+
+Working set — queried within 6.64 half-lives, and nothing else — stays hot and indexed. Cohesive clusters condense into named kerns. Hourly drain moves untouched claims cold. Facts and documents accumulate, never swept. The hot graph tracks what you *use*, not what you have written.
+
+## See also
+
+- [Stigmergy GC & gravitons](http://localhost:3000/kern/concepts/stigmergy.txt) — the GC as a usage-trace, plus the attractors that bias survival.
+- [Time](http://localhost:3000/kern/concepts/time.txt) — why a superseded fact loses GC immunity.
+- [Retrieval](http://localhost:3000/kern/concepts/retrieval.txt) — how heat and access feed ranking.
+- [Configure](http://localhost:3000/kern/howto/configure.txt) — the presets that own the heat knobs.

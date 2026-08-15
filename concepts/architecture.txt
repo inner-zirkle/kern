@@ -1,0 +1,57 @@
+# Architecture
+
+> http://localhost:3000/kern/concepts/architecture/
+
+One long-running **memory daemon** per working directory owns a knowledge graph in `.kern/`, keeps it small on its own, serves context at recall time. Nothing captured automatically — every write is a caller's call.
+
+> **Recall costs no LLM call.** The default query path is a sub-millisecond graph walk — no network hop, no model, no cloud. All expensive thinking happens before the query: LLM at write time, CPU in the background tick.
+
+## One trade, every decision
+
+| Decision | Why |
+|---|---|
+| One daemon per cwd, always running | The background tick needs somewhere to live. |
+| Distill at ingest, not at query | LLM cost paid once per session, not per lookup. |
+| A graph, not a vector bag | Reason edges are precomputed *why*. Walking is free; deriving isn't. |
+| IDs are content hashes | Identical text = same node everywhere. Merge is set union — no coordinator. |
+| Heat + decay + GC | Nobody prunes by hand, so the graph forgets on its own. |
+| All-internal, no pluggable backend | An external store adds a network hop to the one path that must stay sub-ms. |
+| Fail open everywhere | Memory that breaks a session is worse than memory that misses. |
+
+## The flow
+
+```
+MCP ingest ──────────────────────► typed claims ─┐
+.kern/intake/ drop → distill (LLM) → typed claims ┴→ graph → tick → recall
+```
+
+Two caller-driven write entries — MCP `ingest`, or a transcript dropped into `.kern/intake/` — same graph. Four independent loops:
+
+1. **Write** — claim embedded, deduped, placed.
+2. **Read** — seed candidates, expand over edges, rank, return.
+3. **Maintenance** — tick every 60s: deposit heat, cluster, re-embed, evict, persist. `tick.interval_secs = 0` disables.
+4. **Federation** (off by default) — gossip merges entity bodies with peers.
+
+## What's in the graph
+
+- **Entities** ("thoughts", "claims") — a distilled fact, decision, or preference: typed, evidence-weighted confidence, heat, vector, bi-temporal validity window.
+- **Reasons** (edges) — a *justified* link: labeled relation with its own text and vector, not a similarity score.
+
+Entities live in **kerns**, a tree of buckets. Root is a pure dispatcher; named children are **gravitons** — seeded focus attractors. Ingest routes to the nearest graviton scaled by mass; no match falls into `generic`; dense `generic` clusters promote into new gravitons. Details: [The graph](http://localhost:3000/kern/concepts/graph.txt) · [Acceptance & routing](http://localhost:3000/kern/concepts/acceptance.txt).
+
+## Nothing is deleted
+
+Updated or contradicted claim is **superseded**, never removed — the old revision keeps its validity window; query `as_of` or `include_history`. The update-vs-contradiction call needs an LLM, so it runs in the tick, never on the read path. See [Time & contradiction](http://localhost:3000/kern/concepts/time.txt).
+
+## Thirteen MCP tools
+
+`query`, `ingest`, `link`, `forget` (Facts are immune), `degrade`, `move`, `health`, `graviton`, `claim_kind`, `pulse`, `gc`, `intake_drain`, `setup`. Transports: stdio default, HTTP/SSE opt-in. See [MCP tools](http://localhost:3000/kern/howto/mcp.txt).
+
+## Fail-open, but counted
+
+Every degradation returns something instead of erroring. Panicking tick tasks, dropped cold rows, embed-model mismatches, rejected query vectors, chunks lost to a dead embed endpoint — counted, reported by `health`; `kern health` prints `degraded:` only when a counter is nonzero. Counting is not fixing — it just says so.
+
+## Staying current
+
+- **Auto-restart on attach** — `kern mcp` compares the daemon's build + config fingerprint against its own; gracefully replaces a stale daemon.
+- **Hot reload** (Unix, default on) — daemon watches its own binary; a new build drains, flushes, hands the socket to a successor without dropping connections.

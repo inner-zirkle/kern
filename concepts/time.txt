@@ -1,0 +1,67 @@
+# Time & contradiction
+
+> http://localhost:3000/kern/concepts/time/
+
+Every thought carries two clocks: when a statement was true in the world, and when kern found out. A contradicted claim is *superseded* — invalidated, kept as history — never deleted; query what was true, or what kern believed, at any instant.
+
+## Why revision is first-class
+
+"Deadline is March", then "moved to April": a vector store holds both — near-identical embeddings, opposite meanings — and returns whichever ranks higher. Deleting the old one loses "what did we think in January?", the audit trail, and the evidence it moved at all.
+
+## Two clocks
+
+| Clock | Fields | Meaning |
+| --- | --- | --- |
+| World time | `[valid_from, valid_to)` | When the statement was true out there. Half-open — revisions tile without overlap. Distillation can extract an explicit `valid_from`. |
+| Transaction time | `created_at` / `invalidated_at` | When kern's own store changed. |
+
+They come apart routinely: learn Friday about Monday's reversal; backfill six months in an afternoon; "what did the system believe on the 3rd?" vs "what was true on the 3rd?".
+
+>
+A thought with no temporal information is always considered valid — the conservative default; the alternative would silently hide everything written before the temporal machinery existed.
+
+
+## Supersede
+
+Two paths, same mutation: **explicit** re-ingest under the same external id, or a **contradiction** verdict from the tick. Either way:
+
+1. New thought inserted and indexed normally.
+2. Old one's status → `Superseded`, pointing at its successor.
+3. Transaction time stamped *now*; world-time window closes when the new claim became true — clocks set independently.
+4. Old id leaves the vector indexes but stays in its kern — no longer retrieved, history recoverable.
+
+A `Supersedes` edge links new to old.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Active: accept
+    Active --> Active: corroboration
+    Active --> Superseded: re-ingest under same external id
+    Active --> Superseded: LLM verdict CONTRADICT/UPDATE
+    Active --> Cold: heat decays (Facts exempt)
+    Superseded --> Cold: GC spills it
+    Cold --> [*]: cold tier over 50k cap
+```
+
+## Contradiction detection
+
+Never at query time, never synchronously at ingest. Ingest records a `Rephrase` edge; the background tick asks the LLM one constrained question — UPDATE, CONTRADICT, or RELATED.
+
+- **Recall stays LLM-free** — decision made before any query arrives.
+- **Fails open to coexistence** — hedged, empty, or unparseable = RELATED. A missed contradiction leaves two coexisting claims (recoverable); a false supersede hides a true claim (not).
+- **Kind gates the verdict** — only a same-kind near-duplicate may supersede; a distilled `Claim` never invalidates a user-asserted `Fact`.
+
+## Querying the past
+
+Two independent `query` options; they compose into the revision chain as it stood at a past instant:
+
+- **`as_of <timestamp>`** — pure world-time filter: the single revision whose validity window covered that instant. Exact over the cold tier too.
+- **`include_history`** — normal query, then walks the supersede chain backward from each hit; ancestors flagged `history:true` (recovered from cold if needed). Widens results without loosening filters.
+
+>
+`as_of` ≠ `valid_at`. `valid_at` checks an explicit expiry date stamped on a thought; `as_of` checks the supersede-maintained validity window. A claim can be unexpired yet superseded, and vice versa.
+
+
+## What time does not do
+
+Bi-temporality governs *correctness* (which revision is current), not *retention*. A superseded thought must still go cold before GC touches it — supersession only makes it eligible (revokes a `Fact`'s eviction immunity). A queried superseded claim stays hot; an untouched uncontradicted one goes cold. See [Heat & compaction](http://localhost:3000/kern/concepts/heat-and-compaction.txt).
