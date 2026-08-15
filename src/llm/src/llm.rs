@@ -10,7 +10,7 @@ use std::net::Ipv4Addr;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
-use util::LogThrottle;
+use util::{LLM_LADDER, LogThrottle};
 
 #[derive(Debug, thiserror::Error)]
 pub enum LlmError {
@@ -78,6 +78,7 @@ fn one_line_reason(err: &LlmError) -> String {
 }
 
 fn record_complete_failure(err: &LlmError) {
+	LLM_LADDER.step_down("LLM request failed");
 	let total = COMPLETE_FAILED.fetch_add(1, Ordering::Relaxed) + 1;
 	let transient = is_transient(err);
 	// `is_transient` already sorts these cases for the embed leg; reuse its

@@ -181,6 +181,18 @@ pub fn graph_health_stats(g: &GraphGnn) -> HealthStats {
 	}
 }
 
+/// Report the current step of every degradation ladder. Each entry is
+/// `(subsystem_name, step_label, step_index)` — a zero-index step means the
+/// subsystem is on its primary (non-degraded) path.
+pub fn ladder_states() -> Vec<(&'static str, &'static str, u8)> {
+	vec![
+		(util::EMBED_LADDER.name(), util::EMBED_LADDER.current_label(), util::EMBED_LADDER.current_step()),
+		(util::LLM_LADDER.name(), util::LLM_LADDER.current_label(), util::LLM_LADDER.current_step()),
+		(util::GNN_LADDER.name(), util::GNN_LADDER.current_label(), util::GNN_LADDER.current_step()),
+		(util::DISTILL_LADDER.name(), util::DISTILL_LADDER.current_label(), util::DISTILL_LADDER.current_step()),
+	]
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;

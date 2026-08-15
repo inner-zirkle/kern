@@ -114,6 +114,7 @@ markdown.\n\nCONVERSATION:\n{marked}\n"
 		);
 		let raw = llm(&prompt);
 		if raw.trim().is_empty() {
+			util::DISTILL_LADDER.step_down("LLM distill returned None");
 			return None;
 		}
 		match parse_claims(&raw, extra_kinds) {
@@ -121,7 +122,10 @@ markdown.\n\nCONVERSATION:\n{marked}\n"
 			// A batch that returns no parseable array is a format failure for
 			// the whole delta — retry, never archive a partially-distilled
 			// conversation that silently dropped every later batch.
-			None => return None,
+			None => {
+				util::DISTILL_LADDER.step_down("LLM distill parse failure");
+				return None;
+			}
 		}
 	}
 	Some(all)

@@ -13,6 +13,7 @@ use gnn::gnn::propagate::{self, GnnConfig, GnnSnapshot};
 use graph::graph::GraphGnn;
 
 use tick::tick_queue::{task, Queue, TaskKind};
+use util::GNN_LADDER;
 
 pub fn do_gnn_propagate(q: &Queue, g: &Arc<RwLock<GraphGnn>>, kern_id: &str, cfg: &GnnConfig) {
 	let snap = {
@@ -52,6 +53,7 @@ pub fn do_gnn_propagate(q: &Queue, g: &Arc<RwLock<GraphGnn>>, kern_id: &str, cfg
 			}
 		}
 		Err(e) => {
+			GNN_LADDER.step_down("GNN propagation failed");
 			tracing::error!(
 				target: "kern.gnn",
 				kern = %kern_id,
