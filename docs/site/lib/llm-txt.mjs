@@ -3,6 +3,9 @@ import { join, dirname, posix } from 'node:path';
 
 const root = process.cwd();
 const contentDir = join(root, 'content/docs');
+// llms.md lives in docs/, not docs/site/content/ — moved there by the docs
+// canonicalization. The build reads it from one level up.
+const overviewPath = join(root, '../llms.md');
 export const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? '';
 export const site =
   (process.env.NEXT_PUBLIC_SITE_URL ?? `http://localhost:${process.env.PORT ?? 3000}`) + basePath;
@@ -48,7 +51,7 @@ export function collectPages(base = site) {
 }
 
 export function llmsTxt(base = site) {
-  const overview = toTxt(readFileSync(join(root, 'content/llms.md'), 'utf8'), '.', base);
+  const overview = toTxt(readFileSync(overviewPath, 'utf8'), '.', base);
   let index = '## Pages\n';
   let lastSection = '';
   for (const p of collectPages(base)) {

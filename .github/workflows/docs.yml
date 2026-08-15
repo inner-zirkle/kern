@@ -1,15 +1,22 @@
 name: Docs
 
+# The site reads docs/llms.md, so a path filter of docs/site/** alone lets a
+# change to the overview ship a stale llms.txt. The default branch is main;
+# it was master until the rename, and the stale trigger froze the published
+# site for three weeks without failing anything.
 on:
   push:
-    branches: [master]
+    branches: [main]
     paths:
       - docs/site/**
+      - docs/llms.md
       - .github/workflows/docs.yml
   pull_request:
     paths:
       - docs/site/**
+      - docs/llms.md
       - .github/workflows/docs.yml
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -33,7 +40,7 @@ jobs:
           NEXT_PUBLIC_BASE_PATH: /kern
       - run: touch out/.nojekyll
       - name: Deploy to GitHub Pages
-        if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
