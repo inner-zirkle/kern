@@ -18,8 +18,21 @@ on:
       - .github/workflows/docs.yml
   workflow_dispatch:
 
+# Pages on this repo is configured build_type=workflow, which serves the
+# artifact uploaded by actions/deploy-pages and ignores any branch. The old job
+# pushed a built tree to gh-pages instead, so every deploy since 2026-07-16 was
+# a no-op that reported success: the branch moved, the site did not. Publishing
+# through the official actions is what makes the green check mean something.
 permissions:
-  contents: write
+  contents: read
+  pages: write
+  id-token: write
+
+# Never let two deploys race for the one live site; queue instead of cancelling,
+# so a superseded build still finishes rather than leaving Pages half-updated.
+concurrency:
+  group: pages
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -38,11 +51,20 @@ jobs:
       - run: npm run build
         env:
           NEXT_PUBLIC_BASE_PATH: /kern
+      # Next emits _next/; without this Jekyll drops every underscore path.
       - run: touch out/.nojekyll
-      - name: Deploy to GitHub Pages
-        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-        uses: peaceiris/actions-gh-pages@v4
+      - uses: actions/upload-pages-artifact@v3
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: docs/site/out
-          force_orphan: true
+          # Resolved from the workspace root: `defaults.run` only steers `run`.
+          path: docs/site/out
+
+  deploy:
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
