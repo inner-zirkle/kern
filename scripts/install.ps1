@@ -1,13 +1,13 @@
 # kern one-line installer (Windows).
 #
-#   irm https://raw.githubusercontent.com/yesitsfebreeze/kern/master/install.ps1 | iex
+#   irm https://raw.githubusercontent.com/inner-zirkle/kern/main/scripts/install.ps1 | iex
 #
 # Downloads the prebuilt kern.exe for this platform from the latest GitHub
 # release and installs it to %LOCALAPPDATA%\kern\bin (override with
 # $env:KERN_BIN_DIR), adding that directory to the user PATH.
 $ErrorActionPreference = 'Stop'
 
-$repo = 'yesitsfebreeze/kern'
+$repo = 'inner-zirkle/kern'
 $binDir = if ($env:KERN_BIN_DIR) { $env:KERN_BIN_DIR } else { "$env:LOCALAPPDATA\kern\bin" }
 
 switch ($env:PROCESSOR_ARCHITECTURE) {

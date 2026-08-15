@@ -1,13 +1,13 @@
 #!/bin/sh
 # kern one-line installer (Linux / macOS).
 #
-#   curl -fsSL https://raw.githubusercontent.com/yesitsfebreeze/kern/master/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/inner-zirkle/kern/main/scripts/install.sh | sh
 #
 # Downloads the prebuilt `kern` binary for this platform from the latest GitHub
 # release and installs it to ~/.local/bin (override with KERN_BIN_DIR).
 set -eu
 
-REPO="yesitsfebreeze/kern"
+REPO="inner-zirkle/kern"
 BIN_DIR="${KERN_BIN_DIR:-$HOME/.local/bin}"
 
 os="$(uname -s)"

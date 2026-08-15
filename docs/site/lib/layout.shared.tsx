@@ -5,6 +5,6 @@ export function baseOptions(): BaseLayoutProps {
     nav: {
       title: 'kern',
     },
-    githubUrl: 'https://github.com/yesitsfebreeze/kern',
+    githubUrl: 'https://github.com/inner-zirkle/kern',
   };
 }

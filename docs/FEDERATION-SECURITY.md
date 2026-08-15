@@ -24,5 +24,5 @@ kept verified.
 ## Reporting
 
 Report security issues privately before public disclosure, via
-[GitHub security advisories](https://github.com/yesitsfebreeze/kern/security/advisories),
+[GitHub security advisories](https://github.com/inner-zirkle/kern/security/advisories),
 not a public issue.

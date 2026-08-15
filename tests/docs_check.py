@@ -36,7 +36,7 @@ ROOT = Path(__file__).resolve().parent.parent
 PAGE_DIRS = [
     ROOT / "docs" / "site" / "content",
     ROOT / "docs" / "kern",
-    ROOT / "docs" / "oracle",
+    ROOT / "docs" / "windmill",
 ]
 REF = re.compile(r"`(src/[A-Za-z0-9_/.-]+\.rs)(?::(\d+)(?:-(\d+))?)?`")
 REPO_PATH = re.compile(
@@ -66,9 +66,22 @@ HEADING = re.compile(r"^#{1,6}\s")
 # written, and two such quotations already carry an `anchor-ok` acquittal.
 ILLUSTRATION = re.compile(r"``.+?``")
 LINK = re.compile(r"\]\((\.\.?/[^)\s#]+\.mdx?)(?:#[^)\s]*)?\)")
+# The org and the default branch both moved (yesitsfebreeze -> inner-zirkle,
+# master -> main). github.com redirects a renamed org, so those links kept
+# working and the rename looked free; raw.githubusercontent.com does not
+# redirect, so the advertised install command 404'd instead. This pattern is
+# pinned to the *current* name on purpose — an old-name URL matches nothing,
+# reaches no existence check, and is exactly the silence that hid the 404.
 SELF_URL = re.compile(
-    r"https://(?:raw\.githubusercontent\.com/yesitsfebreeze/kern"
-    r"|github\.com/yesitsfebreeze/kern/(?:blob|raw))/master/([^)\s#\"']+)"
+    r"https://(?:raw\.githubusercontent\.com/inner-zirkle/kern"
+    r"|github\.com/inner-zirkle/kern/(?:blob|raw))/main/([^)\s#\"']+)"
+)
+# A self-link still on the old org or the old branch. Matched separately so it
+# is reported as dead rather than skipped: `github.com` redirecting it today is
+# a courtesy, not a guarantee, and its raw twin is already broken.
+STALE_SELF_URL = re.compile(
+    r"https://(?:raw\.githubusercontent\.com|github\.com)/"
+    r"(?:yesitsfebreeze/kern\S*|inner-zirkle/kern/(?:blob|raw)/master\S*)"
 )
 HISTORICAL = "<!-- docs-check: historical -->"
 GONE = re.compile(r"\b(deleted|removed|withdrawn|absorbed|superseded by)\b", re.I)
@@ -432,6 +445,12 @@ def check_page(page: Path, failures: list[str], nominations: list[str] | None = 
             total += 1
             if not (ROOT / m.group(1)).is_file():
                 failures.append(f"{rel}:{lineno}: dead self link {m.group(1)}")
+        for m in STALE_SELF_URL.finditer(text):
+            total += 1
+            failures.append(
+                f"{rel}:{lineno}: stale self link {m.group(0)}"
+                " — use inner-zirkle/kern on main"
+            )
     return total
 
 
@@ -485,16 +504,26 @@ def selftest() -> None:
         "./federation.mdx",
         "../howto/mcp.mdx",
     ]
-    assert LINK.findall("[v](../oracle/VISION.md)") == ["../oracle/VISION.md"]
+    assert LINK.findall("[v](../windmill/VISION.md)") == ["../windmill/VISION.md"]
     assert LINK.findall("[x](https://example.com/a.mdx)") == []
     assert SELF_URL.findall(
-        "curl https://raw.githubusercontent.com/yesitsfebreeze/kern/master/install.sh | sh"
-    ) == ["install.sh"]
+        "curl https://raw.githubusercontent.com/inner-zirkle/kern/main/scripts/install.sh | sh"
+    ) == ["scripts/install.sh"]
     assert SELF_URL.findall(
-        "[v](https://github.com/yesitsfebreeze/kern/blob/master/docs/oracle/VISION.md)"
-    ) == ["docs/oracle/VISION.md"]
-    assert SELF_URL.findall("https://github.com/yesitsfebreeze/kern/releases") == []
-    assert (ROOT / "docs" / "oracle" / "ROADMAP.md") in pages(), "docs/oracle is scanned"
+        "[v](https://github.com/inner-zirkle/kern/blob/main/docs/windmill/VISION.md)"
+    ) == ["docs/windmill/VISION.md"]
+    assert SELF_URL.findall("https://github.com/inner-zirkle/kern/releases") == []
+    # The two renames the checker was blind to, each pinned by a case.
+    assert STALE_SELF_URL.findall(
+        "https://raw.githubusercontent.com/yesitsfebreeze/kern/main/scripts/install.sh"
+    ), "the old org is stale even on the new branch"
+    assert STALE_SELF_URL.findall(
+        "https://github.com/inner-zirkle/kern/blob/master/README.md"
+    ), "the old branch is stale even under the new org"
+    assert not STALE_SELF_URL.findall(
+        "https://github.com/inner-zirkle/kern/blob/main/README.md"
+    ), "the current form is not stale"
+    assert (ROOT / "docs" / "windmill" / "ROADMAP.md") in pages(), "docs/windmill is scanned"
     assert (ROOT / "docs" / "kern" / "README.md") in pages(), "docs/kern is scanned"
     assert GONE.search("`docs/kern/x.md`, deleted 2026-07-20"), "a deletion excuses its line"
     assert not GONE.search("see `src/base/merge.rs:20`"), "a live citation is not excused"
@@ -665,13 +694,19 @@ def anchor_selftest() -> None:
         # path is held to. Every assertion below fails on the build that shipped
         # before this one — the past-EOF continuation went unreported there, which
         # is exactly how `ROADMAP.md:651` cited line 654 of a 146-line file.
+        # The fixture names files out of the *current* tree. It used to cite
+        # `src/base/types.rs` and `place.rs`, both of which the crate split
+        # renamed away; the fixture then failed on its own missing files and
+        # masked every assertion under it. The split also made bare names
+        # nearly all unique — the crate prefix is in the filename now — so the
+        # ambiguous case has to be `lib.rs`, of which there are twenty-six.
         cont = d / "CONT.md"
         cont.write_text(
             "# Section\n"
             "\n"
-            "The kinds (`src/base/types.rs:10`) and a tail (`:999999`).\n"
-            "A unique bare name (`place.rs:1`) needs no antecedent.\n"
-            "An ambiguous one (`types.rs:1`) has four candidates.\n"
+            "The kinds (`src/base/src/base_types.rs:10`) and a tail (`:999999`).\n"
+            "A unique bare name (`ingest_place.rs:1`) needs no antecedent.\n"
+            "An ambiguous one (`lib.rs:1`) has twenty-six candidates.\n"
             "Quoting the form `` `:7` `` displays it rather than citing it.\n"
             "\n"
             "# Another\n"
@@ -685,11 +720,11 @@ def anchor_selftest() -> None:
         assert len(failures) == 1 and "999999" in failures[0], (
             f"a continuation past EOF is a dead reference like any other: {failures}"
         )
-        assert "src/base/types.rs" in failures[0], (
+        assert "src/base/src/base_types.rs" in failures[0], (
             f"and it is reported against the file it continues: {failures[0]}"
         )
         assert any("names no single file" in n for n in nominations), (
-            f"`types.rs` is four files — say so rather than pick one: {nominations}"
+            f"`lib.rs` is twenty-six files — say so rather than pick one: {nominations}"
         )
         assert any("continues nothing" in n for n in nominations), (
             f"a heading ends the scope, so `:12` continues nothing: {nominations}"
@@ -698,12 +733,12 @@ def anchor_selftest() -> None:
             "five citations: the path, its continuation, the unique bare name, the "
             f"ambiguous one and the orphan — the quoted `:7` is not one of them: {total}"
         )
-        assert resolve_rs("place.rs", None) == ROOT / "src" / "ingest" / "place.rs", (
-            "a bare name unique under src/ resolves with no antecedent at all"
-        )
-        assert resolve_rs("types.rs", None) is None, "an ambiguous name resolves to nothing"
-        assert resolve_rs("types.rs", ROOT / "src" / "base" / "types.rs") == (
-            ROOT / "src" / "base" / "types.rs"
+        assert resolve_rs("ingest_place.rs", None) == (
+            ROOT / "src" / "ingest" / "src" / "ingest_place.rs"
+        ), "a bare name unique under src/ resolves with no antecedent at all"
+        assert resolve_rs("lib.rs", None) is None, "an ambiguous name resolves to nothing"
+        assert resolve_rs("lib.rs", ROOT / "src" / "base" / "src" / "lib.rs") == (
+            ROOT / "src" / "base" / "src" / "lib.rs"
         ), "an antecedent of the same name settles it"
         assert ILLUSTRATION.sub("", "quoting `` `:7` `` here") == "quoting  here"
 
@@ -711,13 +746,14 @@ def anchor_selftest() -> None:
         # matched inside fenced code blocks, where a port or a `sed` address is
         # prose-as-code, not a citation. The fence skip is the fix. A real
         # citation before the fence still resolves; the fenced `` `:8080` ``
-        # (continuation past store.rs) and `` `graph.rs:9999` `` (bare name past
-        # graph.rs) are silent with the skip and dead without it.
+        # (continuation past the store) and `` `graph.rs:9999` `` (bare name past
+        # graph.rs) are silent with the skip and dead without it. The store moved
+        # from src/base/store.rs to the store_core crate in the split.
         fence = d / "FENCE.md"
         fence.write_text(
             "# Section\n"
             "\n"
-            "Real citation (`src/base/store.rs:624`) before the fence.\n"
+            "Real citation (`src/store_core/src/lib.rs:624`) before the fence.\n"
             "\n"
             "```rust\n"
             "listen on `:8080` and probe `graph.rs:9999` — not citations.\n"
@@ -741,7 +777,7 @@ def anchor_selftest() -> None:
         illus.write_text(
             "# Section\n"
             "\n"
-            "An illustrated full path (`` `src/llm.rs:11434` ``) is prose, not a cite.\n",
+            "An illustrated full path (`` `src/llm/src/llm.rs:11434` ``) is prose, not a cite.\n",
             encoding="utf-8",
         )
         failures = []
@@ -752,11 +788,11 @@ def anchor_selftest() -> None:
 
         # Negative control: strip the double backticks and the same token is a real
         # citation past EOF — proving the silence is the escape, not a tokeniser
-        # blind spot. `src/llm.rs` is 1095 lines, so :11434 is beyond EOF.
+        # blind spot. `src/llm/src/llm.rs` is 718 lines, so :11434 is beyond EOF.
         illus.write_text(
             "# Section\n"
             "\n"
-            "A bare full path (`src/llm.rs:11434`) is a citation past EOF.\n",
+            "A bare full path (`src/llm/src/llm.rs:11434`) is a citation past EOF.\n",
             encoding="utf-8",
         )
         failures = []
@@ -765,7 +801,7 @@ def anchor_selftest() -> None:
         assert len(failures) == 1 and "11434 beyond EOF" in failures[0], (
             f"the un-escaped token reds where the escaped one is silent: {failures}"
         )
-        assert "src/llm.rs" in failures[0], failures[0]
+        assert "src/llm/src/llm.rs" in failures[0], failures[0]
 
         line_counts.clear()
         file_lines.clear()

@@ -15,7 +15,7 @@
 
 ## Running it
 
-- Install: `curl -fsSL https://raw.githubusercontent.com/yesitsfebreeze/kern/master/install.sh | sh` · Windows `irm .../install.ps1 | iex` · or `cargo install --path .`
+- Install: `curl -fsSL https://raw.githubusercontent.com/inner-zirkle/kern/main/scripts/install.sh | sh` · Windows `irm .../install.ps1 | iex` · or `cargo install --path .`
 - Models (Ollama default; any OpenAI-compatible endpoint): `ollama pull qwen3-embedding:0.6b` + `ollama pull granite4:3b`. No answer model — recall returns passages, agent synthesizes.
 - Opt in: `mkdir .kern` in project root. One daemon + graph per working directory; binary re-pins to nearest `.git`/`.kern` ancestor.
 - Start: `kern --daemon`, but `kern mcp` auto-spawns one — registering MCP is usually the only step.
