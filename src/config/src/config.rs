@@ -97,6 +97,7 @@ impl Config {
 		};
 		let preset = cfg.preset;
 		preset.apply(&mut cfg);
+		cfg.retrieval.resolve_voice_overrides();
 		cfg
 	}
 
@@ -144,6 +145,7 @@ impl Config {
 			.map_err(|e: toml::de::Error| crate::config::Error::Parse(e.to_string()))?;
 		let preset = cfg.preset;
 		preset.apply(&mut cfg);
+		cfg.retrieval.resolve_voice_overrides();
 		// serde's struct-level default pins data_dir to the *process* cwd. A
 		// caller loading another root (hub merge, any cross-root tooling) must
 		// get that root's store, never its own — re-pin when no config set it.
@@ -827,6 +829,13 @@ pub struct RetrievalConfig {
 	pub pagerank_damping: f64,
 	pub pagerank_iters: usize,
 	pub pagerank_top_k: usize,
+	// Voice kill switches — env-var overridable so each retrieval voice can be
+	// disabled independently at runtime without recompiling or config changes.
+	// See `resolve_voice_overrides()`.
+	pub voice_vector_enabled: bool,
+	pub voice_lexical_enabled: bool,
+	pub voice_graph_enabled: bool,
+	pub voice_pagerank_enabled: bool,
 }
 
 impl Default for RetrievalConfig {
@@ -879,11 +888,39 @@ impl Default for RetrievalConfig {
 			pagerank_damping: 0.85,
 			pagerank_iters: 25,
 			pagerank_top_k: 100,
+			voice_vector_enabled: true,
+			voice_lexical_enabled: true,
+			voice_graph_enabled: true,
+			voice_pagerank_enabled: true,
 		}
 	}
 }
 
 impl RetrievalConfig {
+	/// Read `KERN_VOICE_VECTOR`, `KERN_VOICE_LEXICAL`, `KERN_VOICE_GRAPH`, and
+	/// `KERN_VOICE_PAGERANK` env vars and override the matching field. Each env
+	/// value "0", "false", or "off" (case-insensitive) disables the voice;
+	/// anything else (or absent) leaves the field unchanged.
+	pub fn resolve_voice_overrides(&mut self) {
+		let voice = |var: &str| -> Option<bool> {
+			let raw = std::env::var(var).ok()?;
+			let lower = raw.trim().to_lowercase();
+			Some(!matches!(lower.as_str(), "0" | "false" | "off"))
+		};
+		if let Some(v) = voice("KERN_VOICE_VECTOR") {
+			self.voice_vector_enabled = v;
+		}
+		if let Some(v) = voice("KERN_VOICE_LEXICAL") {
+			self.voice_lexical_enabled = v;
+		}
+		if let Some(v) = voice("KERN_VOICE_GRAPH") {
+			self.voice_graph_enabled = v;
+		}
+		if let Some(v) = voice("KERN_VOICE_PAGERANK") {
+			self.voice_pagerank_enabled = v;
+		}
+	}
+
 	pub fn validate(&self) -> Vec<String> {
 		let mut errs = Vec::new();
 

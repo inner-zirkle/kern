@@ -68,13 +68,14 @@ pub fn seed_with_important(
 	let mut hits = match mode {
 		Mode::Reason => seed_by_reason(g, query_vec, k),
 		// Filter DURING the ANN traversal so a sparse filter still yields k matching hits (not an unfiltered top-k post-filtered to fewer).
-		_ => match opts {
+		_ if cfg.voice_vector_enabled => match opts {
 			Some(o) if o.is_active() => {
 				let keep = matches_keep(g, o);
 				search_all_filtered(g, query_vec, k, &keep)
 			}
 			_ => search_all_unlocked(g, query_vec, k),
 		},
+		_ => Vec::new(),
 	};
 	hits = merge_seeds(hits, important.to_vec());
 	hits.truncate(k.max(cfg.seed_k));

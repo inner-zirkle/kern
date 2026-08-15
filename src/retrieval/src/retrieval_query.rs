@@ -92,8 +92,12 @@ fn fuse_hybrid_seeds(
 	query_text: &str,
 	imp_hits: &[graph::search::EntityHit],
 ) -> Vec<graph::search::EntityHit> {
-	let lex_hits = seed::seed_lexical(lex, g, query_text, cfg.seed_k * 4, opts);
-	let pr_hits = if cfg.pagerank_enabled {
+	let lex_hits = if cfg.voice_lexical_enabled {
+		seed::seed_lexical(lex, g, query_text, cfg.seed_k * 4, opts)
+	} else {
+		Vec::new()
+	};
+	let pr_hits = if cfg.pagerank_enabled && cfg.voice_pagerank_enabled {
 		// Teleport personalized at dense + lexical seeds only — importance is query-independent and would make PageRank query-blind.
 		let ppr_seeds: Vec<graph::search::EntityHit> =
 			dense_seeds.iter().chain(lex_hits.iter()).cloned().collect();
@@ -184,7 +188,14 @@ pub fn retrieve_profiled(
 		);
 	}
 
-	let expanded = expand::expand(g, cfg, qvec, &seeds, w);
+	let expanded = if cfg.voice_graph_enabled {
+		expand::expand(g, cfg, qvec, &seeds, w)
+	} else {
+		expand::ExpandResult {
+			scored: Vec::new(),
+			chains: Vec::new(),
+		}
+	};
 	prof.checkpoint("expand");
 	let mut results = merge_results(g, &seeds, expanded.scored);
 	let mut chains = expanded.chains;
