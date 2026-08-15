@@ -31,6 +31,58 @@ pub enum EntityKind {
 	Conclusion = 4,
 }
 
+/// How content entered the graph — the ingestion channel, not the author.
+/// TrustTier folds a channel-based weight into the retrieval score so a
+/// host can discount auto-ingested or inferred content relative to direct
+/// human assertion.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[repr(u8)]
+pub enum TrustTier {
+	/// Direct human assertion — the most trusted channel.
+	Stated = 0,
+	/// Inferred by an AI/agent (default for agent-channel ingests).
+	Inferred = 1,
+	/// Created by a tool or MCP invocation.
+	Tool = 2,
+	/// Imported in bulk from another system.
+	Imported = 3,
+	/// No channel identified — lowest trust.
+	#[default]
+	Unknown = 4,
+}
+
+impl TrustTier {
+	pub fn as_str(&self) -> &'static str {
+		match self {
+			Self::Stated => "Stated",
+			Self::Inferred => "Inferred",
+			Self::Tool => "Tool",
+			Self::Imported => "Imported",
+			Self::Unknown => "Unknown",
+		}
+	}
+
+	pub fn default_weight(&self) -> f64 {
+		match self {
+			Self::Stated => 1.0,
+			Self::Inferred => 0.85,
+			Self::Tool => 0.75,
+			Self::Imported => 0.6,
+			Self::Unknown => 0.5,
+		}
+	}
+
+	pub fn from_source_tag(tag: &str) -> Self {
+		match tag.to_lowercase().as_str() {
+			"user" | "human" | "stated" => Self::Stated,
+			"agent" | "inferred" | "llm" => Self::Inferred,
+			"tool" | "mcp" => Self::Tool,
+			"import" | "imported" | "bulk" => Self::Imported,
+			_ => Self::Unknown,
+		}
+	}
+}
+
 impl EntityKind {
 	// Stable labels — the MCP query `kind` filter matches these strings.
 	pub fn as_str(self) -> &'static str {
@@ -290,6 +342,7 @@ pub struct Entity {
 	pub kind: EntityKind,
 	pub status: EntityStatus,
 	pub review: ReviewState,
+	pub trust_tier: TrustTier,
 	pub statements: Vec<String>,
 	pub chunks: Vec<ChunkPart>,
 	pub vector: Embedding,
@@ -691,6 +744,7 @@ pub fn mk_entity(id: &str, text: &str, heat: f64, kind: EntityKind) -> Entity {
 		kind,
 		status: EntityStatus::Active,
 		review: ReviewState::default(),
+		trust_tier: TrustTier::Unknown,
 		statements: vec![text.to_string()],
 		chunks: vec![ChunkPart {
 			kind: ChunkPartKind::StatementRef,

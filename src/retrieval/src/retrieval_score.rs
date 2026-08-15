@@ -159,7 +159,13 @@ pub fn apply_boosts<T: Scored>(g: &GraphGnn, cfg: &RetrievalConfig, results: &mu
 			.get(e.source.scheme())
 			.copied()
 			.unwrap_or(1.0);
-		r.set_score((r.score() * confidence + boost + fact_bonus) * trust);
+		let trust_tier = e.trust_tier;
+		let trust_tier_weight = cfg
+			.trust_tier_weights
+			.get(trust_tier.as_str())
+			.copied()
+			.unwrap_or_else(|| trust_tier.default_weight());
+		r.set_score(((r.score() * confidence + boost + fact_bonus) * trust) * trust_tier_weight);
 	}
 }
 

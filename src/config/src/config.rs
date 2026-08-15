@@ -764,7 +764,7 @@ impl Default for ReloadConfig {
 
 // ==== [retrieval] ====
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 use base::base_constants as constants;
 
@@ -817,6 +817,12 @@ pub struct RetrievalConfig {
 	// its author: `kern ingest` and an MCP agent's default ingest both write
 	// `inline`, so no key here separates a human from an agent (ROADMAP 20).
 	pub source_trust: BTreeMap<String, f64>,
+	// Per-trust-tier weight override, keyed on TrustTier::as_str() — "Stated",
+	// "Inferred", "Tool", "Imported", "Unknown". An absent key falls back to the
+	// tier's built-in `default_weight()`, so the empty default leaves every score
+	// bit-identical to the pre-knob baseline.
+	#[serde(default)]
+	pub trust_tier_weights: HashMap<String, f64>,
 	pub min_deliver_score: f64,
 	pub max_deliver_results: usize,
 	pub important_min_cosine: f64,
@@ -870,6 +876,7 @@ impl Default for RetrievalConfig {
 			gravity_weight: 0.15,
 			remote_trust_weight: 0.4,
 			source_trust: BTreeMap::new(),
+			trust_tier_weights: HashMap::new(),
 			min_deliver_score: 0.0,
 			max_deliver_results: 25,
 			important_min_cosine: constants::IMPORTANT_MIN_COSINE,

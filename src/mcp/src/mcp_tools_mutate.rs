@@ -4,7 +4,7 @@
 use serde::Deserialize;
 
 use base::base_constants::AGENT_SOURCE;
-use base::base_types::{Scoping, Source};
+use base::base_types::{Scoping, Source, TrustTier};
 use graph::reason::move_entity;
 use graph::search::find_entity;
 use math::clamp_confidence;
@@ -322,6 +322,7 @@ impl Server {
 				// an agent whatever `p.source` claims.
 				source_tag: AGENT_SOURCE.to_string(),
 				scoping: scoping.clone(),
+				trust_tier: TrustTier::from_source_tag(AGENT_SOURCE),
 			};
 			match ingest::direct::intake_direct(&direct_dir, &job) {
 				Ok(doc_id) => {
