@@ -1,7 +1,7 @@
 """Shared parsing and setup helpers for the retrieval e2e suite.
 
-`search` and `query` print one line per hit from the same println! in
-src/commands/query.rs:
+Every read mode of `query` prints one line per hit from the same println! in
+src/commands/src/commands_query.rs:
 
     1. [0.3405] 14da0c1e89ae  Ada keeps her bicycle in the garden shed
 
@@ -47,11 +47,14 @@ def ingest_all(project, texts):
 def full_id(project, text, pool=64):
 	"""Full 64-char id for an ingested text.
 
-	search/query/list only ever print the 12-char short id, while link,
-	degrade and forget match ids exactly — so every mutation has to round-trip
-	through `get`, which does resolve a prefix.
+	query/list only ever print the 12-char short id, while link, degrade and
+	forget match ids exactly — so every mutation has to round-trip through
+	`get`, which does resolve a prefix.
+
+	`--mode vector` is the bare nearest-neighbour read: no walk, no daemon, and
+	an exact `--k`, which is what makes the pool here a pool and not a ranking.
 	"""
-	stdout, stderr = project.run("search", text, "--k", str(pool))
+	stdout, stderr = project.run("query", text, "--mode", "vector", "--k", str(pool))
 	for hit in hits(stdout):
 		if hit.text == text:
 			got, _ = project.run("get", hit.short_id)

@@ -121,27 +121,6 @@ pub const SUPERSEDE_CHAIN_HOP_THRESHOLD: usize = 5;
 
 pub const QUESTION_RESOLVE_THRESHOLD: f64 = 0.80;
 
-pub const GOSSIP_FANOUT: usize = 3;
-pub const GOSSIP_SEEN_SET_CAP: usize = 10_000;
-pub const GOSSIP_SEEN_TTL: Duration = Duration::from_secs(60);
-pub const GOSSIP_HEARTBEAT_INTERVAL: Duration = Duration::from_secs(30);
-pub const GOSSIP_DISCOVERY_INTERVAL: Duration = Duration::from_secs(10);
-pub const GOSSIP_DISCOVERY_MULTICAST: &str = "239.77.75.68";
-pub const GOSSIP_MAX_PEERS: usize = 50;
-pub const GOSSIP_SEED_ADDR: &str = "seed.kern.dev:7946";
-pub const GOSSIP_DIAL_TIMEOUT: Duration = Duration::from_secs(2);
-pub const GOSSIP_FETCH_TIMEOUT: Duration = Duration::from_secs(5);
-// Reject a larger declared length before reading any body bytes — bounds per-connection memory.
-pub const GOSSIP_MAX_FRAME_BYTES: usize = 4 * 1024 * 1024;
-
-// At the cap new remote ids are dropped; existing ids still CRDT-merge (known updates never lost).
-pub const GOSSIP_REMOTE_KERN_ENTITY_CAP: usize = 50_000;
-// Coarsely bounds a peer pinning a per-replica slot toward u64::MAX.
-pub const GOSSIP_CRDT_DELTA_MAX: u64 = 1_000_000;
-
-pub const LEDGER_THOUGHT_TTL: Duration = Duration::from_secs(72 * 60 * 60);
-pub const LEDGER_ROUTING_TTL: Duration = Duration::from_secs(5 * 60);
-
 // Residency, not forgetting: an unloaded kern is persisted first and reloads on next `get`.
 pub const KERN_IDLE_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 pub const KERN_IDLE_SWEEP_EVERY: Duration = Duration::from_secs(60);

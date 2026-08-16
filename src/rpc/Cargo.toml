@@ -7,15 +7,20 @@ license.workspace = true
 [dependencies]
 base = { path = "../base" }
 config = { path = "../config" }
+graph = { path = "../graph" }
+health = { path = "../health" }
 ingest = { path = "../ingest" }
 llm = { path = "../llm" }
-mcp = { path = "../mcp" }
-gossip = { path = "../gossip" }
+math = { path = "../math" }
+retrieval = { path = "../retrieval" }
+store = { path = "../store" }
+identity = { path = "../identity" }
 tick = { path = "../tick" }
 tick_loop = { path = "../tick_loop" }
 transport = { path = "../transport" }
 util = { path = "../util" }
 test_support = { path = "../test_support" }
+parking_lot.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
@@ -23,6 +28,8 @@ thiserror.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
+# The cold-tier filter test spins up its own canned embed endpoint.
+axum.workspace = true
 tempfile = "3"
 # `start_paused`: the pre-auth deadline is five seconds of real patience. The
 # workspace build only compiled because the root package's dev-dep unified the

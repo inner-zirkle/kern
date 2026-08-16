@@ -1,6 +1,10 @@
 //! The machine hub: one per machine, it spawns/probes/stops the per-root kern
-//! daemons (the process-level plumbing) and serves the hub RPC that lets
-//! clients enumerate and reach every daemon without knowing socket paths.
+//! daemons (the process-level plumbing), keeps the persistent registry of
+//! every kern on the machine, and serves the hub RPC that lets clients
+//! enumerate, reach, and search across every daemon without knowing socket
+//! paths.
+
+pub mod hub_registry;
 
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
@@ -9,7 +13,7 @@ use std::time::Duration;
 use transport::kern_rpc::KernRpcClient;
 use transport::typed::{Endpoint, JsonEnvelopeCodec};
 
-use gossip::identity::strip_deleted_marker;
+use identity::strip_deleted_marker;
 
 // Bootstrap loads the whole graph before binding kern.sock, so a big store
 // needs a generous ready window.
@@ -36,20 +40,11 @@ impl NodeHandle {
 	}
 }
 
-// Both of these take the *root*, not the endpoint. `Endpoint::kern_for` is an
-// FNV hash of the path, so the socket name cannot produce the node's token —
-// only the root can, via the config that names its data_dir. The endpoint is
-// derived here from the same root, so the two can never drift apart.
-fn node_caller(root: &Path) -> transport::kern_rpc::AuthReq {
-	::rpc::caller_at(root)
-}
-
 // None = unreachable; Some(0) also means "treat as active" — daemons predating
 // the field report 0 and must never be idle-unloaded on a lie.
 pub async fn idle_ms(root: &Path) -> Option<u64> {
 	let client = KernRpcClient::<JsonEnvelopeCodec>::connect_endpoint_with_retry(
 		&Endpoint::kern_for(root),
-		&node_caller(root),
 		1,
 		Duration::from_millis(0),
 	)
@@ -62,7 +57,6 @@ pub async fn idle_ms(root: &Path) -> Option<u64> {
 pub async fn probe(root: &Path) -> bool {
 	KernRpcClient::<JsonEnvelopeCodec>::connect_endpoint_with_retry(
 		&Endpoint::kern_for(root),
-		&node_caller(root),
 		1,
 		Duration::from_millis(0),
 	)
@@ -130,7 +124,6 @@ pub async fn spawn(root: &Path) -> Result<NodeHandle, String> {
 pub async fn shutdown(handle: &mut NodeHandle) -> Result<(), String> {
 	if let Ok(client) = KernRpcClient::<JsonEnvelopeCodec>::connect_endpoint_with_retry(
 		&handle.endpoint,
-		&node_caller(&handle.root),
 		1,
 		Duration::from_millis(0),
 	)
@@ -185,11 +178,16 @@ use std::sync::Arc;
 
 use tokio::sync::Mutex;
 use transport::hub_rpc::{
-	HubRpc, HubStatusRes, NodeLite, ResolveReq, ResolveRes, StopRes, UnloadReq, UnloadRes,
+	HubRpc, HubStatusRes, KnownRoot, NodeLite, ResolveReq, ResolveRes, RootErr, SearchHit, SearchReq,
+	SearchRes, StopRes, UnloadReq, UnloadRes,
 };
+use transport::kern_rpc::InvokeReq;
 use transport::typed::Channel;
 
+use crate::hub_registry::Registry;
+
 const REAP_INTERVAL_SECS: u64 = 30;
+const SEARCH_DEFAULT_K: u64 = 5;
 
 type Nodes = Arc<Mutex<HashMap<PathBuf, NodeHandle>>>;
 type SpawnLocks = Arc<Mutex<HashMap<PathBuf, Arc<Mutex<()>>>>>;
@@ -200,6 +198,9 @@ pub struct HubRpcHandler {
 	// Per-root: a cold boot ready-waits ~10s and must not block other roots.
 	// Entries are never removed — bounded by distinct roots per machine.
 	spawn_locks: SpawnLocks,
+	// The persistent memory of every root this machine has resolved — what a
+	// restarted hub, `hub status`, and the cross-kern search enumerate.
+	registry: Arc<Registry>,
 	// Exits the hub loop; nodes stay up (they own their sockets).
 	stop: Arc<tokio::sync::Notify>,
 }
@@ -228,9 +229,14 @@ async fn root_lock(locks: &SpawnLocks, root: &std::path::Path) -> Arc<Mutex<()>>
 
 impl HubRpcHandler {
 	pub fn new() -> Self {
+		Self::with_registry(Arc::new(Registry::open_default()))
+	}
+
+	pub fn with_registry(registry: Arc<Registry>) -> Self {
 		Self {
 			nodes: Arc::new(Mutex::new(HashMap::new())),
 			spawn_locks: Arc::new(Mutex::new(HashMap::new())),
+			registry,
 			stop: Arc::new(tokio::sync::Notify::new()),
 		}
 	}
@@ -246,6 +252,7 @@ impl HubRpc for HubRpcHandler {
 	fn resolve(&self, req: ResolveReq) -> impl ::core::future::Future<Output = ResolveRes> + Send {
 		let nodes = self.nodes.clone();
 		let locks = self.spawn_locks.clone();
+		let registry = self.registry.clone();
 		async move {
 			let root = match canon(&req.root) {
 				Ok(p) => p,
@@ -278,6 +285,7 @@ impl HubRpc for HubRpcHandler {
 				Ok(handle) => {
 					let endpoint = handle.endpoint.display();
 					let spawned = handle.child.is_some();
+					registry.record_seen(&root);
 					nodes.lock().await.insert(root, handle);
 					ResolveRes {
 						ok: true,
@@ -305,26 +313,192 @@ impl HubRpc for HubRpcHandler {
 
 	fn status(&self) -> impl ::core::future::Future<Output = HubStatusRes> + Send {
 		let nodes = self.nodes.clone();
+		let registry = self.registry.clone();
 		async move {
-			let mut map = nodes.lock().await;
-			let mut out = Vec::with_capacity(map.len());
-			for (root, handle) in map.iter_mut() {
-				// Owned children answer via try_wait; adopted nodes (no child
-				// handle) only reveal death through their socket.
-				let alive = match handle.child {
-					Some(_) => handle.alive(),
-					None => probe(&handle.root).await,
-				};
-				out.push(NodeLite {
-					root: root.display().to_string(),
-					endpoint: handle.endpoint.display(),
-					pid: handle.pid(),
-					alive,
-				});
+			let mut loaded: std::collections::HashSet<PathBuf> = std::collections::HashSet::new();
+			let mut out = Vec::new();
+			{
+				let mut map = nodes.lock().await;
+				for (root, handle) in map.iter_mut() {
+					// Owned children answer via try_wait; adopted nodes (no child
+					// handle) only reveal death through their socket.
+					let alive = match handle.child {
+						Some(_) => handle.alive(),
+						None => probe(&handle.root).await,
+					};
+					if alive {
+						loaded.insert(root.clone());
+					}
+					out.push(NodeLite {
+						root: root.display().to_string(),
+						endpoint: handle.endpoint.display(),
+						pid: handle.pid(),
+						alive,
+					});
+				}
 			}
+			// Every registered root, live and cold, importance-sorted: entity
+			// count first (what a search would actually find there), bytes as
+			// the tiebreak, path last so the order is total and stable.
+			let mut known: Vec<KnownRoot> = registry
+				.roots()
+				.into_iter()
+				.map(|(root, info)| KnownRoot {
+					loaded: loaded.contains(&root),
+					root: root.display().to_string(),
+					entities: info.entities,
+					kerns: info.kerns,
+					data_bytes: info.data_bytes,
+					last_seen_ms: info.last_seen_ms,
+				})
+				.collect();
+			known.sort_by(|a, b| {
+				b.entities
+					.cmp(&a.entities)
+					.then(b.data_bytes.cmp(&a.data_bytes))
+					.then(a.root.cmp(&b.root))
+			});
 			HubStatusRes {
 				ok: true,
 				nodes: out,
+				known,
+			}
+		}
+	}
+
+	// The cross-kern read: fan the query out to every registered root, merge
+	// score-descending, and name every root that could not answer. `live_only`
+	// restricts to daemons already up; otherwise cold kerns are woken through
+	// the same resolve path a client would use (and idle-unload reclaims them).
+	fn search(&self, req: SearchReq) -> impl ::core::future::Future<Output = SearchRes> + Send {
+		let handler = self.clone();
+		async move {
+			if req.text.trim().is_empty() {
+				return SearchRes {
+					ok: false,
+					err: "text is required".to_string(),
+					..Default::default()
+				};
+			}
+			let k = if req.k == 0 { SEARCH_DEFAULT_K } else { req.k };
+
+			// Ask every root the machine knows: the persistent registry, plus
+			// any live node the registry might not have caught up with yet.
+			let mut roots: Vec<PathBuf> = handler
+				.registry
+				.roots()
+				.into_iter()
+				.map(|(r, _)| r)
+				.collect();
+			for root in handler.nodes.lock().await.keys() {
+				if !roots.contains(root) {
+					roots.push(root.clone());
+				}
+			}
+			roots.sort();
+
+			let mut join = tokio::task::JoinSet::new();
+			for root in roots {
+				let handler = handler.clone();
+				let text = req.text.clone();
+				let live_only = req.live_only;
+				join.spawn(async move {
+					let label = root.display().to_string();
+					if live_only && !probe(&root).await {
+						return Err(RootErr {
+							root: label,
+							err: "not loaded (live_only)".to_string(),
+						});
+					}
+					// The same resolve path a client uses: adopt or spawn under
+					// this root's lock, then one invoke over its socket.
+					let res = handler
+						.resolve(ResolveReq {
+							root: label.clone(),
+						})
+						.await;
+					if !res.ok {
+						return Err(RootErr {
+							root: label,
+							err: res.err,
+						});
+					}
+					let endpoint = Endpoint::parse(&res.endpoint);
+					let client = KernRpcClient::<JsonEnvelopeCodec>::connect_endpoint_with_retry(
+						&endpoint,
+						1,
+						Duration::from_millis(0),
+					)
+					.await
+					.map_err(|e| RootErr {
+						root: label.clone(),
+						err: format!("connect: {e}"),
+					})?;
+					let invoked = client
+						.invoke(InvokeReq {
+							name: "query".to_string(),
+							args: serde_json::json!({"text": text, "k": k}),
+						})
+						.await
+						.map_err(|e| RootErr {
+							root: label.clone(),
+							err: format!("invoke: {e}"),
+						})?;
+					if !invoked.error.is_empty() {
+						return Err(RootErr {
+							root: label,
+							err: invoked.error,
+						});
+					}
+					let entities = invoked
+						.value
+						.get("entities")
+						.and_then(|v| v.as_array())
+						.cloned()
+						.unwrap_or_default();
+					Ok(
+						entities
+							.into_iter()
+							.map(|entity| SearchHit {
+								root: label.clone(),
+								entity,
+							})
+							.collect::<Vec<_>>(),
+					)
+				});
+			}
+
+			let mut hits: Vec<SearchHit> = Vec::new();
+			let mut skipped: Vec<RootErr> = Vec::new();
+			while let Some(joined) = join.join_next().await {
+				match joined {
+					Ok(Ok(mut root_hits)) => hits.append(&mut root_hits),
+					Ok(Err(miss)) => skipped.push(miss),
+					Err(e) => skipped.push(RootErr {
+						root: String::new(),
+						err: format!("join: {e}"),
+					}),
+				}
+			}
+			let score_of = |h: &SearchHit| {
+				h.entity
+					.get("score")
+					.and_then(|v| v.as_f64())
+					.unwrap_or(0.0)
+			};
+			hits.sort_by(|a, b| {
+				score_of(b)
+					.partial_cmp(&score_of(a))
+					.unwrap_or(std::cmp::Ordering::Equal)
+					.then_with(|| a.root.cmp(&b.root))
+			});
+			hits.truncate(k as usize);
+			skipped.sort_by(|a, b| a.root.cmp(&b.root));
+			SearchRes {
+				ok: true,
+				hits,
+				skipped,
+				err: String::new(),
 			}
 		}
 	}
@@ -418,12 +592,51 @@ fn spawn_reaper(handler: HubRpcHandler, idle_unload_secs: u64) {
 					true
 				});
 			}
+			// The registry's own revalidation, same cadence: a deleted project
+			// stops being enumerated and searched.
+			for gone in handler.registry.prune_missing() {
+				tracing::info!(target: "kern.hub", root = %gone, "registry dropped a vanished root");
+			}
+			harvest_stats(&handler).await;
 			if idle_unload_secs == 0 {
 				continue;
 			}
 			idle_pass(&handler, idle_unload_secs * 1000).await;
 		}
 	});
+}
+
+// Refresh the registry's size/importance stats from every live node's health
+// answer. Cold roots keep the last harvest — the registry reports what its
+// daemon last said, never a guess.
+async fn harvest_stats(handler: &HubRpcHandler) {
+	let live: Vec<PathBuf> = {
+		let map = handler.nodes.lock().await;
+		map.keys().cloned().collect()
+	};
+	for root in live {
+		let Ok(client) = KernRpcClient::<JsonEnvelopeCodec>::connect_endpoint_with_retry(
+			&Endpoint::kern_for(&root),
+			1,
+			Duration::from_millis(0),
+		)
+		.await
+		else {
+			continue;
+		};
+		let Ok(health) = client.health().await else {
+			continue;
+		};
+		// data.mdb is the store; its file length is the honest on-disk size
+		// (LMDB frees pages internally, so this is an upper bound until a
+		// compaction — exactly what `gc` reports too).
+		let data_bytes = std::fs::metadata(Path::new(&health.data_dir).join("data.mdb"))
+			.map(|m| m.len())
+			.unwrap_or(0);
+		handler
+			.registry
+			.record_stats(&root, health.entities, health.kerns, data_bytes);
+	}
 }
 
 // Only hub-owned nodes (child: Some) are auto-unloaded — a daemon the user

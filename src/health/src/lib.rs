@@ -34,8 +34,6 @@ pub struct HealthStats {
 	// Chunks dropped because embedding them failed — an empty graph caused by a
 	// dead endpoint rather than by an empty corpus.
 	pub ingest_dropped_chunks: u64,
-	// New remote ids refused because their phantom kern is at the entity cap.
-	pub remote_cap_dropped: u64,
 	// Entities dropped with no cold store bound. Spill-before-drop does not hold
 	// for an in-memory kern; this is how far that deployment has diverged from a
 	// durable one.
@@ -43,6 +41,10 @@ pub struct HealthStats {
 	// Jobs the ingest queue refused because it was full. Nonzero means a producer
 	// is outrunning the LLM leg and text was handed back, not stored.
 	pub ingest_queue_refused: u64,
+	// Writes the strict hygiene gate refused (noise/secret classification).
+	// Nonzero under `gate = "strict"` is the gate working; a surprising climb
+	// means it is eating a producer's output.
+	pub ingest_hygiene_rejected: u64,
 	// Gini coefficient over resident entities' access counts — 0.0 when every
 	// entity is accessed equally (converged on uniform paths), →1.0 when one
 	// entity holds all access (not converged). Empty graph → 0.0. Makes the
@@ -170,27 +172,15 @@ pub fn graph_health_stats(g: &GraphGnn) -> HealthStats {
 		below_floor_deliveries: retrieval::score::below_floor_deliveries(),
 		clock_skew_skips: tick::tick_stigmergy::clock_skew_skips(),
 		ingest_dropped_chunks: ingest::worker::ingest_dropped_chunks(),
-		remote_cap_dropped: graph::merge::remote_cap_dropped(),
 		unspilled_drops: tick::tick_stigmergy::unspilled_drops(),
 		ingest_queue_refused: ingest::worker::ingest_queue_refused(),
+		ingest_hygiene_rejected: ingest::worker::ingest_hygiene_rejected(),
 		gini_access,
 		max_kerns: g.max_loaded_kerns(),
 		supersede_chain_depth_exceeded: graph::accept::supersede_chain_depth_exceeded(),
 		largest_kern_entities,
 		gini_kern_sizes,
 	}
-}
-
-/// Report the current step of every degradation ladder. Each entry is
-/// `(subsystem_name, step_label, step_index)` — a zero-index step means the
-/// subsystem is on its primary (non-degraded) path.
-pub fn ladder_states() -> Vec<(&'static str, &'static str, u8)> {
-	vec![
-		(util::EMBED_LADDER.name(), util::EMBED_LADDER.current_label(), util::EMBED_LADDER.current_step()),
-		(util::LLM_LADDER.name(), util::LLM_LADDER.current_label(), util::LLM_LADDER.current_step()),
-		(util::GNN_LADDER.name(), util::GNN_LADDER.current_label(), util::GNN_LADDER.current_step()),
-		(util::DISTILL_LADDER.name(), util::DISTILL_LADDER.current_label(), util::DISTILL_LADDER.current_step()),
-	]
 }
 
 #[cfg(test)]

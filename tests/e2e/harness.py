@@ -141,6 +141,16 @@ class KernProject:
 		)
 
 	def run(self, *args, timeout=120):
+		code, stdout, stderr = self.run_status(*args, timeout=timeout)
+		del code
+		return stdout, stderr
+
+	def run_status(self, *args, timeout=120):
+		"""Same call, with the exit status — the half `run` drops.
+
+		A command that failed and exited 0 is invisible to every caller that
+		does not grep stderr, so the status is its own assertion.
+		"""
 		out = subprocess.run(
 			[self.bin, *args],
 			cwd=self.cwd,
@@ -149,7 +159,7 @@ class KernProject:
 			text=True,
 			timeout=timeout,
 		)
-		return out.stdout, out.stderr
+		return out.returncode, out.stdout, out.stderr
 
 	def spawn(self, *args, **popen_kw):
 		popen_kw.setdefault("stdin", subprocess.DEVNULL)

@@ -8,7 +8,7 @@ license.workspace = true
 base = { path = "../base" }
 graph = { path = "../graph" }
 ingest_config = { path = "../ingest_config" }
-regex.workspace = true
+hygiene = { path = "../hygiene" }
 llm = { path = "../llm" }
 math = { path = "../math" }
 util = { path = "../util" }

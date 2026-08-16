@@ -24,7 +24,7 @@ Observers today:
 
 - Ingest dedup — a near-duplicate above the preset's dedup threshold (0.98 on default `relaxed`) adds support to the existing entity; text and vector never overwritten (id is the content hash).
 - GNN propagation — after each re-embedding pass, content-vector/structural-vector alignment supports, misalignment contradicts. The only contradiction writer.
-- Never peers — `conf_alpha`/`conf_beta` are never imported; a peer can gossip a claim, not belief in one.
+- Never a merge — `conf_alpha`/`conf_beta` are never imported by the reconcile joins; evidence is counted where it was observed.
 
 ## Rejected
 

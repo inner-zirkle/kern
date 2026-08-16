@@ -9,7 +9,7 @@ use retrieval::id_detail::entity_detail_by_id;
 use util::{explain_relationship_prompt, short_id, truncate};
 
 use crate::commands_route::{array_field, f64_field, route, str_field, u64_field, Routed};
-use crate::{load_graph, with_graph, Client, Endpoint};
+use crate::{fail, hint, load_graph, with_graph, Client, Endpoint};
 
 fn print_kern(kern: &Kern, g: &GraphGnn, depth: usize) {
 	let indent = "  ".repeat(depth);
@@ -103,19 +103,37 @@ fn print_detail(v: &serde_json::Value) {
 	}
 }
 
+// One phrasing for the one miss every per-id command shares. The layers below
+// word it their own way ("thought not found" from the daemon operations and
+// `graph_ops`, nothing at all from a local lookup), and a CLI that passes each
+// through verbatim tells the same story four ways.
+fn no_such_thought(id: &str) -> String {
+	format!("no thought with id {id}")
+}
+
+// The same, for an error that may or may not BE the miss: anything else is the
+// layer's own message, which is more specific than we could be.
+fn per_id_error(e: &str, id: &str) -> String {
+	if e.contains("not found") {
+		no_such_thought(id)
+	} else {
+		format!("{e}: {id}")
+	}
+}
+
 // Routed first for the same reason as forget: a serving daemon's graph is newer
 // than anything this process can load, so a local read would print a stale
 // thought — and stale evidence is the defect one step down from a lost write.
 pub(crate) async fn cmd_get(cfg: &config::Config, id: &str) {
 	match route("query", serde_json::json!({"id": id})).await {
 		Routed::Done(v) => return print_detail(&v),
-		Routed::Refused(e) => return eprintln!("{e}"),
+		Routed::Refused(e) => return fail("get", per_id_error(&e, id)),
 		Routed::NoDaemon => {}
 	}
 	let g = load_graph(cfg);
 	match entity_detail_by_id(&g, id) {
 		Some(detail) => print_detail(&detail),
-		None => eprintln!("thought not found: {id}"),
+		None => fail("get", no_such_thought(id)),
 	}
 }
 
@@ -124,10 +142,88 @@ pub(crate) fn cmd_list(cfg: &config::Config) {
 	print_kern(&g.root, &g, 0);
 }
 
-// In-process data hygiene (RECALL_PLAN F2a): one store load, pattern match over
-// every thought's text, then the same removal path `forget` uses. Refuses while
-// the writer lock is held (a serving daemon), exactly like the offline admin
-// commands, because an unguarded save would clobber the daemon's newer state.
+// The git-porcelain over the graph's bitemporal stamps: bare `kern log` is the
+// machine history (what entered memory or fell out of currency, newest first);
+// `kern log <id>` is one thought's revision chain — when each revision arrived,
+// where it came from, and why the older ones were superseded.
+pub(crate) async fn cmd_log(cfg: &config::Config, id: Option<&str>, limit: usize) {
+	let args = match id {
+		Some(id) => serde_json::json!({"id": id, "limit": limit}),
+		None => serde_json::json!({"limit": limit}),
+	};
+	match route("log", args).await {
+		Routed::Done(v) => return print_log(&v),
+		Routed::Refused(e) => return fail("log", per_id_error(&e, id.unwrap_or_default())),
+		Routed::NoDaemon => {}
+	}
+	let g = load_graph(cfg);
+	match ::rpc::server::log_report(&g, id, limit) {
+		Ok(v) => print_log(&v),
+		Err(e) => fail("log", per_id_error(&e, id.unwrap_or_default())),
+	}
+}
+
+fn print_log(v: &serde_json::Value) {
+	// One thought's chain: full provenance per revision, git-show shaped.
+	if let Some(revs) = v.get("revisions").and_then(|r| r.as_array()) {
+		for (i, rev) in revs.iter().enumerate() {
+			if i > 0 {
+				println!();
+			}
+			let status = str_field(rev, "status");
+			println!(
+				"thought {}  {}{}",
+				short_id(str_field(rev, "id")),
+				str_field(rev, "kind"),
+				if status == "active" {
+					String::new()
+				} else {
+					format!("  ({status})")
+				}
+			);
+			println!("Date:   {}", str_field(rev, "created"));
+			let gone = str_field(rev, "invalidated");
+			if !gone.is_empty() {
+				println!("Gone:   {gone}");
+			}
+			println!("Source: {}", str_field(rev, "source"));
+			let why = str_field(rev, "why");
+			if !why.is_empty() {
+				println!("Why:    {why}");
+			}
+			println!();
+			println!("    {}", str_field(rev, "text"));
+		}
+		if revs.is_empty() {
+			println!("no revisions");
+		}
+		return;
+	}
+	// The machine history: one line per change, newest first.
+	let events = array_field(v, "events");
+	if events.is_empty() {
+		println!("no history");
+		return;
+	}
+	for ev in events {
+		println!(
+			"* {}  {}  {:<10}  {}/{}  {}",
+			short_id(str_field(ev, "id")),
+			str_field(ev, "at"),
+			str_field(ev, "change"),
+			str_field(ev, "kind"),
+			str_field(ev, "scheme"),
+			truncate(str_field(ev, "text"), 80)
+		);
+	}
+}
+
+// The bulk half of `forget` (RECALL_PLAN F2a): one store load, a match over
+// every thought's text, then the same removal path a single-id forget uses.
+// Refuses while the writer lock is held (a serving daemon), exactly like the
+// offline admin commands, because an unguarded save would clobber the daemon's
+// newer state. An empty `pattern` matches every thought, which is what makes
+// `--source X --dry-run` a preview of the whole source.
 pub(crate) fn cmd_prune(
 	cfg: &config::Config,
 	pattern: &str,
@@ -138,61 +234,150 @@ pub(crate) fn cmd_prune(
 	let (scheme, object_id) = match source {
 		Some(s) => match parse_source_selector(s) {
 			Ok(pair) => (Some(pair.0), Some(pair.1)),
-			Err(e) => {
-				eprintln!("kern prune: {e}");
-				return;
-			}
+			Err(e) => return fail("forget", e),
 		},
 		None => (None, None),
 	};
 	if let Some(who) = store::lock::holder(&cfg.data_dir) {
-		eprintln!(
-			"kern prune: refused — writer lock held by {who} (a daemon serving this dir?); stop it first"
+		fail(
+			"forget",
+			format!("refused — the writer lock is held by {who}"),
 		);
-		return;
+		return hint("a daemon serving this directory? stop it first");
 	}
 	let mut g = load_graph(cfg);
 	let (out, samples) =
 		graph::graph_ops::prune_matching(&mut g, pattern, scheme, object_id, force, dry_run);
+	// What the caller selected, said back to them the way they said it — the
+	// counts below are meaningless without knowing what was swept.
+	let selector = match (pattern.is_empty(), source) {
+		(true, Some(s)) => s.to_string(),
+		(false, Some(s)) => format!("\"{pattern}\" in {s}"),
+		(_, None) => format!("\"{pattern}\""),
+	};
 	let matched = out.removed_entities + out.kept_facts;
 	if matched == 0 {
-		println!(
-			"prune{}: nothing matched \"{pattern}\"",
-			if dry_run { " --dry-run" } else { "" }
-		);
+		println!("nothing matched {selector}");
 		return;
 	}
 	if dry_run {
 		println!(
-			"prune --dry-run: {} thought(s) match \"{pattern}\"{} — {} would be removed, {} fact(s) kept{}",
-			matched,
-			source.map(|s| format!(" from {s}")).unwrap_or_default(),
+			"{matched} thought(s) match {selector} — {} would be removed, {} fact(s) kept{}",
 			out.removed_entities,
 			out.kept_facts,
-			if force { "" } else { " (rerun with --force to also remove facts)" }
+			if force {
+				""
+			} else {
+				" (rerun with --force to remove them too)"
+			}
 		);
 		for s in samples {
 			println!("  {s}");
 		}
 		return;
 	}
-	if out.removed_entities > 0 {
-		// Guarded save + snapshot refresh, mirroring the ingest write path so the
-		// next process loads the post-prune snapshots fast.
+	// Every match was a Fact the guard kept, so nothing moved. Saying "forgot 0"
+	// here is technically true and reads as a removal that happened.
+	if out.removed_entities == 0 {
+		println!(
+			"kept {} fact(s) matching {selector}, removed nothing — rerun with --force to remove them",
+			out.kept_facts
+		);
+		return;
+	}
+	// Guarded save + snapshot refresh, mirroring the ingest write path so the
+	// next process loads the post-sweep snapshots fast.
+	if let Err(e) = graph::persist::save_all(&g) {
+		fail("forget", format!("save failed: {e}"));
+	}
+	g.consolidate_disk_index();
+	println!(
+		"forgot {} thought(s) ({} edges) matching {selector}{}",
+		out.removed_entities,
+		out.removed_edges,
+		if out.kept_facts > 0 {
+			format!(
+				"; kept {} fact(s) — rerun with --force to remove them",
+				out.kept_facts
+			)
+		} else {
+			String::new()
+		}
+	);
+}
+
+// Report-only by default and safe beside a running daemon (a read of a stale
+// snapshot ranks yesterday's noise, which is still noise). An `--apply` is a
+// write and takes the same writer-lock refusal as `prune`.
+pub(crate) fn cmd_audit(
+	cfg: &config::Config,
+	min_score: f64,
+	limit: usize,
+	json: bool,
+	apply: Option<&str>,
+) {
+	let action = match apply {
+		Some(s) => match graph::graph_ops::AuditAction::parse(s) {
+			Some(a) => Some(a),
+			None => {
+				return fail(
+					"audit",
+					format!("--apply takes archive or delete, got {s:?}"),
+				)
+			}
+		},
+		None => None,
+	};
+	if action.is_some() {
+		if let Some(who) = store::lock::holder(&cfg.data_dir) {
+			fail(
+				"audit",
+				format!("--apply refused — the writer lock is held by {who}"),
+			);
+			return hint("a daemon serving this directory? stop it first");
+		}
+	}
+	let mut g = load_graph(cfg);
+	let report = graph::graph_ops::audit_noise(&g, min_score, limit);
+	if json && action.is_none() {
+		match serde_json::to_string_pretty(&report) {
+			Ok(s) => println!("{s}"),
+			Err(e) => fail("audit", e),
+		}
+		return;
+	}
+	println!(
+		"audit: scanned {} thought(s), {} candidate(s) at or above {min_score}",
+		report.scanned,
+		report.candidates.len()
+	);
+	for c in &report.candidates {
+		println!(
+			"  {:.2} {:<7} [{}] {}  {}",
+			c.score,
+			c.action.as_str(),
+			short_id(&c.id),
+			c.reasons.join(","),
+			truncate(&c.preview, 72)
+		);
+	}
+	let Some(action) = action else {
+		if !report.candidates.is_empty() {
+			println!("report only — rerun with --apply archive (reversible) or --apply delete");
+		}
+		return;
+	};
+	let out = graph::graph_ops::apply_audit(&mut g, min_score, action);
+	if out.archived + out.deleted > 0 {
+		// Guarded save + snapshot refresh, mirroring `prune`'s write path.
 		if let Err(e) = graph::persist::save_all(&g) {
-			eprintln!("kern prune: save failed: {e}");
+			fail("audit", format!("save failed: {e}"));
 		}
 		g.consolidate_disk_index();
 	}
 	println!(
-		"prune: removed {} thought(s) ({} edges){} from \"{pattern}\"",
-		out.removed_entities,
-		out.removed_edges,
-		if out.kept_facts > 0 {
-			format!("; kept {} fact(s) — rerun with --force to remove them", out.kept_facts)
-		} else {
-			String::new()
-		}
+		"audit --apply: archived {} (release with `kern promote <id>`), deleted {}, kept {} fact(s), kept {} secret-bearing (delete those per-id with `kern forget`)",
+		out.archived, out.deleted, out.kept_facts, out.secrets_kept
 	);
 }
 
@@ -206,12 +391,18 @@ fn print_forget(id: &str, removed: u64) {
 pub(crate) async fn cmd_forget(cfg: &config::Config, id: &str) {
 	match route("forget", serde_json::json!({"id": id})).await {
 		Routed::Done(v) => return print_forget(id, u64_field(&v, "removed_edges")),
-		Routed::Refused(e) => return eprintln!("{e}"),
+		Routed::Refused(e) => return fail("forget", e),
 		Routed::NoDaemon => {}
 	}
 	with_graph(cfg, |g| match forget_entity(g, id, false) {
 		Ok(removed) => print_forget(id, removed as u64),
-		Err(e) => eprintln!("{e}: {id}"),
+		// The Fact guard is the common case here — everything `kern ingest`
+		// writes is a Fact — and a refusal with no way forward reads as a bug.
+		Err(e) if e.contains("fact") => {
+			fail("forget", format!("{e}: {id}"));
+			hint("facts are removed in bulk only: `kern forget --match \"<text>\" --force`");
+		}
+		Err(e) => fail("forget", per_id_error(e, id)),
 	});
 }
 
@@ -248,12 +439,12 @@ pub(crate) async fn cmd_promote(cfg: &config::Config, id: &str) {
 				.unwrap_or(false);
 			return print_promote(id, promoted);
 		}
-		Routed::Refused(e) => return eprintln!("{e}"),
+		Routed::Refused(e) => return fail("promote", per_id_error(&e, id)),
 		Routed::NoDaemon => {}
 	}
 	with_graph(cfg, |g| match promote_entity(g, id) {
 		Ok(promoted) => print_promote(id, promoted),
-		Err(e) => eprintln!("{e}: {id}"),
+		Err(e) => fail("promote", per_id_error(e, id)),
 	});
 }
 
@@ -285,7 +476,7 @@ fn print_forget_source(scheme: &str, object_id: &str, out: &SourceForget) {
 pub(crate) async fn cmd_forget_source(cfg: &config::Config, source: &str, force: bool) {
 	let (scheme, object_id) = match parse_source_selector(source) {
 		Ok(pair) => pair,
-		Err(e) => return eprintln!("{e}"),
+		Err(e) => return fail("forget", e),
 	};
 	let args = serde_json::json!({"scheme": scheme, "object_id": object_id, "force": force});
 	match route("forget_by_source", args).await {
@@ -300,7 +491,7 @@ pub(crate) async fn cmd_forget_source(cfg: &config::Config, source: &str, force:
 				},
 			)
 		}
-		Routed::Refused(e) => return eprintln!("{e}"),
+		Routed::Refused(e) => return fail("forget", e),
 		Routed::NoDaemon => {}
 	}
 	with_graph(cfg, |g| {
@@ -323,17 +514,11 @@ pub(crate) async fn cmd_link(
 	let g = load_graph(cfg);
 	let (from_t, _) = match find_entity(&g, from) {
 		Some(pair) => pair,
-		None => {
-			eprintln!("from thought not found: {from}");
-			return;
-		}
+		None => return fail("link", format!("no thought with id {from}")),
 	};
 	let (to_t, _) = match find_entity(&g, to) {
 		Some(pair) => pair,
-		None => {
-			eprintln!("to thought not found: {to}");
-			return;
-		}
+		None => return fail("link", format!("no thought with id {to}")),
 	};
 
 	let llm_client = Client::new(
@@ -367,7 +552,7 @@ pub(crate) async fn cmd_link(
 			short_id(&rid),
 			score,
 		),
-		Err(e) => eprintln!("{e}"),
+		Err(e) => fail("link", e),
 	}
 }
 
@@ -413,16 +598,13 @@ pub(crate) async fn cmd_degrade(cfg: &config::Config, id: &str) {
 				u64_field(&v, "removed_edges"),
 			)
 		}
-		Routed::Refused(e) => return eprintln!("{e}"),
+		Routed::Refused(e) => return fail("degrade", per_id_error(&e, id)),
 		Routed::NoDaemon => {}
 	}
 	with_graph(cfg, |g| {
 		let (_, kern_id) = match find_entity(g, id) {
 			Some(pair) => pair,
-			None => {
-				eprintln!("thought not found: {id}");
-				return;
-			}
+			None => return fail("degrade", no_such_thought(id)),
 		};
 		let (decayed, removed) = degrade_entity_reasons(g, &kern_id, id);
 		print_degrade(id, decayed as u64, removed as u64);

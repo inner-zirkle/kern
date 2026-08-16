@@ -8,6 +8,10 @@ use config::Config;
 
 // sysexits(3) EX_CONFIG: distinguishes "your settings are wrong" from a crash.
 const EXIT_CONFIG: i32 = 78;
+// Anything a command reported through `commands::fail`. One code, because the
+// distinction a script needs is "did that work", and the message on stderr is
+// where the rest of the answer already lives.
+const EXIT_FAILURE: i32 = 1;
 
 fn worker_thread_count(available: Option<usize>) -> usize {
 	available.unwrap_or(4).max(4)
@@ -35,7 +39,7 @@ fn boot_config(loaded: Result<Config, config::Error>) -> Result<Config, String> 
 }
 
 fn main() {
-	// Stderr, never stdout: `kern mcp --mcp-stdio` speaks JSON-RPC on stdout.
+	// Stderr, never stdout: stdout is the CLI's answer channel.
 	let _ = tracing_subscriber::fmt()
 		.with_env_filter(
 			tracing_subscriber::EnvFilter::try_from_default_env()
@@ -72,6 +76,15 @@ fn main() {
 		}
 		// Parse first so `--help`/`--version` still answer in a repo whose config is broken.
 		let cli = Cli::parse();
+		// A bare `kern` prints help like any git-shaped CLI instead of quietly
+		// becoming a long-running process — and before the config loads, so a
+		// broken kern.toml cannot get between the user and the usage text. The
+		// hub and the detached-spawn paths pass `--daemon`.
+		if cli.command.is_none() && !cli.daemon {
+			use clap::CommandFactory;
+			let _ = Cli::command().print_help();
+			return;
+		}
 		let cfg = match boot_config(Config::load(&root)) {
 			Ok(cfg) => cfg,
 			Err(msg) => {
@@ -86,6 +99,12 @@ fn main() {
 			None => run_server(&cli, &cfg).await,
 		}
 	});
+
+	// A command that printed a complaint and exited 0 left every caller grepping
+	// stderr to tell a miss from a hit. The status is the answer they wanted.
+	if commands::failed() {
+		std::process::exit(EXIT_FAILURE);
+	}
 }
 
 #[cfg(test)]

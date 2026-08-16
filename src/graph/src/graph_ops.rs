@@ -2,7 +2,7 @@
 //! by the CLI and MCP surfaces. They take a `GraphGnn` by `&mut` and return
 //! counts; the daemon-side wiring (route/load/persist) lives in `commands`.
 
-use crate::graph::{GraphGnn, PendingDelta};
+use crate::graph::GraphGnn;
 use crate::reason::{add_reason, remove_entity, remove_reason};
 use crate::search::find_entity;
 use base::base_constants::{
@@ -32,8 +32,7 @@ pub struct SourceForget {
 
 pub fn forget_entity(g: &mut GraphGnn, id: &str, force: bool) -> Result<usize, &'static str> {
 	let (thought, kern_id) = find_entity(g, id).ok_or("thought not found")?;
-	// A remote Fact is a peer's assertion, not durable local knowledge — forgettable.
-	if thought.is_fact() && !force && !crate::merge::is_remote_kern_id(&kern_id) {
+	if thought.is_fact() && !force {
 		return Err("cannot forget a fact");
 	}
 	let edges_before = g.kerns.get(&kern_id).map(|k| k.reasons.len()).unwrap_or(0);
@@ -59,10 +58,9 @@ pub fn prune_matching(
 ) -> (SourceForget, Vec<String>) {
 	let pat = pattern.to_lowercase();
 	let mut samples = Vec::new();
-	// (id, guarded): guarded = a local Fact the guard would keep without --force.
+	// (id, guarded): guarded = a Fact the guard would keep without --force.
 	let mut matched: Vec<(String, bool)> = Vec::new();
 	for kern in g.all() {
-		let remote = crate::merge::is_remote_kern_id(&kern.id);
 		for t in kern.entities.values() {
 			let src_ok = match (scheme, object_id) {
 				(Some(s), Some(o)) => t.source.scheme() == s && t.source.object_id() == o,
@@ -74,7 +72,7 @@ pub fn prune_matching(
 			if samples.len() < 10 {
 				samples.push(t.text().chars().take(80).collect());
 			}
-			matched.push((t.id.clone(), t.is_fact() && !force && !remote));
+			matched.push((t.id.clone(), t.is_fact() && !force));
 		}
 	}
 
@@ -170,7 +168,7 @@ pub fn link_entities(
 	let (to_t, _) = find_entity(g, to).ok_or_else(|| format!("to thought not found: {to}"))?;
 
 	let vec = link_vector(reason_embed, &from_t.vector, &to_t.vector);
-	let rid = reason_id(from, to, ReasonKind::Similarity, &reason_text, "");
+	let rid = reason_id(from, to, ReasonKind::Similarity, &reason_text);
 	let r = Reason {
 		id: rid.clone(),
 		from: from.to_string(),
@@ -225,27 +223,20 @@ pub fn degrade_entity_reasons(g: &mut GraphGnn, kern_id: &str, id: &str) -> (usi
 			removed += 1;
 		} else {
 			let lamport = g.bump_lamport();
-			let producer = g.network_id.clone();
+			let producer = g.replica_id.clone();
 			if let Some(kern) = g.kerns.get_mut(kern_id) {
 				if let Some(r) = kern.reasons.get_mut(rid) {
 					r.score = (r.score - decay).max(DEGRADE_FLOOR);
 					r.score_lamport = lamport;
-					r.score_producer = producer.clone();
-					let lww_value =
-						bincode::serde::encode_to_vec(r.score, bincode::config::standard()).unwrap_or_default();
-					g.push_delta(PendingDelta {
-						object_id: rid.clone(),
-						target: 2,
-						replica: String::new(),
-						value: 0,
-						lamport,
-						producer,
-						lww_value,
-					});
+					r.score_producer = producer;
 				}
 			}
 		}
 		decayed += 1;
+	}
+	if decayed > 0 || removed > 0 {
+		// Direct `kerns` mutation — same epoch contract as `remove_entity`.
+		g.bump_mutation_epoch();
 	}
 	(decayed, removed)
 }
@@ -272,6 +263,164 @@ pub fn graviton_rows(g: &crate::graph::GraphGnn) -> Vec<GravitonRow> {
 		})
 		.collect()
 }
+// ==== [hygiene audit] ====
+
+/// One thought the noise audit ranked. `preview` is capped at 80 chars — the
+/// report names noise, it does not reprint it (a flagged secret must not be
+/// re-leaked by the audit that found it).
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct AuditCandidate {
+	pub id: String,
+	pub preview: String,
+	pub score: f64,
+	pub reasons: Vec<String>,
+	pub secrets: Vec<&'static str>,
+	pub action: hygiene::SuggestedAction,
+	pub kind: &'static str,
+	pub confidence: f64,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct AuditReport {
+	pub scanned: usize,
+	pub candidates: Vec<AuditCandidate>,
+}
+
+/// Score every Active resident thought for noise likelihood and return the
+/// ranked candidates at or above `min_score`. Read-only and deterministic —
+/// regex and arithmetic, no LLM, no embeddings. A row carrying a secret is
+/// always included regardless of `min_score`: a leaked credential must surface
+/// even in a lenient audit. Reaches exactly as far as `forget_entity` does —
+/// the resident kerns; an unloaded kern is out of reach.
+pub fn audit_noise(g: &GraphGnn, min_score: f64, limit: usize) -> AuditReport {
+	let mut scanned = 0usize;
+	let mut candidates: Vec<AuditCandidate> = Vec::new();
+	for kern in g.all() {
+		for t in kern.entities.values() {
+			if t.is_superseded() {
+				continue;
+			}
+			scanned += 1;
+			let text = t.text();
+			let scored = hygiene::score_noise(&text, t.conf_mean());
+			if scored.score < min_score && scored.secrets.is_empty() {
+				continue;
+			}
+			candidates.push(AuditCandidate {
+				id: t.id.clone(),
+				preview: text.chars().take(80).collect(),
+				score: scored.score,
+				action: hygiene::suggest_action(scored.score, !scored.secrets.is_empty()),
+				reasons: scored.reasons,
+				secrets: scored.secrets,
+				kind: t.kind.as_str(),
+				confidence: t.conf_mean(),
+			});
+		}
+	}
+	candidates.sort_by(|a, b| {
+		b.score
+			.partial_cmp(&a.score)
+			.unwrap_or(std::cmp::Ordering::Equal)
+	});
+	candidates.truncate(limit);
+	AuditReport {
+		scanned,
+		candidates,
+	}
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AuditAction {
+	Archive,
+	Delete,
+}
+
+impl AuditAction {
+	pub fn parse(s: &str) -> Option<Self> {
+		match s {
+			"archive" => Some(AuditAction::Archive),
+			"delete" => Some(AuditAction::Delete),
+			_ => None,
+		}
+	}
+
+	/// The action's own score floor. `--min-score` can only raise it: archive
+	/// from 0.5, delete from 0.8 — the same ladder `suggest_action` ranks by,
+	/// so an apply can never act below what the report would have suggested.
+	pub fn floor(self) -> f64 {
+		match self {
+			AuditAction::Archive => 0.5,
+			AuditAction::Delete => 0.8,
+		}
+	}
+}
+
+#[derive(Debug, Default, Clone, serde::Serialize)]
+pub struct AuditApply {
+	pub archived: usize,
+	pub deleted: usize,
+	// Local Facts the delete guard refused — deletion needs an explicit
+	// per-id `forget`, never a bulk sweep.
+	pub kept_facts: usize,
+	// Secret-bearing rows a delete skipped: deleting a leaked credential
+	// destroys the evidence needed to rotate it, so they are only reported.
+	pub secrets_kept: usize,
+}
+
+/// Apply one action to every candidate at or above `max(min_score,
+/// action.floor())`. Archive sets `ReviewState::Pending` — kern's reversible
+/// curation hold (release with `promote`, filter with `exclude_pending`);
+/// delete is `forget_entity` with the Fact guard honored and secret-bearing
+/// rows always skipped.
+pub fn apply_audit(g: &mut GraphGnn, min_score: f64, action: AuditAction) -> AuditApply {
+	let threshold = min_score.max(action.floor());
+	let report = audit_noise(g, threshold, usize::MAX);
+	let mut out = AuditApply::default();
+	for c in &report.candidates {
+		if c.score < threshold {
+			// Secret rows below the threshold ride along in every report; an
+			// apply still respects the bar.
+			continue;
+		}
+		match action {
+			AuditAction::Archive => {
+				if demote_entity(g, &c.id).unwrap_or(false) {
+					out.archived += 1;
+				}
+			}
+			AuditAction::Delete => {
+				if !c.secrets.is_empty() {
+					out.secrets_kept += 1;
+					continue;
+				}
+				match forget_entity(g, &c.id, false) {
+					Ok(_) => out.deleted += 1,
+					Err("cannot forget a fact") => out.kept_facts += 1,
+					Err(_) => {}
+				}
+			}
+		}
+	}
+	out
+}
+
+/// The inverse of [`promote_entity`]: hold a thought as `Pending` so an
+/// `exclude_pending` query drops it. Idempotent the same way — a row already
+/// held returns `false` without bumping the mutation epoch.
+pub fn demote_entity(g: &mut GraphGnn, id: &str) -> Result<bool, &'static str> {
+	let (thought, kern_id) = find_entity(g, id).ok_or("thought not found")?;
+	if thought.review == ReviewState::Pending {
+		return Ok(false);
+	}
+	let entity = g
+		.get_mut(&kern_id)
+		.and_then(|k| k.entities.get_mut(id))
+		.ok_or("thought not found")?;
+	entity.review = ReviewState::Pending;
+	Ok(true)
+}
+
 #[cfg(test)]
 #[path = "tests/graph_ops_test.rs"]
 mod graph_ops_tests;

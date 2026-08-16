@@ -9,7 +9,7 @@ use ingest::intake_status::{scan, Report};
 use store_core::FlushOutcome;
 
 use crate::commands_route::{route, u64_field, Routed};
-use crate::{load_graph, Client, Endpoint, IntakeAction};
+use crate::{fail, load_graph, Client, Endpoint, IntakeAction};
 
 const WRITE_RETRIES: u32 = 5;
 
@@ -100,7 +100,7 @@ async fn drain(
 
 	let archived = match route("intake_drain", serde_json::json!({})).await {
 		Routed::Done(v) => u64_field(&v, "archived") as usize,
-		Routed::Refused(e) => return eprintln!("{e}"),
+		Routed::Refused(e) => return fail("intake drain", e),
 		Routed::NoDaemon => {
 			drain_locally(
 				cfg,
@@ -169,6 +169,7 @@ async fn drain_locally(
 		cfg.ingest.dedup_threshold,
 		cfg.intake.retention_secs,
 		cfg.ingest.review_policy.clone(),
+		cfg.hygiene.gate_config(),
 		Duration::from_secs(cfg.intake.done_retention_secs),
 		SystemTime::now(),
 	)
@@ -196,16 +197,14 @@ fn flush(g: &Arc<RwLock<graph::graph::GraphGnn>>, cfg: &config::Config) {
 				disk_epoch,
 				expected,
 			}) => {
-				eprintln!(
-					"intake drain: persisted under contention after {WRITE_RETRIES} tries \
-					 (disk epoch {disk_epoch} vs {expected}); another writer is active on this data_dir"
+				return fail(
+					"intake drain",
+					format!(
+						"gave up persisting after {WRITE_RETRIES} tries (disk epoch {disk_epoch} vs {expected}) — another writer is active on this data_dir"
+					),
 				);
-				return;
 			}
-			Err(e) => {
-				eprintln!("save: {e}");
-				return;
-			}
+			Err(e) => return fail("intake drain", format!("save failed: {e}")),
 		}
 	}
 }

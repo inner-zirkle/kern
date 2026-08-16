@@ -1,7 +1,7 @@
 # Research & rationale
 
 The notes in this directory are the design rationale behind kern's
-self-organizing and federated behavior — the models, proofs, and trade-off
+self-organizing behavior — the models, proofs, and trade-off
 analyses that the implementation is built on. No source file cites them. The
 site's [Decisions](../site/content/docs/decisions/index.mdx) section carries one
 page per note and is where a decision's current standing is written; these notes
@@ -26,19 +26,11 @@ says so and the body does not.
 - **[PageRank for authority](pagerank-authority.md)** — how graph centrality
   was meant to weight retrieval. Personalised PageRank runs at seed fusion, but a
   reason edge is measured to move ranking barely at all (1 of 8 pairs, by one
-  rank), so the weighting is close to unobserved; the federated-trust half is
-  unbuilt.
+  rank), so the weighting is close to unobserved.
 - **[Bayesian belief](bayesian-belief.md)** — multi-observer truth convergence:
   how confidence updates as independent observations accumulate.
 - **[Wikipedia edit-convergence](wikipedia-edit-convergence.md)** — the
   NPOV-style model for converging on neutral, durable thoughts.
-
-## Federation
-
-- **[CRDTs for federated state](crdts-federation.md)** — the content-addressed,
-  conflict-free merge that lets nodes converge with no coordinator.
-- **[Federated learning vs. kern federation](fl-vs-knids-federation.md)** — why
-  kern gossips knowledge rather than gradients.
 
 ## Retrieval & indexing
 

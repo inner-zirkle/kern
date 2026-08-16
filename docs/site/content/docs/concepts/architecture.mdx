@@ -30,7 +30,6 @@ Two caller-driven write entries — MCP `ingest`, or a transcript dropped into `
 1. **Write** — claim embedded, deduped, placed.
 2. **Read** — seed candidates, expand over edges, rank, return.
 3. **Maintenance** — tick every 60s: deposit heat, cluster, re-embed, evict, persist. `tick.interval_secs = 0` disables.
-4. **Federation** (off by default) — gossip merges entity bodies with peers.
 
 ## What's in the graph
 

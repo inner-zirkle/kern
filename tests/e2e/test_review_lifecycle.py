@@ -71,8 +71,9 @@ def test_a_held_claim_is_filtered_until_promote_releases_it(project):
 
 	# And an id nothing resolves is loud — a silent success here would tell a
 	# curator a claim was released while it is still held.
-	stdout, stderr = project.run("promote", "0" * 64)
-	assert "thought not found" in stderr, f"a mistyped id must fail: out={stdout} err={stderr}"
+	code, stdout, stderr = project.run_status("promote", "0" * 64)
+	assert "no thought with id" in stderr, f"a mistyped id must fail: out={stdout} err={stderr}"
+	assert code != 0, f"and must fail in the status too, not only in the text: {stderr}"
 
 
 def test_promote_and_the_filter_route_through_a_serving_daemon(project):

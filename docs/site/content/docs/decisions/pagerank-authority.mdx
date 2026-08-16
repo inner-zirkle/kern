@@ -21,13 +21,11 @@ Every query runs a damped, query-personalised PageRank over the reason graph (da
 | Degree centrality | N fake citers buy N rank; no transitivity |
 | Undamped eigenvector centrality | diverges on dangling nodes; no convergence guarantee on disconnected components |
 | HITS / SALSA | a second eigenvector to maintain; bipartite framing fits query/doc graphs, not a reason graph |
-| TrustRank | right Sybil defence for federation-level authority — a scope that is unbuilt |
 | Global (unpersonalised) PageRank | popular entities top every query, relevant or not |
 
 ## Trade-off accepted
 
 - A power iteration per query, nothing persisted between queries — and nothing *can* be, because the teleport is personalised: a per-graph vector would be the global PageRank rejected above. The walk is confined to the seeds' reach, so it costs what the query touches, not what the graph holds; a query whose seeds reach the whole graph still pays for the whole graph. No incremental updates.
-- The federation half (per-peer authority, TrustRank seeding, Sybil defences) was not built; no rank crosses a machine boundary, so the targeted Sybil surface doesn't exist yet. Prerequisites if per-peer authority ever lands.
 
 <Callout type="warn" title="Unit mechanism works; end-to-end effect measures near zero">
 The mechanism is pinned by unit tests, but an end-to-end test that adds a
@@ -39,4 +37,4 @@ ROADMAP item 86 carries the diagnosis.
 ## Where you see it
 
 - Within a query's neighbourhood, entities many reasons point at outrank textually-similar leaves.
-- Pipeline position (after seeding, before expansion): [The retrieval pipeline](../concepts/retrieval.mdx). Peer trust today: [Federation](../concepts/federation.mdx).
+- Pipeline position (after seeding, before expansion): [The retrieval pipeline](../concepts/retrieval.mdx).

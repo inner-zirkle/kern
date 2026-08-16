@@ -43,9 +43,8 @@ kern re-pins to the nearest ancestor with `.git` (else `.kern/`) — subdirector
 ## 3. Start the daemon
 
 ```bash
-kern --daemon                                  # foreground, ctrl-c to stop
-kern --daemon > .kern/daemon.log 2>&1 &        # detached, keep logs
-kern --daemon --mcp-addr 127.0.0.1:3000        # also serve MCP over HTTP
+kern daemon                                    # foreground, ctrl-c to stop
+kern daemon > .kern/daemon.log 2>&1 &          # detached, keep logs
 ```
 
 Usually unnecessary — `kern mcp` auto-spawns a detached daemon. See [Wire up MCP](./mcp.mdx).
@@ -67,7 +66,7 @@ All under `<project>/.kern/`:
 | `.kern/data/mcp-token` | Bearer token for the HTTP surface, minted on first use. |
 | `.kern/data/logs/*.log` | stdout+stderr of detached children (`daemon.log`, `hub.log`). Owner-only, append-only. |
 
-RPC socket, outside the project: `$XDG_RUNTIME_DIR/kern-<tag>.sock` (or `/tmp/kern-<user>-<tag>.sock`) on Unix; named pipe `\\.\pipe\kern-<user>-<tag>` on Windows. `<tag>` = hash of the canonical cwd — one daemon and graph per project. A second `kern --daemon` in the same directory loses the bind race:
+RPC socket, outside the project: `$XDG_RUNTIME_DIR/kern-<tag>.sock` (or `/tmp/kern-<user>-<tag>.sock`) on Unix; named pipe `\\.\pipe\kern-<user>-<tag>` on Windows. `<tag>` = hash of the canonical cwd — one daemon and graph per project. A second `kern daemon` in the same directory loses the bind race:
 
 ```
 kern: another daemon already running at /run/user/1000/kern-3f2a91c4.sock — exiting
@@ -88,7 +87,7 @@ kern: another daemon already running at /run/user/1000/kern-3f2a91c4.sock — ex
 Logs: stderr, default level `warn`. Detached children append to `.kern/data/logs/daemon.log` / `hub.log` — never truncated.
 
 ```bash
-RUST_LOG=kern=info kern --daemon
+RUST_LOG=kern=info kern daemon
 ```
 
 `kern status` answers who is serving and who is writing:
@@ -102,11 +101,11 @@ hub          running   /run/user/1000/kern-hub.sock
 writer lock  held by daemon pid 1626183
 ```
 
-The `kern <subcommand>` CLI opens the graph directly, so it can race a live daemon — use MCP tools for live state. The offline admin commands (`kern reembed`, `kern compact`, `kern gc`) now take the writer lock and **refuse** while a daemon holds it, naming the holder, rather than losing a rewrite to whichever process flushes last. The lock is released by the OS when its holder exits, kill included, so a crash never leaves a stale one to clean up.
+The `kern <subcommand>` CLI opens the graph directly, so it can race a live daemon — use MCP tools for live state. The offline admin commands (`kern reembed`, `kern gc`) take the writer lock and **refuse** while a daemon holds it, naming the holder, rather than losing a rewrite to whichever process flushes last. The lock is released by the OS when its holder exits, kill included, so a crash never leaves a stale one to clean up.
 
 ## Stopping
 
-Ctrl-C in the foreground, or `pkill -f 'kern --daemon'`. Runs a final flush, prints `shutting down...` then `done` — `SIGKILL` mid-flush drops whatever was only in RAM.
+Ctrl-C in the foreground, or `pkill -f 'kern daemon'`. Runs a final flush, prints `shutting down...` then `done` — `SIGKILL` mid-flush drops whatever was only in RAM.
 
 ## Starting over
 
@@ -117,7 +116,7 @@ rm -rf .kern/data          # wipe the graph, keep config and queued intake
 rm -rf .kern               # wipe everything, including opt-in
 ```
 
-- `data.mdb` shrinks only on compaction — next restart auto-compacts, or `kern compact` offline.
+- `data.mdb` shrinks only on compaction — next restart auto-compacts, or `kern gc` offline.
 - Alpha: store format changes are not migrated — an old `data.mdb` is rejected; wipe `.kern/data` and reingest.
 
 ## Next

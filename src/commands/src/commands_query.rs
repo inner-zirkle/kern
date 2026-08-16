@@ -6,11 +6,13 @@ use retrieval::id_detail::base_entity_json;
 use util::{short_id, truncate};
 
 use crate::commands_route::{array_field, f64_field, route, str_field, Routed};
-use crate::{load_graph, Client};
+use crate::{fail, hint, load_graph, Client};
 
 pub(crate) struct QueryParams<'a> {
 	pub(crate) text: &'a str,
 	pub(crate) mode: &'a str,
+	/// Caller's `--k`. `None` means the retrieval preset's delivery cap.
+	pub(crate) k: Option<usize>,
 	pub(crate) exclude_pending: bool,
 	pub(crate) embed_url: &'a str,
 	pub(crate) embed_model: &'a str,
@@ -46,14 +48,15 @@ pub(crate) async fn cmd_query(cfg: &config::Config, params: QueryParams<'_>) {
 	let QueryParams {
 		text,
 		mode,
+		k,
 		exclude_pending,
 		embed_url,
 		embed_model,
 	} = params;
-	// `k` is not optional here: the tool's own default is `seed_k`, well under the
-	// delivery pool this command prints locally, so leaving it off would make the
+	// `k` is never left to the tool's own default: that is `seed_k`, well under
+	// the delivery pool this command prints locally, so omitting it would make the
 	// hit count depend on whether a daemon happens to be up.
-	let k = retrieval::score::delivery_cap(&cfg.retrieval);
+	let k = k.unwrap_or_else(|| retrieval::score::delivery_cap(&cfg.retrieval));
 	match route(
 		"query",
 		serde_json::json!({
@@ -63,7 +66,7 @@ pub(crate) async fn cmd_query(cfg: &config::Config, params: QueryParams<'_>) {
 	.await
 	{
 		Routed::Done(v) => return print_results(&v),
-		Routed::Refused(e) => return eprintln!("{e}"),
+		Routed::Refused(e) => return fail("query", e),
 		Routed::NoDaemon => {}
 	}
 	let g = load_graph(cfg);
@@ -72,10 +75,7 @@ pub(crate) async fn cmd_query(cfg: &config::Config, params: QueryParams<'_>) {
 
 	let vec = match llm_client.embed(text).await {
 		Ok(v) => v,
-		Err(e) => {
-			eprintln!("embed: {e}");
-			return;
-		}
+		Err(e) => return fail("query", format!("embedding the query failed: {e}")),
 	};
 
 	let mode = retrieval::seed::Mode::parse(mode);
@@ -91,9 +91,13 @@ pub(crate) async fn cmd_query(cfg: &config::Config, params: QueryParams<'_>) {
 	// No save: read-only — access/heat bumps land on cloned result entities, and
 	// persisting would risk clobbering a daemon's newer on-disk state.
 
+	// Cut to `k` here, not inside the pipeline: the walk's own pool is what the
+	// routed path returns, so trimming the render is what keeps a `--k` answer
+	// identical whether or not a daemon happened to be up.
 	let entities: Vec<serde_json::Value> = result
 		.entities
 		.iter()
+		.take(k)
 		.map(|st| base_entity_json(&st.entity, st.score))
 		.collect();
 	let chains = retrieval::query::format_chains(&g, &result.path_chains);
@@ -113,10 +117,7 @@ pub(crate) async fn cmd_search(
 	let llm_client = Client::new_embed_only(embed_url, embed_model, &cfg.embed.key);
 	let vec = match llm_client.embed(text).await {
 		Ok(v) => v,
-		Err(e) => {
-			eprintln!("embed: {e}");
-			return;
-		}
+		Err(e) => return fail("query", format!("embedding the query failed: {e}")),
 	};
 
 	let hits = search_all_unlocked(&g, &vec, k);
@@ -135,6 +136,90 @@ pub(crate) async fn cmd_search(
 			short_id(&hit.entity_id),
 			text
 		);
+	}
+}
+
+// The cross-kern read: one hub RPC; the hub fans out to every registered
+// project and merges by score. The CLI never opens a second store itself —
+// dispatch stays with the daemons that own them.
+pub(crate) async fn cmd_search_all(cfg: &config::Config, text: &str, k: usize, live_only: bool) {
+	use transport::hub_rpc::SearchReq;
+
+	let Some(hub) =
+		crate::commands_admin::connect_hub_or_start(cfg.hub.auto_start, &cfg.log_dir()).await
+	else {
+		fail("query --all", "no hub running and auto-start is off");
+		return hint("start one with `kern hub`");
+	};
+
+	// Put THIS project in the fan-out before asking for it.
+	//
+	// The hub only knows roots it has resolved or that announced themselves at
+	// daemon boot, so a project that has never run one is not in the registry —
+	// and "search every kern on this machine" silently skipped the one the
+	// caller was standing in. That reads as an empty store, not as a missing
+	// registration, which is the worst way for it to be wrong.
+	//
+	// Not under `--live`: that flag is the caller saying "do not wake anything",
+	// and resolving spawns. There the local kern joins only if it is already up.
+	if !live_only {
+		if let Ok(root) = std::env::current_dir() {
+			let root = config::Config::resolve_root(&root).display().to_string();
+			if let Err(e) = hub
+				.resolve(transport::hub_rpc::ResolveReq { root: root.clone() })
+				.await
+			{
+				// Not fatal: the other kerns can still answer, and saying so beats
+				// failing the whole search over one root.
+				eprintln!("kern query --all: could not register this project ({root}): {e}");
+			}
+		}
+	}
+
+	let res = match hub
+		.search(SearchReq {
+			text: text.to_string(),
+			k: k as u64,
+			live_only,
+		})
+		.await
+	{
+		Ok(r) => r,
+		Err(e) => return fail("query --all", e),
+	};
+	if !res.ok {
+		return fail("query --all", res.err);
+	}
+	// `skipped` is the kerns that could NOT answer, so it is the wrong number to
+	// report as the reach: an all-answered empty search printed "across 1 kern(s)"
+	// whatever the machine held.
+	if res.hits.is_empty() {
+		println!("no results");
+	}
+	for (i, hit) in res.hits.iter().enumerate() {
+		let score = hit
+			.entity
+			.get("score")
+			.and_then(|v| v.as_f64())
+			.unwrap_or(0.0);
+		let id = hit.entity.get("id").and_then(|v| v.as_str()).unwrap_or("");
+		let text = hit
+			.entity
+			.get("text")
+			.and_then(|v| v.as_str())
+			.unwrap_or("");
+		println!(
+			"{}. [{score:.4}] {}  {}  {}",
+			i + 1,
+			short_id(id),
+			hit.root,
+			truncate(text, 100)
+		);
+	}
+	// Not a failure: the kerns that did answer are a real answer, and naming the
+	// ones that did not is what keeps it from reading as the whole machine's.
+	for miss in &res.skipped {
+		eprintln!("kern query --all: skipped {} ({})", miss.root, miss.err);
 	}
 }
 
@@ -193,8 +278,8 @@ pub(crate) async fn cmd_profile(cfg: &config::Config, text: &str, no_llm: bool) 
 	let qvec = match llm_client.embed(text).await {
 		Ok(v) => v,
 		Err(e) => {
-			eprintln!("embed: {e} (embed endpoint up at {}?)", cfg.embed.url);
-			return;
+			fail("profile", format!("embedding the probe failed: {e}"));
+			return hint(format!("is the embed endpoint up at {}?", cfg.embed.url));
 		}
 	};
 	profiles.push(flat("embed (cold)", ms(t)));
@@ -237,31 +322,5 @@ pub(crate) async fn cmd_profile(cfg: &config::Config, text: &str, no_llm: bool) 
 }
 
 #[cfg(test)]
-mod tests {
-	use super::*;
-	use serde_json::{json, Value};
-
-	#[tokio::test]
-	async fn cmd_profile_no_llm_path_does_not_panic() {
-		let app = axum::Router::new().route(
-			"/api/embed",
-			axum::routing::post(|_body: axum::Json<Value>| async move {
-				axum::Json(json!({ "embeddings": [[0.1, 0.2, 0.3]] }))
-			}),
-		);
-		let (embed_url, _server) = test_support::spawn_http(app).await;
-
-		let dir = std::env::temp_dir().join(format!("kern_profile_smoke_{}", std::process::id()));
-		std::fs::create_dir_all(&dir).unwrap();
-
-		let mut cfg = config::Config {
-			data_dir: dir.to_string_lossy().into_owned(),
-			..Default::default()
-		};
-		cfg.embed.url = embed_url;
-
-		cmd_profile(&cfg, "smoke test query", true).await;
-
-		let _ = std::fs::remove_dir_all(&dir);
-	}
-}
+#[path = "tests/commands_query_test.rs"]
+mod commands_query_tests;

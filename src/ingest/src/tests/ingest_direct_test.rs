@@ -24,7 +24,6 @@ mod tests {
 			valid_from: None,
 			source_tag: AGENT_SOURCE.to_string(),
 			scoping: Scoping::default(),
-			trust_tier: TrustTier::Unknown,
 		}
 	}
 
@@ -71,7 +70,6 @@ mod tests {
 			valid_from: Some(now),
 			source_tag: AGENT_SOURCE.to_string(),
 			scoping: Scoping::default(),
-			trust_tier: TrustTier::Unknown,
 		};
 		let json = serde_json::to_string(&j).unwrap();
 		let back: DirectJob = serde_json::from_str(&json).unwrap();

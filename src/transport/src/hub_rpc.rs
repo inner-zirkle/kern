@@ -60,11 +60,70 @@ pub struct NodeLite {
 	pub alive: bool,
 }
 
+// One registered kern, live or cold. Stats are the hub's last harvest — a
+// cold root reports what its daemon last said, not a live count.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct KnownRoot {
+	pub root: String,
+	#[serde(default)]
+	pub loaded: bool,
+	#[serde(default)]
+	pub entities: u64,
+	#[serde(default)]
+	pub kerns: u64,
+	#[serde(default)]
+	pub data_bytes: u64,
+	#[serde(default)]
+	pub last_seen_ms: u64,
+}
+
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct HubStatusRes {
 	pub ok: bool,
 	#[serde(default)]
 	pub nodes: Vec<NodeLite>,
+	// Every root the hub's persistent registry knows, importance-sorted
+	// (entities, then bytes). Empty from hubs predating the registry.
+	#[serde(default)]
+	pub known: Vec<KnownRoot>,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct SearchReq {
+	pub text: String,
+	// 0 = the hub's default.
+	#[serde(default)]
+	pub k: u64,
+	// Only ask daemons that are already running; never wake a cold kern.
+	#[serde(default)]
+	pub live_only: bool,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct SearchHit {
+	pub root: String,
+	// The node's own `query` entity envelope (id, text, score, kind, ...).
+	pub entity: serde_json::Value,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct RootErr {
+	pub root: String,
+	pub err: String,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct SearchRes {
+	pub ok: bool,
+	// Merged across every asked kern, score-descending, capped at `k`.
+	#[serde(default)]
+	pub hits: Vec<SearchHit>,
+	// Roots that were asked and failed, or skipped by `live_only`. A partial
+	// answer stays `ok` — the misses are named instead of hidden.
+	#[serde(default)]
+	pub skipped: Vec<RootErr>,
+	#[serde(default)]
+	pub err: String,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -90,6 +149,7 @@ crate::service! {
 		pub trait HubRpc {
 				async fn resolve(req: ResolveReq) -> ResolveRes;
 				async fn status() -> HubStatusRes;
+				async fn search(req: SearchReq) -> SearchRes;
 				async fn unload(req: UnloadReq) -> UnloadRes;
 				async fn stop() -> StopRes;
 		}

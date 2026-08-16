@@ -3,20 +3,23 @@
 //! shapes and the shared client/daemon plumbing they call into.
 
 pub mod commands_admin;
+pub(crate) mod commands_doctor;
+pub mod commands_exit;
+pub(crate) mod commands_export;
 pub(crate) mod commands_graph_ops;
 pub mod commands_ingest_cmd;
 pub mod commands_intake_cmd;
-pub mod commands_mcp_cmd;
 pub mod commands_query;
 pub mod commands_reembed;
 pub mod commands_route;
 
-pub(crate) use self::commands_mcp_cmd::ensure_mcp_registered;
 #[allow(unused_imports)]
 pub(crate) use bootstrap::{
 	apply_graph_config, load_graph, reconcile_if_stale, reload_graph, save_graph_guarded,
 	save_graph_unguarded, snapshot_if_dirty, SharedGraph,
 };
+pub use commands_exit::failed;
+pub(crate) use commands_exit::{fail, hint};
 
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
@@ -27,25 +30,47 @@ use graph::graph::GraphGnn;
 
 const SELF_HEAL_BLOAT_BYTES: u64 = 512 * 1024 * 1024;
 
+// The header line, and the only place the version is spelled: `--version`
+// answers from the same `CARGO_PKG_VERSION`, so the two cannot drift.
+const ABOUT: &str = concat!(
+	"kern v",
+	env!("CARGO_PKG_VERSION"),
+	" - adaptive knowledge graph"
+);
+
+// clap's default styling underlines section headers and the usage line. Bold
+// alone separates them just as well and leaves the page quiet.
+fn help_styles() -> clap::builder::Styles {
+	use clap::builder::styling::{AnsiColor, Effects};
+	clap::builder::Styles::styled()
+		.header(Effects::BOLD.into())
+		.usage(Effects::BOLD.into())
+		.literal(Effects::BOLD.into())
+		.placeholder(AnsiColor::White.on_default())
+}
+
 #[derive(Parser)]
-#[command(name = "kern", version, about = "Self-organizing knowledge graph")]
+#[command(
+	name = "kern",
+	version,
+	about = ABOUT,
+	styles = help_styles(),
+	max_term_width = 100,
+)]
 pub struct Cli {
 	#[command(subcommand)]
 	pub command: Option<Commands>,
 
-	#[arg(short = 'd', long)]
+	// Hidden, not removed: `kern daemon` is the documented way in, and these three
+	// are what the hub, the hot-reload successor and the detached spawns pass on
+	// the command line. Every one of them is kern talking to itself.
+	#[arg(short = 'd', long, hide = true)]
 	pub daemon: bool,
 
-	#[arg(long, default_value = "")]
-	pub mcp_addr: String,
-
-	#[arg(long)]
-	pub mcp_stdio: bool,
-
-	#[arg(long, default_value = "")]
+	#[arg(long, default_value = "", hide = true)]
 	pub reason_url: String,
 
-	#[arg(long, default_value = "")]
+	#[arg(long, default_value = "", hide = true)]
 	pub reason_model: String,
 }
 
@@ -54,8 +79,6 @@ impl Cli {
 		Cli {
 			command: None,
 			daemon: true,
-			mcp_addr: String::new(),
-			mcp_stdio: false,
 			reason_url: String::new(),
 			reason_model: String::new(),
 		}
@@ -64,9 +87,14 @@ impl Cli {
 
 #[derive(Args)]
 pub struct EmbedArgs {
-	#[arg(long)]
+	/// Embedding endpoint for this run. Default: `embed.url` in kern.toml.
+	#[arg(long, value_name = "URL", help_heading = "Model overrides")]
 	pub embed_url: Option<String>,
-	#[arg(long)]
+	/// Embedding model for this run. Default: `embed.model` in kern.toml.
+	///
+	/// Embedding under any model but the one the store was built with degenerates
+	/// every cosine — `kern doctor` reports the mismatch, `kern reembed` fixes it.
+	#[arg(long, value_name = "MODEL", help_heading = "Model overrides")]
 	pub embed_model: Option<String>,
 }
 
@@ -77,29 +105,17 @@ impl EmbedArgs {
 			resolve(&self.embed_model, &cfg.embed.model),
 		)
 	}
-
-	/// Override this process's embed endpoint in place. `kern mcp`'s embedding
-	/// endpoint is otherwise config-only (default http://localhost:11434), so a
-	/// container-spawned `kern mcp` never reaches an ollama service under another
-	/// host; these flags let the parent point it there for the life of the
-	/// process. Absent flags leave `cfg.embed` exactly as loaded from config.
-	pub(crate) fn apply_to(self, cfg: &mut config::Config) {
-		if let Some(url) = self.embed_url {
-			cfg.embed.url = url;
-		}
-		if let Some(model) = self.embed_model {
-			cfg.embed.model = model;
-		}
-	}
 }
 
 #[derive(Args)]
 pub struct LlmArgs {
 	#[command(flatten)]
 	pub embed: EmbedArgs,
-	#[arg(long)]
+	/// Reasoning endpoint for this run. Default: `reason.url` in kern.toml.
+	#[arg(long, value_name = "URL", help_heading = "Model overrides")]
 	pub reason_url: Option<String>,
-	#[arg(long)]
+	/// Reasoning model for this run. Default: `reason.model` in kern.toml.
+	#[arg(long, value_name = "MODEL", help_heading = "Model overrides")]
 	pub reason_model: Option<String>,
 }
 
@@ -118,82 +134,153 @@ impl LlmArgs {
 	}
 }
 
+// Declaration order IS help order — clap lists subcommands as written. They run
+// front to back in the order a project meets them: put something in, get it
+// back, curate what came back, shape the graph, then operate the store.
 #[derive(Subcommand)]
 pub enum Commands {
+	/// Distill text or a file into this project's memory.
 	Ingest {
+		/// The text to remember. Multiple words are joined with spaces.
+		#[arg(value_name = "TEXT")]
 		text: Vec<String>,
-		#[arg(long)]
+		/// Read the text from a file instead. Relative paths resolve against
+		/// the directory you ran kern in.
+		#[arg(long, value_name = "PATH")]
 		file: Option<String>,
-		#[arg(long, help = "expire this ingest after N seconds (0 = never)")]
+		/// Expire everything from this ingest after N seconds (0 = never).
+		#[arg(long, value_name = "SECS")]
 		retention_secs: Option<u64>,
 		#[command(flatten)]
 		llm: LlmArgs,
 	},
+
+	/// Recall by meaning: semantic, lexical and graph-walk search over memory.
+	#[command(visible_alias = "grep")]
 	Query {
+		/// What to recall — a question or a phrase reads better than keywords.
 		text: String,
-		#[arg(long, default_value = "hybrid")]
+		/// How to weigh the three signals: hybrid (content + reasons + edges),
+		/// content, reason, or vector — nearest-neighbour only, read straight
+		/// from the local store with no walk and no daemon.
+		#[arg(long, default_value = "hybrid", value_parser = ["hybrid", "content", "reason", "vector"])]
 		mode: String,
+		/// Hits to print. Default: the retrieval preset's delivery cap, the same
+		/// in every mode.
+		#[arg(long, value_name = "N")]
+		k: Option<usize>,
 		/// Drop thoughts a review policy is still holding for curation. Opt-in:
 		/// without it an uncurated graph reads exactly as before.
 		#[arg(long)]
 		exclude_pending: bool,
-		#[command(flatten)]
-		llm: LlmArgs,
-	},
-	Search {
-		text: String,
-		#[arg(long, default_value = "5")]
-		k: usize,
-		#[command(flatten)]
-		embed: EmbedArgs,
-	},
-	Reembed {
+		/// Search every kern on this machine through the hub, merged by score
+		/// and each hit tagged with the project it came from.
+		#[arg(long)]
+		all: bool,
+		/// With --all: only ask daemons already running; never wake a cold kern.
+		#[arg(long, requires = "all")]
+		live: bool,
 		#[command(flatten)]
 		embed: EmbedArgs,
 	},
+
+	/// Print one thought in full: text, provenance, and its edges.
+	#[command(visible_alias = "show")]
 	Get {
+		/// A thought ID, or any unambiguous prefix of one.
 		id: String,
 	},
+
+	/// The kern tree: every kern and the thoughts it holds.
 	List,
-	/// Forget one thought by ID, or a whole source with --source.
-	Forget {
+
+	/// What entered memory and when, newest first. With an ID, that thought's
+	/// revision chain — every superseded version, with its source and why it fell.
+	Log {
+		/// A thought ID (or prefix). Omit for the whole history.
 		id: Option<String>,
-		/// Forget every thought from one source instead: `<scheme>://<object_id>`.
-		#[arg(long, conflicts_with = "id")]
-		source: Option<String>,
-		/// Also remove local Facts. The only bypass of the Fact guard, and never
-		/// implicit — it needs --source, since a single id names one Fact the
-		/// caller can see, not a source's worth of them. Paired in `dispatch`,
-		/// NOT with clap's `requires`: that does not fire for a SetTrue flag, so
-		/// `forget --force <id>` was accepted and silently ignored.
-		#[arg(long)]
-		force: bool,
+		/// History entries to print. A revision chain always prints whole.
+		#[arg(long, default_value_t = 20, value_name = "N")]
+		limit: usize,
 	},
-	/// Remove every thought whose text contains PATTERN (case-insensitive),
-	/// optionally narrowed to one source. In-process data hygiene — one store
-	/// load, no per-thought `forget` calls. Facts are kept unless --force
-	/// (same guard as `forget`).
-	Prune {
-		/// Substring matched case-insensitively against thought text.
-		pattern: String,
-		/// Narrow to one source: `<scheme>://<object_id>`.
-		#[arg(long)]
-		source: Option<String>,
-		/// Report what would be removed without mutating anything.
-		#[arg(long)]
-		dry_run: bool,
-		/// Also remove local Facts (the junk kind) — same guard as `forget`.
-		#[arg(long)]
-		force: bool,
-	},
+
+	/// Connect two thoughts with a reason: why they belong together.
+	#[command(visible_alias = "note")]
 	Link {
+		/// The thought the edge points from.
 		from: String,
+		/// The thought the edge points to.
 		to: String,
-		#[arg(long, default_value = "")]
+		/// Why they belong together. Left empty, the reason model writes it.
+		#[arg(long, default_value = "", value_name = "TEXT")]
 		reason: String,
 		#[command(flatten)]
 		llm: LlmArgs,
 	},
+
+	/// Remove thoughts: one by ID, a whole source, or every text match.
+	#[command(visible_alias = "rm")]
+	Forget {
+		/// The thought to forget. Omit when using --source or --match.
+		id: Option<String>,
+		/// Forget every thought from one source: `<scheme>://<object_id>`.
+		#[arg(long, conflicts_with = "id", value_name = "SOURCE")]
+		source: Option<String>,
+		/// Forget every thought whose text contains PATTERN, matched
+		/// case-insensitively. Narrow it further with --source.
+		#[arg(long = "match", conflicts_with = "id", value_name = "PATTERN")]
+		match_text: Option<String>,
+		/// Report what would be removed without removing it. Bulk removals only.
+		#[arg(long)]
+		dry_run: bool,
+		// Paired with the bulk paths in `dispatch`, NOT with clap's `requires`:
+		// that does not fire for a SetTrue flag, so `forget --force <id>` was
+		// accepted and silently ignored.
+		/// Also remove Facts — the one bypass of the Fact guard, and never
+		/// implicit. Bulk removals only: a single ID names one Fact the caller
+		/// can already see.
+		#[arg(long)]
+		force: bool,
+	},
+
+	/// Weaken a thought's edges so it stops surfacing.
+	///
+	/// The answer to recall that returned something wrong or stale: the thought
+	/// stays, its pull on the walk does not.
+	Degrade {
+		/// The thought to degrade, by ID or prefix.
+		id: String,
+	},
+
+	/// Mark a thought reviewed: release it from `pending` so a
+	/// `query --exclude-pending` returns it again.
+	Promote {
+		/// The thought to release, by ID or prefix.
+		id: String,
+	},
+
+	/// Rank stored thoughts by noise likelihood. Report-only unless --apply.
+	///
+	/// Terminal spam, stack traces, heartbeats and secrets, scored
+	/// deterministically — no LLM, so the same store always ranks the same way.
+	Audit {
+		/// Report floor; secret-bearing thoughts surface regardless.
+		#[arg(long, default_value_t = 0.3, value_name = "SCORE")]
+		min_score: f64,
+		/// Candidates printed (the scan itself is unbounded).
+		#[arg(long, default_value_t = 20, value_name = "N")]
+		limit: usize,
+		/// Print the report as JSON instead of a table.
+		#[arg(long)]
+		json: bool,
+		/// Act on the candidates: `archive` holds them pending (reversible via
+		/// `promote`, filtered by `query --exclude-pending`), `delete` forgets
+		/// them. Each action has its own score floor (archive 0.5, delete 0.8)
+		/// that --min-score can only raise; secrets are never bulk-deleted.
+		#[arg(long, value_parser = ["archive", "delete"], value_name = "ACTION")]
+		apply: Option<String>,
+	},
+
 	/// Show the intake queue, or drain it once with no daemon running.
 	Intake {
 		#[command(subcommand)]
@@ -201,75 +288,166 @@ pub enum Commands {
 		#[command(flatten)]
 		llm: LlmArgs,
 	},
-	/// Who is serving and who is writing this directory.
-	Status,
-	Health,
-	Profile {
-		#[arg(long, default_value = "what is this project about")]
-		text: String,
-		#[arg(long)]
-		no_llm: bool,
-	},
-	Gc,
-	Compact,
+
+	/// Name a kern by its attractor: the seed text its thoughts fall toward.
 	Graviton {
 		#[command(subcommand)]
 		action: GravitonAction,
 	},
-	Degrade {
-		id: String,
-	},
-	/// Mark a thought reviewed: release it from `pending` so a
-	/// `query --exclude-pending` returns it again.
-	Promote {
-		id: String,
-	},
+
+	/// Register project-specific claim kinds for distillation to sort into.
 	ClaimKind {
 		#[command(subcommand)]
 		action: ClaimKindAction,
 	},
-	Peers,
-	Register {
-		path: String,
-	},
+
+	/// Kerns that clustered but were never named — list them, or name one.
 	Unnamed {
 		#[command(subcommand)]
 		action: UnnamedAction,
 	},
-	Mcp {
+
+	/// Who is serving and who is writing this directory.
+	Status,
+
+	/// Live counters: kerns, thoughts, embed stamp, and anything degraded.
+	Health,
+
+	/// Diagnose the store: config, embed stamp, dangling edges, empty kerns.
+	///
+	/// Strictly read-only and content-safe — it never mutates, and it never
+	/// prints a thought's text. `--json` emits the manifest `kern repair` reads.
+	Doctor {
+		/// Emit the findings manifest `kern repair` consumes.
+		#[arg(long)]
+		json: bool,
+	},
+
+	/// Execute the repairs a doctor manifest authorizes, and nothing else.
+	///
+	/// No discovery of its own: an empty manifest repairs nothing, and every
+	/// repair is re-verified against the live graph before it runs.
+	Repair {
+		/// Path to a manifest written by `kern doctor --json`.
+		#[arg(value_name = "MANIFEST")]
+		manifest: String,
+	},
+
+	/// Rewrite a store written by an older build into the current format.
+	///
+	/// Reading one already converts it in memory, so recall works before this
+	/// runs; what this adds is finishing the job on disk, in one pass you can
+	/// verify, instead of whenever the next write happens to land. Daemon must
+	/// be stopped. One-way: the rewritten store is no longer readable by the
+	/// build that wrote it.
+	Migrate,
+
+	/// Reap empty kerns and compact the store. Daemon must be stopped.
+	///
+	/// LMDB returns freed pages to the filesystem only on compaction, and the
+	/// compaction renames data.mdb underneath any open environment — so this
+	/// refuses while a daemon holds the writer lock, naming the holder.
+	Gc,
+
+	/// Re-embed every thought with the configured model. Daemon must be stopped.
+	///
+	/// The recovery path after an embedding-model change: vectors from two
+	/// models score as noise against each other, which `kern doctor` reports
+	/// and only this rebuilds.
+	Reembed {
 		#[command(flatten)]
 		embed: EmbedArgs,
 	},
-	Compress {
-		src: String,
-		#[arg(long, default_value = "int8")]
-		mode: String,
+
+	/// Write the whole hot graph as versioned JSON — the backup that survives a
+	/// FORMAT_VERSION wipe.
+	Export {
+		/// Where to write the export.
+		#[arg(long, default_value = "kern-export.json", value_name = "PATH")]
+		out: String,
+	},
+
+	/// Absorb a kern export into this store — a CRDT union, idempotent on re-import.
+	///
+	/// Same semantics as `hub merge`. Refuses a mismatched embed model unless
+	/// --force, because the imported vectors would silently score as noise.
+	Import {
+		/// The export file to absorb.
+		#[arg(value_name = "FILE")]
+		file: String,
+		/// Import anyway when the embed models differ. The imported vectors will
+		/// score as noise until `kern reembed` rebuilds them.
 		#[arg(long)]
+		force: bool,
+	},
+
+	/// Absorb another store directory into this one.
+	Register {
+		/// Path to the store directory to read.
+		#[arg(value_name = "PATH")]
+		path: String,
+	},
+
+	/// Write a quantized copy of a store directory — smaller vectors, lower recall.
+	Compress {
+		/// The store directory to read.
+		#[arg(value_name = "SRC")]
+		src: String,
+		/// Quantization: int8 (4x smaller) or none.
+		#[arg(long, default_value = "int8", value_parser = ["int8", "none"])]
+		mode: String,
+		/// Where to write the copy. Default: `<SRC>.<mode>`.
+		#[arg(long, value_name = "PATH")]
 		out: Option<String>,
 	},
+
+	/// Time the retrieval pipeline stage by stage against this store.
+	Profile {
+		/// The probe query to time.
+		#[arg(
+			long,
+			default_value = "what is this project about",
+			value_name = "TEXT"
+		)]
+		text: String,
+		/// Skip the stages that call the reason model.
+		#[arg(long)]
+		no_llm: bool,
+	},
+
+	/// Serve this directory: recall, ingest, the tick loop, and the intake watcher.
 	Daemon,
+
+	/// The machine hub: one daemon per project, started on demand.
 	Hub {
 		#[command(subcommand)]
 		action: Option<HubAction>,
 		/// Auto-unload hub-owned nodes idle this long; 0 disables.
-		#[arg(long, default_value_t = 1800)]
+		#[arg(long, default_value_t = 1800, value_name = "SECS")]
 		idle_unload_secs: u64,
 	},
 }
 
 #[derive(Subcommand)]
 pub enum HubAction {
+	/// Every kern on this machine: which are loaded, which are cold.
 	Status,
+	/// Print the endpoint serving a project, starting a daemon if none is.
 	Resolve {
+		/// Project root. Default: this one.
 		root: Option<String>,
 	},
+	/// Stop the daemon serving a project and drop it from the hub.
 	Unload {
+		/// Project root. Default: this one.
 		root: Option<String>,
 	},
 	/// Absorb src's graph into dst (CRDT union). Both daemons are stopped
 	/// first; src is left untouched.
 	Merge {
+		/// Project root to read from.
 		src: String,
+		/// Project root to merge into.
 		dst: String,
 	},
 	/// Stop the hub daemon; nodes stay up.
@@ -286,45 +464,62 @@ pub enum IntakeAction {
 
 #[derive(Subcommand)]
 pub enum GravitonAction {
+	/// Give a kern a name and the seed text that attracts thoughts to it.
 	Add {
+		/// The kern's name.
 		name: String,
+		/// Seed text. Multiple lines are embedded separately and mean-pooled,
+		/// so example statements work better than a single label.
 		text: String,
-		#[arg(long)]
+		/// Pull relative to other gravitons. Default: 1.0.
+		#[arg(long, value_name = "MASS")]
 		mass: Option<f64>,
 		#[command(flatten)]
 		embed: EmbedArgs,
 	},
+	/// Every graviton with its mass and what it holds.
 	List,
+	/// Remove a graviton. Its thoughts stay; the kern goes unnamed.
 	Remove {
+		/// The graviton's name.
 		name: String,
 	},
 }
 
 #[derive(Subcommand)]
 pub enum ClaimKindAction {
+	/// Register a claim kind distillation may sort thoughts into.
 	Add {
+		/// The kind's name.
 		name: String,
+		/// What belongs in it — this is the prompt distillation reads.
 		description: String,
 		/// Optional parent claim kind (builtin or registered) this kind
 		/// specializes — queries filtering on the parent also return this kind.
-		#[arg(long)]
+		#[arg(long, value_name = "KIND")]
 		parent: Option<String>,
 	},
+	/// Remove a registered claim kind.
 	Rm {
+		/// The kind's name.
 		name: String,
 	},
 }
 
 #[derive(Subcommand)]
 pub enum UnnamedAction {
+	/// Every unnamed kern, with the thoughts it holds.
 	List,
-	/// Promote an existing unnamed kern to named by giving it a graviton in place.
+	/// Name an unnamed kern by giving it a graviton in place.
 	Promote {
-		/// The unnamed kern id (the short form `kern unnamed` prints).
+		/// The unnamed kern id (the short form `kern unnamed list` prints).
 		id: String,
+		/// The name to give it.
 		name: String,
+		/// Seed text for the new graviton.
 		text: String,
-		#[arg(long)]
+		/// Pull relative to other gravitons. Default: 1.0.
+		#[arg(long, value_name = "MASS")]
 		mass: Option<f64>,
 		#[command(flatten)]
 		embed: EmbedArgs,
@@ -426,29 +621,43 @@ pub async fn dispatch(cmd: Commands, cfg: &config::Config) {
 			.await
 		}
 
+		// One recall command, three reads under it. `--all` is the hub's
+		// cross-project fan-out, `--mode vector` is the bare nearest-neighbour
+		// read of the local store, and everything else is the full pipeline.
 		Commands::Query {
 			text,
 			mode,
+			k,
 			exclude_pending,
-			llm,
+			all,
+			live,
+			embed,
 		} => {
-			let (embed_url, embed_model, _reason_url, _reason_model) = llm.resolve(cfg);
-			crate::commands_query::cmd_query(
-				cfg,
-				crate::commands_query::QueryParams {
-					text: &text,
-					mode: &mode,
-					exclude_pending,
-					embed_url,
-					embed_model,
-				},
-			)
-			.await
-		}
-
-		Commands::Search { text, k, embed } => {
 			let (embed_url, embed_model) = embed.resolve(cfg);
-			crate::commands_query::cmd_search(cfg, &text, k, embed_url, embed_model).await
+			// One default for every mode: the retrieval preset's delivery cap. The
+			// cross-kern and nearest-neighbour reads used to default to 5 — inherited
+			// from the `search` command they absorbed — so the same question asked
+			// three ways answered with three different numbers of hits, and `--all`
+			// looked like it had found almost nothing.
+			let k = k.unwrap_or_else(|| retrieval::score::delivery_cap(&cfg.retrieval));
+			if all {
+				crate::commands_query::cmd_search_all(cfg, &text, k, live).await
+			} else if mode == "vector" {
+				crate::commands_query::cmd_search(cfg, &text, k, embed_url, embed_model).await
+			} else {
+				crate::commands_query::cmd_query(
+					cfg,
+					crate::commands_query::QueryParams {
+						text: &text,
+						mode: &mode,
+						k: Some(k),
+						exclude_pending,
+						embed_url,
+						embed_model,
+					},
+				)
+				.await
+			}
 		}
 
 		Commands::Reembed { embed } => {
@@ -458,25 +667,48 @@ pub async fn dispatch(cmd: Commands, cfg: &config::Config) {
 
 		Commands::Get { id } => crate::commands_graph_ops::cmd_get(cfg, &id).await,
 		Commands::List => crate::commands_graph_ops::cmd_list(cfg),
-		Commands::Prune {
-			pattern,
+		// A revision chain is a whole answer, not a page of one: `limit` bounds
+		// the history feed and `log_report` ignores it for an id anyway.
+		Commands::Log { id, limit } => {
+			crate::commands_graph_ops::cmd_log(cfg, id.as_deref(), limit).await
+		}
+
+		// One removal command over three paths: a single ID routes to the daemon
+		// that owns it, a source or a text match is the bulk sweep that takes the
+		// writer lock instead. --dry-run and --force are the bulk sweep's alone.
+		Commands::Forget {
+			id,
 			source,
+			match_text,
 			dry_run,
 			force,
-		} => crate::commands_graph_ops::cmd_prune(cfg, &pattern, source.as_deref(), dry_run, force),
-
-		Commands::Forget { id, source, force } => match (id, source) {
-			(_, Some(source)) => crate::commands_graph_ops::cmd_forget_source(cfg, &source, force).await,
-			// A --force the per-id path would silently ignore is worse than no
-			// --force: the caller asked to punch through the Fact guard and got a
-			// refusal that reads like the thought simply was not there.
-			(Some(_), None) if force => eprintln!(
-				"kern forget: --force applies to --source <scheme>://<object_id>, not a single thought ID"
+		} => match (id, source, match_text) {
+			// A flag the per-id path would silently ignore is worse than no flag:
+			// the caller asked for something and got a result that reads like the
+			// thought simply was not there.
+			(Some(_), _, _) if force || dry_run => fail(
+				"forget",
+				"--force and --dry-run apply to --source and --match removals, not to a single thought ID",
 			),
-			(Some(id), None) => crate::commands_graph_ops::cmd_forget(cfg, &id).await,
-			(None, None) => {
-				eprintln!("kern forget: pass a thought ID or --source <scheme>://<object_id>")
+			(Some(id), _, _) => crate::commands_graph_ops::cmd_forget(cfg, &id).await,
+			// A source with no pattern and nothing to preview is the cascade the
+			// daemon can run live; anything else is the local matching sweep.
+			(None, Some(source), None) if !dry_run => {
+				crate::commands_graph_ops::cmd_forget_source(cfg, &source, force).await
 			}
+			(None, source, pattern) if source.is_some() || pattern.is_some() => {
+				crate::commands_graph_ops::cmd_prune(
+					cfg,
+					pattern.as_deref().unwrap_or(""),
+					source.as_deref(),
+					dry_run,
+					force,
+				)
+			}
+			(None, _, _) => fail(
+				"forget",
+				"pass a thought ID, --source <scheme>://<object_id>, or --match <pattern>",
+			),
 		},
 
 		Commands::Link {
@@ -512,30 +744,32 @@ pub async fn dispatch(cmd: Commands, cfg: &config::Config) {
 			.await
 		}
 
+		Commands::Audit {
+			min_score,
+			limit,
+			json,
+			apply,
+		} => crate::commands_graph_ops::cmd_audit(cfg, min_score, limit, json, apply.as_deref()),
+
 		Commands::Status => crate::commands_admin::cmd_status(cfg).await,
 		Commands::Health => crate::commands_admin::cmd_health(cfg).await,
+		Commands::Doctor { json } => crate::commands_doctor::cmd_doctor(cfg, json),
+		Commands::Repair { manifest } => crate::commands_doctor::cmd_repair(cfg, &manifest),
 		Commands::Profile { text, no_llm } => {
 			crate::commands_query::cmd_profile(cfg, &text, no_llm).await
 		}
+		Commands::Migrate => crate::commands_admin::cmd_migrate(cfg),
 		Commands::Gc => crate::commands_admin::cmd_gc(cfg),
-		Commands::Compact => crate::commands_admin::cmd_compact(cfg),
 
 		Commands::Graviton { action } => crate::commands_admin::cmd_graviton(cfg, action).await,
 
 		Commands::Degrade { id } => crate::commands_graph_ops::cmd_degrade(cfg, &id).await,
 		Commands::Promote { id } => crate::commands_graph_ops::cmd_promote(cfg, &id).await,
 		Commands::ClaimKind { action } => crate::commands_admin::cmd_claim_kind(cfg, action).await,
-		Commands::Peers => crate::commands_admin::cmd_peers(cfg),
 		Commands::Register { path } => crate::commands_admin::cmd_register(cfg, &path),
 		Commands::Unnamed { action } => crate::commands_admin::cmd_unnamed(cfg, action).await,
-		Commands::Mcp { embed } => {
-			// Override the process config's embed endpoint before serving so the
-			// standalone in-process embedder honors --embed-url/--embed-model. With
-			// no flags this clone equals `cfg`, so behavior is exactly as before.
-			let mut cfg = cfg.clone();
-			embed.apply_to(&mut cfg);
-			crate::commands_mcp_cmd::cmd_mcp(&cfg).await
-		}
+		Commands::Export { out } => crate::commands_export::cmd_export(cfg, &out),
+		Commands::Import { file, force } => crate::commands_export::cmd_import(cfg, &file, force),
 		Commands::Compress { src, mode, out } => {
 			crate::commands_admin::cmd_compress(&src, &mode, out.as_deref())
 		}
@@ -551,7 +785,7 @@ pub async fn dispatch(cmd: Commands, cfg: &config::Config) {
 }
 
 pub(crate) struct EngineHandle {
-	pub server: std::sync::Arc<::mcp::Server>,
+	pub server: std::sync::Arc<::rpc::server::Server>,
 	pub task_q: std::sync::Arc<tick::tick_queue::Queue>,
 	// Guarded persist closure: the shutdown flush never overwrites a grown disk.
 	pub save_fn: std::sync::Arc<dyn Fn() + Send + Sync>,
@@ -564,12 +798,12 @@ pub(crate) struct EngineHandle {
 pub(crate) async fn bootstrap(cli: &Cli, cfg: &config::Config) -> EngineHandle {
 	// Stamps uptime for the staleness handshake. Before any await so a health
 	// probe on a slow cold boot cannot read 0 and be mistaken for unknown.
-	gossip::identity::mark_start();
+	identity::mark_start();
 	// Must run BEFORE any env opens: the compaction swaps data.mdb, and only
 	// here — post kern.sock win, pre env open — is the dir held exclusively.
 	// Skipped on takeover: the predecessor holds the env for a few more ms and
 	// just flushed cleanly, so there is nothing to heal and no exclusivity.
-	if !gossip::identity::is_takeover_boot() {
+	if !identity::is_takeover_boot() {
 		maybe_self_heal_store(cfg);
 	}
 
@@ -638,22 +872,12 @@ pub(crate) async fn bootstrap(cli: &Cli, cfg: &config::Config) -> EngineHandle {
 	let tick_embed: tick_loop::tick_tasks::EmbedFunc = embed_fn(&llm_client);
 
 	let registry = Arc::new(::store::Registry::new());
-	let shared_bq: Arc<parking_lot::RwLock<Option<tick_loop::tick_tasks::BroadcastQuestionFunc>>> =
-		Arc::new(parking_lot::RwLock::new(None));
-	let bq_slot = shared_bq.clone();
-	let broadcast_q_wrapper: tick_loop::tick_tasks::BroadcastQuestionFunc =
-		Arc::new(move |rid, vec, text| {
-			if let Some(f) = bq_slot.read().as_ref() {
-				f(rid, vec, text);
-			}
-		});
 	let entry = registry.open(
 		std::path::Path::new(&cfg.data_dir),
 		cfg,
 		llm_client.clone(),
 		tick_llm,
 		Some(tick_embed),
-		Some(broadcast_q_wrapper),
 	);
 	let g = entry.graph.clone();
 	let worker = entry.worker.clone();
@@ -686,28 +910,22 @@ pub(crate) async fn bootstrap(cli: &Cli, cfg: &config::Config) -> EngineHandle {
 
 	spawn_intake(cfg, &worker, &llm_fn, &g);
 
-	// Gossip starts before the server is built: the server captures the pulse
-	// broadcaster by value, so a server built first can only ever hold None.
-	let (broadcast_pulse, broadcast_q) = start_gossip(cfg, &g, &q, &save_fn).await;
-	if let Some(bq) = broadcast_q {
-		*shared_bq.write() = Some(bq);
-	}
-
-	let mcp_server = std::sync::Arc::new(::mcp::Server {
+	let server = std::sync::Arc::new(::rpc::server::Server {
 		graph: g.clone(),
 		worker: worker.clone(),
 		llm: Some(llm_client.clone()),
 		save_fn: save_fn.clone(),
 		task_q: Some(q.clone()),
 		cfg: std::sync::Arc::new(cfg.clone()),
-		broadcast_pulse: broadcast_pulse.clone(),
+		broadcast_pulse: None,
 		last_activity: std::sync::Arc::new(std::sync::atomic::AtomicU64::new(util::now_ms())),
+		query_cache: ::rpc::server::QueryCache::default(),
 	});
 
-	spawn_maintenance_tick(cfg, &g, &q, broadcast_pulse.clone());
+	spawn_maintenance_tick(cfg, &g, &q);
 
 	EngineHandle {
-		server: mcp_server,
+		server,
 		task_q: q,
 		save_fn,
 		_writer_lock: writer_lock,
@@ -715,14 +933,9 @@ pub(crate) async fn bootstrap(cli: &Cli, cfg: &config::Config) -> EngineHandle {
 }
 
 pub async fn run_server(cli: &Cli, cfg: &config::Config) {
-	{
-		let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
-		ensure_mcp_registered(&cwd);
-	}
-
 	let h = bootstrap(cli, cfg).await;
 	let q = h.task_q.clone();
-	let mcp_server = h.server.clone();
+	let server = h.server.clone();
 	let save_fn = h.save_fn.clone();
 
 	let shutdown = std::sync::Arc::new(tokio::sync::Notify::new());
@@ -740,25 +953,10 @@ pub async fn run_server(cli: &Cli, cfg: &config::Config) {
 	#[cfg(unix)]
 	let mut handover_fd: Option<std::os::fd::OwnedFd>;
 	{
-		// The secret every caller on this socket must present. Resolved before the
-		// bind and fatal if it fails: a daemon that cannot state what it demands
-		// must not listen, because `verify_auth` on an empty token refuses
-		// everyone — a socket nobody can use, silently.
-		let token = match cfg
-			.serve
-			.resolve_mcp_token(std::path::Path::new(&cfg.data_dir))
-		{
-			Ok(t) => t,
-			Err(e) => {
-				tracing::error!(target: "kern.kern_rpc", error = %e, "mcp-token unavailable — not serving");
-				eprintln!("kern: cannot read or mint {}/mcp-token: {e}", cfg.data_dir);
-				return;
-			}
-		};
-		let handler = ::rpc::KernRpcHandler::new(mcp_server.clone(), shutdown.clone());
+		let handler = ::rpc::KernRpcHandler::new(server.clone(), shutdown.clone());
 		let endpoint = transport::typed::Endpoint::kern();
 		#[cfg(unix)]
-		let bound = if gossip::identity::is_takeover_boot() {
+		let bound = if identity::is_takeover_boot() {
 			match transport::typed::adopt_kern_listener(&endpoint) {
 				Ok(listener) => {
 					tracing::info!(
@@ -812,30 +1010,24 @@ pub async fn run_server(cli: &Cli, cfg: &config::Config) {
 		{
 			handover_fd = listener.dup_fd().ok();
 		}
-		tokio::spawn(::rpc::serve_kern_rpc_loop(listener, handler, token));
+		tokio::spawn(::rpc::serve_kern_rpc_loop(listener, handler));
 	}
 
-	if cli.mcp_stdio {
-		mcp_server.run_stdio();
-	} else {
-		let mcp_addr = if !cli.mcp_addr.is_empty() {
-			cli.mcp_addr.clone()
-		} else {
-			cfg.serve.mcp_addr.clone()
-		};
-		if !mcp_addr.is_empty() {
-			let mcp_s = mcp_server.clone();
-			tokio::spawn(async move {
-				if let Err(e) = ::mcp::run_sse(mcp_s, &mcp_addr).await {
-					tracing::error!(target: "kern.mcp_sse", error = %e, "MCP-over-HTTP server exited");
-				}
-			});
-		}
+	// Announce this root to the machine hub so its persistent registry — and
+	// with it `hub status` and `kern search --all` — sees hand-started daemons
+	// too, not only the ones the hub itself spawned.
+	{
+		let cfg_reg = cfg.clone();
+		tokio::spawn(async move {
+			crate::commands_admin::register_with_hub(&cfg_reg).await;
+		});
+	}
 
+	{
 		let takeover = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
 		#[cfg(unix)]
 		if cfg.reload.enabled {
-			gossip::identity::spawn_self_watch(shutdown.clone(), takeover.clone(), cfg.reload.poll_secs);
+			identity::spawn_self_watch(shutdown.clone(), takeover.clone(), cfg.reload.poll_secs);
 		}
 
 		println!("kern running in daemon mode (ctrl-c to stop)");
@@ -849,7 +1041,7 @@ pub async fn run_server(cli: &Cli, cfg: &config::Config) {
 
 		#[cfg(unix)]
 		if takeover.load(std::sync::atomic::Ordering::SeqCst) {
-			match handover_fd.take().map(gossip::identity::spawn_successor) {
+			match handover_fd.take().map(identity::spawn_successor) {
 				Some(Ok(())) => {
 					eprintln!("handing over to new binary");
 					// exit() on purpose: a normal return runs LocalListener's
@@ -862,16 +1054,7 @@ pub async fn run_server(cli: &Cli, cfg: &config::Config) {
 			}
 		}
 		eprintln!("done");
-		return;
 	}
-
-	drop(q);
-
-	eprintln!("shutting down...");
-	// Shut down through the store's guarded closure so a stale daemon's final
-	// flush can't wipe a graph the CLI grew on disk (the SIGTERM data-loss path).
-	save_fn();
-	eprintln!("done");
 }
 
 // Bounded flush the watchdog attempts before force-exiting on a stalled runtime.
@@ -1019,6 +1202,7 @@ fn spawn_file_watcher(cfg: &config::Config, worker: &Arc<ingest::Worker>) {
 		worker.clone(),
 		cfg.watcher.retention_secs,
 		cfg.ingest.review_policy.clone(),
+		cfg.hygiene.gate_config(),
 		direct_dir,
 	));
 	tokio::spawn(async move {
@@ -1061,193 +1245,13 @@ fn spawn_intake(
 		dedup,
 		cfg.intake.retention_secs,
 		cfg.ingest.review_policy.clone(),
+		cfg.hygiene.gate_config(),
 		poll,
 		done_retention,
 	));
 }
 
-type BroadcastPulseFn = Arc<dyn Fn(&str, f64) + Send + Sync>;
-
-async fn start_gossip(
-	cfg: &config::Config,
-	g: &SharedGraph,
-	q: &Arc<tick::tick_queue::Queue>,
-	save_fn: &Arc<dyn Fn() + Send + Sync>,
-) -> (
-	Option<BroadcastPulseFn>,
-	Option<tick_loop::tick_tasks::BroadcastQuestionFunc>,
-) {
-	if !cfg.gossip.enabled {
-		return (None, None);
-	}
-	let network_id = {
-		let g = g.read();
-		g.network_id.clone()
-	};
-	let network_id = cfg.gossip.effective_network_id(&network_id);
-	let bootstrap = cfg.gossip.bootstrap_peers();
-	if let Some(seed) = cfg.gossip.effective_seed() {
-		tracing::info!(target: "kern.gossip", seed = %seed, "gossip bootstrap seed — federation is unauthenticated and unencrypted; set [gossip] seed = false to stay LAN-only");
-	}
-	// The daemon's persistent peer identity: every outbound frame is signed by
-	// it. Failing to read/mint the key file degrades to an ephemeral identity
-	// rather than killing the daemon — federation is optional, boot is not.
-	let key_path = if cfg.gossip.identity_path.trim().is_empty() {
-		std::path::Path::new(&cfg.data_dir).join("peer.key")
-	} else {
-		std::path::PathBuf::from(cfg.gossip.identity_path.trim())
-	};
-	let identity = match gossip::gossip_identity::PeerIdentity::load_or_mint(&key_path) {
-		Ok(id) => std::sync::Arc::new(id),
-		Err(e) => {
-			tracing::warn!(
-				target: "kern.gossip",
-				path = %key_path.display(),
-				error = %e,
-				"peer key unavailable; running with an ephemeral identity for this process"
-			);
-			std::sync::Arc::new(gossip::gossip_identity::PeerIdentity::generate())
-		}
-	};
-	let node = gossip::gossip_node::Node::new_with_identity(
-		&cfg.gossip.addr,
-		&network_id,
-		bootstrap,
-		identity,
-	);
-	node.ledger.set_max_entries(cfg.graph.max_ledger_entries);
-	// Contracts this node hosts: each `[[gossip.contracts]]` table whose keys
-	// parse. A table that fails to parse is refused loudly — hosting it with a
-	// silently weakened policy would betray every subscriber.
-	let contracts: std::collections::HashMap<
-		gossip::gossip_contract::ContractId,
-		Arc<gossip::gossip_handler::ContractHost>,
-	> = cfg
-		.gossip
-		.contracts
-		.iter()
-		.filter_map(|c| match gossip::gossip_contract::params_from_config(c) {
-			Some(params) => {
-				let cid = gossip::gossip_contract::contract_id(
-					gossip::gossip_contract::SIGNED_CRDT_V0_TAG,
-					&params,
-				);
-				tracing::info!(
-					target: "kern.gossip",
-					contract = %util::hex::encode(cid),
-					"hosting contract"
-				);
-				Some((
-					cid,
-					Arc::new(gossip::gossip_handler::ContractHost {
-						params,
-						state: parking_lot::RwLock::new(Default::default()),
-					}),
-				))
-			}
-			None => {
-				tracing::warn!(
-					target: "kern.gossip",
-					kind = %c.kind,
-					"[gossip.contracts] table refused: unknown kind, writer policy, claim kind, or unparseable key"
-				);
-				None
-			}
-		})
-		.collect();
-	let deps = Arc::new(gossip::gossip_handler::Deps {
-		graph: g.clone(),
-		node: node.clone(),
-		queue: Some(q.clone()),
-		save: Some(save_fn.clone()),
-		contracts: Arc::new(parking_lot::RwLock::new(contracts)),
-		subs: Arc::new(gossip::gossip_subs::SubTable::new()),
-	});
-	node.set_handler(gossip::gossip_handler::new_handler(deps.clone()));
-	if cfg.gossip.ring {
-		node.enable_ring();
-	}
-	match node.listen().await {
-		Ok(addr) => {
-			tracing::info!(target: "kern.gossip", addr = %addr, network = %network_id, "gossip listening");
-			if cfg.gossip.ring {
-				let join_node = node.clone();
-				let join_peers = cfg.gossip.bootstrap_peers();
-				tokio::spawn(async move {
-					join_node.join_ring(&join_peers).await;
-				});
-			}
-			node.start_heartbeat();
-			gossip::gossip_handler::start_announce(node.clone(), g.clone());
-			gossip::gossip_handler::start_entity_sync(node.clone(), g.clone());
-			gossip::gossip_handler::wire_fetch(node.clone(), g.clone());
-			gossip::gossip_handler::start_delta_flush(node.clone(), g.clone());
-			// Anti-entropy for hosted contracts + boot subscriptions (§4). The
-			// first sync pass also dials tree parents for rootless contracts.
-			if !deps.contracts.read().is_empty() || !cfg.gossip.subscriptions.is_empty() {
-				for s in &cfg.gossip.subscriptions {
-					match gossip::gossip_contract::parse_key_hex(s) {
-						Some(cid) => gossip::gossip_handler::subscribe_upstream(&deps, &cid),
-						None => tracing::warn!(
-							target: "kern.gossip",
-							id = %s,
-							"[gossip] subscriptions entry is not a 64-hex contract id; skipped"
-						),
-					}
-				}
-				gossip::gossip_handler::start_contract_sync(deps.clone(), cfg.gossip.sync_interval_secs);
-			}
-			if cfg.gossip.discovery {
-				gossip::gossip_node::start_broadcast(&node, cfg.gossip.discovery_port);
-				gossip::gossip_node::start_listen(&node, cfg.gossip.discovery_port);
-			}
-			let pulse_node = node.clone();
-			let broadcast_pulse: BroadcastPulseFn = Arc::new(move |kern_id: &str, strength: f64| {
-				let stamp = util::now_nanos();
-				let msg = gossip::gossip_types::GossipMessage {
-					kind: gossip::gossip_types::GossipKind::Pulse,
-					id: format!("pulse-{}-{}", pulse_node.addr(), stamp),
-					origin: pulse_node.addr(),
-					payload: gossip::gossip_types::GossipPayload::Pulse(gossip::gossip_types::PulsePayload {
-						kern_id: kern_id.to_string(),
-						strength,
-					}),
-				};
-				pulse_node.broadcast(msg);
-			});
-			let q_node = node.clone();
-			let broadcast_q: tick_loop::tick_tasks::BroadcastQuestionFunc =
-				Arc::new(move |rid: &str, rvec: &[f32], rtext: &str| {
-					let stamp = util::now_nanos();
-					let msg = gossip::gossip_types::GossipMessage {
-						kind: gossip::gossip_types::GossipKind::Question,
-						id: format!("q-{}-{}", q_node.addr(), stamp),
-						origin: q_node.addr(),
-						payload: gossip::gossip_types::GossipPayload::Question(
-							gossip::gossip_types::QuestionPayload {
-								reason_id: rid.to_string(),
-								reason_vec: rvec.to_vec(),
-								question_text: rtext.to_string(),
-							},
-						),
-					};
-					q_node.broadcast(msg);
-				});
-			(Some(broadcast_pulse), Some(broadcast_q))
-		}
-		Err(e) => {
-			tracing::warn!(target: "kern.gossip", error = %e, "gossip listen failed; federation disabled");
-			(None, None)
-		}
-	}
-}
-
-fn spawn_maintenance_tick(
-	cfg: &config::Config,
-	g: &SharedGraph,
-	q: &Arc<tick::tick_queue::Queue>,
-	broadcast_pulse: Option<::mcp::PulseBroadcast>,
-) {
+fn spawn_maintenance_tick(cfg: &config::Config, g: &SharedGraph, q: &Arc<tick::tick_queue::Queue>) {
 	if cfg.tick.interval_secs == 0 {
 		return;
 	}
@@ -1269,9 +1273,6 @@ fn spawn_maintenance_tick(
 			{
 				let g = g_tick.read();
 				tick::tick_pulse::pulse(&q_tick, &g, &root_id, 1.0);
-			}
-			if let Some(broadcast) = &broadcast_pulse {
-				broadcast(&root_id, 1.0);
 			}
 			tick_loop::enqueue_all(&q_tick, &g_tick);
 			// Bound the crash-loss window for mutations whose event-driven save
@@ -1334,70 +1335,6 @@ mod entry_point_tests {
 	#[test]
 	fn daemon_subcommand_exists() {
 		let _ = Commands::Daemon;
-	}
-
-	// `kern mcp --embed-url/--embed-model` overrides the process config, while the
-	// bare `kern mcp` leaves the loaded config untouched. This is the whole of
-	// Part A: the standalone in-process embedder reads `cfg.embed`, so overriding
-	// it here points a container-spawned `kern mcp` at a non-default ollama host.
-	#[test]
-	fn mcp_embed_flags_override_the_config_and_are_inert_when_absent() {
-		use super::{Cli, EmbedArgs};
-		use clap::Parser;
-		use config::Config;
-		use std::path::Path;
-
-		// Bare invocation: apply_to on the parsed EmbedArgs is a no-op.
-		let cli = Cli::try_parse_from(["kern", "mcp"]).expect("bare mcp parses");
-		let Some(Commands::Mcp { embed }) = cli.command else {
-			panic!("expected the mcp subcommand");
-		};
-		let base = Config::default_in(Path::new("/proj"));
-		let mut cfg = base.clone();
-		embed.apply_to(&mut cfg);
-		assert_eq!(
-			cfg.embed.url, base.embed.url,
-			"absent flags leave the config's embed url exactly as loaded"
-		);
-		assert_eq!(
-			cfg.embed.model, base.embed.model,
-			"absent flags leave the config's embed model exactly as loaded"
-		);
-
-		// With flags: both fields are replaced, nothing else in embed is touched.
-		let cli = Cli::try_parse_from([
-			"kern",
-			"mcp",
-			"--embed-url",
-			"http://ollama:11434",
-			"--embed-model",
-			"nomic-embed-text",
-		])
-		.expect("mcp with embed flags parses");
-		let Some(Commands::Mcp { embed }) = cli.command else {
-			panic!("expected the mcp subcommand");
-		};
-		let mut cfg = base.clone();
-		embed.apply_to(&mut cfg);
-		assert_eq!(cfg.embed.url, "http://ollama:11434", "url overridden");
-		assert_eq!(cfg.embed.model, "nomic-embed-text", "model overridden");
-		assert_eq!(
-			cfg.embed.key, base.embed.key,
-			"only url and model move; the rest of EmbedConfig is untouched"
-		);
-
-		// Each flag stands alone: only the one given moves.
-		let mut cfg = base.clone();
-		EmbedArgs {
-			embed_url: Some("http://only-url:1234".into()),
-			embed_model: None,
-		}
-		.apply_to(&mut cfg);
-		assert_eq!(cfg.embed.url, "http://only-url:1234");
-		assert_eq!(
-			cfg.embed.model, base.embed.model,
-			"an absent --embed-model keeps the config's model"
-		);
 	}
 
 	// Proves the WIRING, not the primitive: nothing here calls check_embed_stamp.
@@ -1683,7 +1620,7 @@ mod entry_point_tests {
 			g.write().register(k);
 			super::save_graph_guarded(&g, &cfg);
 
-			tick_loop::tick_sync(&g, "k", None, None, None);
+			tick_loop::tick_sync(&g, "k", None, None);
 			let child_exists = {
 				let gg = g.read();
 				let parent = gg.loaded("k").expect("parent kern still loaded");

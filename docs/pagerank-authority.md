@@ -1,5 +1,14 @@
 # PageRank for DB Authority in Federated kern
 
+> **Superseded in part, 2026-08-16.** Network federation was removed — kern is
+> local memory, with no peer protocol and no remote writer. Everything below
+> that depends on peers, `to_net_id`, cross-network edges or per-peer authority
+> describes a design that no longer has a subject and will not be built. What
+> survives and ships is the *local* half: damped, query-personalised PageRank
+> over the reason graph at seed fusion. Kept as a research record, not as a
+> plan.
+
+
 **Ticket:** KR2KNRT9
 **Status:** Research / design
 **Decision:** **Adopt-modified** — adopt a damped, typed, scoped eigenvector-style

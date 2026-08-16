@@ -10,7 +10,7 @@ use math::clamp_confidence;
 use store_core::FlushOutcome;
 use util::truncate;
 
-use crate::{load_graph, Client, Endpoint};
+use crate::{fail, load_graph, Client, Endpoint};
 
 const WRITE_RETRIES: u32 = 5;
 
@@ -37,8 +37,10 @@ pub(crate) async fn cmd_ingest(
 		match std::fs::read_to_string(&resolved) {
 			Ok(t) => t,
 			Err(e) => {
-				eprintln!("read file {}: {e}", resolved.display());
-				return;
+				return fail(
+					"ingest",
+					format!("reading {} failed: {e}", resolved.display()),
+				)
 			}
 		}
 	} else {
@@ -46,17 +48,16 @@ pub(crate) async fn cmd_ingest(
 	};
 
 	if text.is_empty() {
-		eprintln!("text or --file required");
-		return;
+		return fail(
+			"ingest",
+			"nothing to ingest — pass some text or --file <path>",
+		);
 	}
 
 	// Resolved once, before the retry loop: a retry must not push the deadline out.
 	let valid_until = match ingest::valid_until_from_retention(retention_secs) {
 		Ok(v) => v,
-		Err(e) => {
-			eprintln!("{e}");
-			return;
-		}
+		Err(e) => return fail("ingest", e),
 	};
 
 	let g = Arc::new(RwLock::new(load_graph(cfg)));
@@ -102,14 +103,16 @@ pub(crate) async fn cmd_ingest(
 				disk_epoch,
 				expected,
 			}) => {
-				eprintln!(
-					"ingest: persisted under contention after {WRITE_RETRIES} tries \
-					 (disk epoch {disk_epoch} vs {expected}); another writer is active on this data_dir"
+				fail(
+					"ingest",
+					format!(
+						"gave up persisting after {WRITE_RETRIES} tries (disk epoch {disk_epoch} vs {expected}) — another writer is active on this data_dir"
+					),
 				);
 				break;
 			}
 			Err(e) => {
-				eprintln!("save: {e}");
+				fail("ingest", format!("save failed: {e}"));
 				break;
 			}
 		}
@@ -122,9 +125,9 @@ pub(crate) async fn cmd_ingest(
 		outcome.total_chunks
 	);
 	for f in &outcome.failures {
-		eprintln!(
-			"  {} #{} ({}): {}",
-			f.scope, f.chunk_index, f.class, f.error
+		fail(
+			"ingest",
+			format!("{} #{} ({}): {}", f.scope, f.chunk_index, f.class, f.error),
 		);
 	}
 }
@@ -165,6 +168,7 @@ fn ingest_config(
 		dedup_threshold_by_kind: cfg.ingest.dedup_threshold_by_kind,
 		valid_until,
 		review_policy: cfg.ingest.review_policy.clone(),
+		hygiene: cfg.hygiene.gate_config(),
 		..Default::default()
 	}
 }

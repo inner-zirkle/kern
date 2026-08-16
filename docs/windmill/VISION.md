@@ -2,13 +2,13 @@
 
 kern is a self-learning memory substrate for AI agents: one daemon per working
 directory owns a knowledge graph that a caller writes durable facts into, keeps
-itself small without gardening, serves the right context back at recall time,
-and optionally federates across machines — local-first, self-contained,
-in-process, no cloud, no query-time LLM required. Capture is never automatic;
+itself small without gardening, and serves the right context back at recall
+time — local-only, self-contained, in-process, no cloud, no network, no
+query-time LLM required. Capture is never automatic;
 everything after the write is. It is not a vector store you operate (chunk,
 embed, index, prune); it is a process that operates itself, defined by four
 autonomous properties — self-learning from what is used, structured,
-self-compacting, self-distributing — each the inverse of a RAG chore you'd
+self-compacting, self-hosting — each the inverse of a RAG chore you'd
 otherwise own. The competitive set is agent memory (Zep/Graphiti, Mem0, Letta),
 not general-purpose vector databases. kern publishes no number against that set
 and has none of its own; what measures retrieval quality with no LLM in the
@@ -21,8 +21,9 @@ so the claim standard stands unchanged. Every open item lives in `ROADMAP.md`.
 A change fails the vision if it breaks any of these:
 
 - **Two caller-driven ways in, never a hidden one.** Durable facts enter by an
-  agent calling MCP `ingest` (the primary path) or by dropping a transcript into
-  `.kern/intake/` (the backup path, which the daemon distills). kern captures no
+  agent running `kern ingest` (the primary path — the CLI is the agent surface,
+  each verb a thin dispatch to the serving daemon) or by dropping a transcript
+  into `.kern/intake/` (the backup path, which the daemon distills). kern captures no
   session on its own — writing to either entry point is the caller's job — and an
   LLM outage on the intake path queues, never loses.
 - **A graph, not a bag.** Storage is typed thoughts plus reason edges — the
@@ -44,11 +45,13 @@ A change fails the vision if it breaks any of these:
   always proceeds.
 - **All-internal.** No pluggable or fallback backend, no network hop on the hot
   path, dependencies deliberately minimal.
-- **Federation is opt-in and coordinator-free.** Off by default; when on,
-  nodes converge over gossip via the content-addressed CRDT — no central
-  server.
-- **One dispatch core.** Every surface (MCP, RPC, CLI, any future one) goes
-  through the single `mcp::Server::call_tool` — never a second copy.
+- **Memory is local, and stays local.** No peer protocol, no network
+  listener, no remote writer — nothing kern stores leaves the machine. Reach
+  across projects is the machine hub opening stores whose locations it already
+  knows, never a wire between hosts.
+- **One dispatch core.** Every surface (CLI, RPC, the hub's cross-kern
+  fan-out, any future one) goes through the single `rpc::Server::invoke` —
+  never a second copy.
 - **No quality claim without an instrument.** There is no recorded baseline —
   it was withdrawn, not superseded. The scorer that exists (`tests/e2e/test_recall.py`)
   runs against a bag-of-words embedder: it catches regressions and certifies

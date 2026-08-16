@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["src/util", "src/base", "src/math", "src/store", "src/store_core", "src/bootstrap", "src/graph", "src/ingest_config", "src/llm", "src/config", "src/gnn", "src/retrieval", "src/ingest", "src/tick", "src/gossip", "src/tick_loop", "src/test_support", "src/transport", "src/transport/macros", "src/health", "src/mcp", "src/rpc", "src/hub", "src/commands"]
+members = ["src/util", "src/base", "src/math", "src/store", "src/store_core", "src/bootstrap", "src/graph", "src/hygiene", "src/ingest_config", "src/llm", "src/config", "src/gnn", "src/retrieval", "src/ingest", "src/tick", "src/identity", "src/tick_loop", "src/test_support", "src/transport", "src/transport/macros", "src/health", "src/rpc", "src/hub", "src/commands"]
 
 [workspace.package]
 version = "1.4.0"
@@ -29,7 +29,6 @@ reqwest = { version = "0.13", default-features = false, features = [
 ] }
 axum = "0.8.9"
 rayon = "1.12"
-regex = "1"
 transport-macros = { path = "src/transport/macros" }
 toml = "1"
 parking_lot = "0.12"
@@ -39,19 +38,19 @@ math = { path = "src/math" }
 store = { path = "src/store" }
 graph = { path = "src/graph" }
 ingest_config = { path = "src/ingest_config" }
+hygiene = { path = "src/hygiene" }
 llm = { path = "src/llm" }
 config = { path = "src/config" }
 gnn = { path = "src/gnn" }
 retrieval = { path = "src/retrieval" }
 ingest = { path = "src/ingest" }
 tick = { path = "src/tick" }
-gossip = { path = "src/gossip" }
+identity = { path = "src/identity" }
 transport = { path = "src/transport" }
 tick_loop = { path = "src/tick_loop" }
 test_support = { path = "src/test_support" }
 health = { path = "src/health" }
 store_core = { path = "src/store_core" }
-mcp = { path = "src/mcp" }
 rpc = { path = "src/rpc" }
 hub = { path = "src/hub" }
 commands = { path = "src/commands" }
@@ -82,7 +81,7 @@ path = "src/main.rs"
 dirs = "6"
 toml.workspace = true
 memmap2 = "0.9"
-clap = { version = "4", features = ["derive"] }
+clap = { version = "4", features = ["derive", "wrap_help"] }
 serde.workspace = true
 rand.workspace = true
 bincode.workspace = true
@@ -112,15 +111,11 @@ transport-macros = { path = "src/transport/macros" }
 anyhow.workspace = true
 zstd = "0.13"
 parking_lot.workspace = true
-ed25519-dalek = "3"
-blake3 = "1"
-chacha20poly1305 = "0.11"
 util = { path = "src/util" }
 base = { path = "src/base" }
 math = { path = "src/math" }
 store = { path = "src/store" }
 store_core = { path = "src/store_core" }
-mcp = { path = "src/mcp" }
 rpc = { path = "src/rpc" }
 hub = { path = "src/hub" }
 commands = { path = "src/commands" }
@@ -133,7 +128,7 @@ gnn = { path = "src/gnn" }
 retrieval = { path = "src/retrieval" }
 ingest = { path = "src/ingest" }
 tick = { path = "src/tick" }
-gossip = { path = "src/gossip" }
+identity = { path = "src/identity" }
 tick_loop = { path = "src/tick_loop" }
 transport = { path = "src/transport" }
 test_support = { path = "src/test_support" }

@@ -6,7 +6,7 @@ license.workspace = true
 
 [dependencies]
 config = { path = "../config" }
-gossip = { path = "../gossip" }
+identity = { path = "../identity" }
 rpc = { path = "../rpc" }
 transport = { path = "../transport" }
 util = { path = "../util" }

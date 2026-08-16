@@ -190,6 +190,56 @@ mod tests {
 		);
 	}
 
+	#[tokio::test]
+	async fn strict_hygiene_gate_rejects_before_any_embed_spend() {
+		let worker = dead_worker(Arc::new(RwLock::new(GraphGnn::new())));
+		let strict = Config {
+			hygiene: hygiene::GateConfig {
+				mode: hygiene::GateMode::Strict,
+				extra_patterns: Vec::new(),
+			},
+			..Default::default()
+		};
+		let outcome = worker
+			.run(
+				"npm warn deprecated foo@1.0.0".into(),
+				session_source(),
+				EntityKind::Claim,
+				String::new(),
+				1.0,
+				"session",
+				strict,
+				Scoping::default(),
+			)
+			.await;
+		assert_eq!(
+			outcome.status,
+			OutcomeStatus::Rejected,
+			"the gate refuses noise on a dead embedder — before any embed attempt"
+		);
+		assert!(
+			outcome.message.contains("noise_pattern_match"),
+			"{}",
+			outcome.message
+		);
+
+		// The contrast: allowed text on the same dead embedder FAILS, proving
+		// the rejection above came from the gate, not the endpoint.
+		let allowed = worker
+			.run(
+				"the auth service owns session invalidation".into(),
+				session_source(),
+				EntityKind::Claim,
+				String::new(),
+				1.0,
+				"session",
+				Config::default(),
+				Scoping::default(),
+			)
+			.await;
+		assert_eq!(allowed.status, OutcomeStatus::Failed);
+	}
+
 	fn outcome_with(status: OutcomeStatus) -> Outcome {
 		Outcome {
 			status,
@@ -253,7 +303,6 @@ mod tests {
 			replaces: None,
 			result_tx: None,
 			scoping: Scoping::default(),
-			trust_tier: TrustTier::Unknown,
 		}
 	}
 
@@ -430,6 +479,8 @@ mod tests {
 		);
 
 		let want = base::base_constants::MAX_AI_CONFIDENCE;
+		// The file channel seeds at veracity 0.6: mean = (1 + v·conf)/(2 + v).
+		let want_mean = (1.0 + 0.6 * want) / 2.6;
 		let mut seen: Vec<(String, f64)> = Vec::new();
 		let cap = std::time::Instant::now() + std::time::Duration::from_secs(5);
 		while std::time::Instant::now() < cap {
@@ -459,10 +510,10 @@ mod tests {
 				.find(|(text, _)| text.contains(entrance))
 				.unwrap_or_else(|| panic!("{entrance} placed nothing; got {seen:?}"));
 			assert!(
-				(hit.1 - (1.0 + want) / 3.0).abs() < 1e-6,
+				(hit.1 - want_mean).abs() < 1e-6,
 				"{entrance} minted an unclamped confidence: posterior {:.4}, want {:.4}",
 				hit.1,
-				(1.0 + want) / 3.0
+				want_mean
 			);
 		}
 	}

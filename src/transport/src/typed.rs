@@ -533,13 +533,12 @@ impl Adapter for LocalAdapter {
 	}
 }
 
-// Who is on the other end, decided before a single byte goes out. A client's
-// first frame is `present_auth`, which hands over the graph's `mcp-token` — the
-// same secret `mcp_addr` demands — and with no `XDG_RUNTIME_DIR` the endpoint
-// falls back to `/tmp/kern-<tag>-<user>.sock` (`Endpoint::scoped`), where the
-// sticky bit stops another local user from *deleting* the name but not from
-// *taking* it first. So the name gets checked before `connect`, which puts it
-// ahead of every byte a client could write.
+// Who is on the other end, decided before a single byte goes out. Socket
+// ownership IS the access model — there is no token handshake — and with no
+// `XDG_RUNTIME_DIR` the endpoint falls back to `/tmp/kern-<tag>-<user>.sock`
+// (`Endpoint::scoped`), where the sticky bit stops another local user from
+// *deleting* the name but not from *taking* it first. So the name gets checked
+// before `connect`, which puts it ahead of every byte a client could write.
 //
 // This is the cheap half and it is deliberately not the whole check: a stat
 // describes a path at one instant, and the path can move. `require_peer_is_caller`
@@ -602,8 +601,8 @@ fn require_owned_by_caller(path: &Path) -> Result<(), AdapterError> {
 // stats as ours can be free a microsecond later and bound by somebody else
 // before `connect` lands. A stat alone cannot see that; this does.
 //
-// Still ahead of frame 1: `connect_kern` returns the adapter and only then does
-// `present_auth` write the token.
+// Still ahead of frame 1: `connect_kern` returns the adapter before the caller
+// can write anything.
 #[cfg(unix)]
 fn require_peer_is_caller(adapter: &UnixStreamAdapter, path: &Path) -> Result<(), AdapterError> {
 	// SAFETY: `geteuid` cannot fail and touches no memory the caller owns.

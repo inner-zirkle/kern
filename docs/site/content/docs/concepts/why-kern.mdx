@@ -27,8 +27,8 @@ Premise: memory is a process that operates itself, not an index you operate.
 
 ## Maturity
 
-<Callout type="warn" title="Federation is off by default — keep it off unless you trust every host">
-`building`, not shipped; transport unauthenticated and unencrypted. See [Federation](./federation.mdx) and [Security](./security.mdx).
+<Callout type="info" title="kern is local memory">
+No peer protocol, no network listener, no remote writer — nothing kern stores leaves the machine. See [Security](./security.mdx).
 </Callout>
 
 - Retrieval baseline is a **regression detector, not a quality claim**: recall@1 0.9583, recall@5 1.0000, MRR 0.9792 (2026-07-21) — deterministic fake embedder, self-authored corpus; can say kern got worse, never that kern is good; comparable to nothing anyone else publishes.

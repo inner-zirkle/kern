@@ -37,7 +37,6 @@ mod tests {
 				kind: EntityKind::Document,
 				status: EntityStatus::Active,
 				review: Default::default(),
-				trust_tier: TrustTier::Unknown,
 				statements: vec![text],
 				chunks: vec![ChunkPart {
 					kind: ChunkPartKind::StatementRef,
@@ -236,7 +235,13 @@ mod tests {
 			None,
 			None,
 		));
-		let sink = KernFileWatcherSink::new(worker.clone(), 3600, Default::default(), None);
+		let sink = KernFileWatcherSink::new(
+			worker.clone(),
+			3600,
+			Default::default(),
+			Default::default(),
+			None,
+		);
 
 		let before = SystemTime::now();
 		sink
@@ -274,7 +279,7 @@ mod tests {
 		}
 
 		assert_eq!(
-			KernFileWatcherSink::new(worker, 0, Default::default(), None)
+			KernFileWatcherSink::new(worker, 0, Default::default(), Default::default(), None)
 				.ingest_config()
 				.valid_until,
 			None,
@@ -323,7 +328,7 @@ mod tests {
 		}
 
 		let refused_before = crate::ingest_worker::ingest_queue_refused();
-		let sink = KernFileWatcherSink::new(worker, 0, Default::default(), None);
+		let sink = KernFileWatcherSink::new(worker, 0, Default::default(), Default::default(), None);
 		let blocked = timeout(
 			Duration::from_millis(150),
 			sink.ingest(IngestRecord {
@@ -362,7 +367,7 @@ mod tests {
 			None,
 		));
 
-		KernFileWatcherSink::new(worker, 0, Default::default(), None)
+		KernFileWatcherSink::new(worker, 0, Default::default(), Default::default(), None)
 			.ingest(IngestRecord {
 				source_uri: "file:///tmp/trusted.rs".to_string(),
 				content: "fn appears_on_disk() {}".to_string(),
@@ -393,7 +398,10 @@ mod tests {
 		}
 		assert!(!betas.is_empty(), "the watched file reached the graph");
 
-		let agent = 2.0 - base::base_constants::MAX_AI_CONFIDENCE as f32;
+		// beta = 1 + v·(1 − conf) with the file channel's veracity v = 0.6:
+		// the clamp still lands on MAX_AI_CONFIDENCE, seeded at file-channel
+		// evidence strength.
+		let agent = 1.0 + 0.6 * (1.0 - base::base_constants::MAX_AI_CONFIDENCE as f32);
 		for got in &betas {
 			assert!(
 				(got - agent).abs() < 1e-6,
@@ -428,14 +436,20 @@ mod tests {
 		let direct = dir.path().join("direct");
 		let content = "fn survives_a_kill() {}";
 
-		KernFileWatcherSink::new(worker.clone(), 0, Default::default(), Some(direct.clone()))
-			.ingest(IngestRecord {
-				source_uri: "file:///tmp/durable.rs".to_string(),
-				content: content.to_string(),
-				language_hint: Some("rust".to_string()),
-				replaces: None,
-			})
-			.await;
+		KernFileWatcherSink::new(
+			worker.clone(),
+			0,
+			Default::default(),
+			Default::default(),
+			Some(direct.clone()),
+		)
+		.ingest(IngestRecord {
+			source_uri: "file:///tmp/durable.rs".to_string(),
+			content: content.to_string(),
+			language_hint: Some("rust".to_string()),
+			replaces: None,
+		})
+		.await;
 
 		let parked = direct.join(format!("{}.json", util::content_hash(content)));
 		assert!(
@@ -472,7 +486,8 @@ mod tests {
 			.filter(|e| matches!(e.kind, EntityKind::Document))
 			.collect();
 		assert!(!docs.is_empty(), "the drain rebuilt the document");
-		let want = 2.0 - base::base_constants::MAX_AI_CONFIDENCE as f32;
+		// Same file-channel veracity seeding as the RAM leg (v = 0.6).
+		let want = 1.0 + 0.6 * (1.0 - base::base_constants::MAX_AI_CONFIDENCE as f32);
 		for d in &docs {
 			assert_eq!(d.source.scheme(), "file", "it came back as a file");
 			assert!(
@@ -510,14 +525,20 @@ mod tests {
 		std::fs::write(&blocker, b"occupied").expect("blocker written");
 		let direct = blocker.join("direct");
 
-		KernFileWatcherSink::new(worker, 0, Default::default(), Some(direct.clone()))
-			.ingest(IngestRecord {
-				source_uri: "file:///tmp/failopen.rs".to_string(),
-				content: "fn still_ingested() {}".to_string(),
-				language_hint: Some("rust".to_string()),
-				replaces: None,
-			})
-			.await;
+		KernFileWatcherSink::new(
+			worker,
+			0,
+			Default::default(),
+			Default::default(),
+			Some(direct.clone()),
+		)
+		.ingest(IngestRecord {
+			source_uri: "file:///tmp/failopen.rs".to_string(),
+			content: "fn still_ingested() {}".to_string(),
+			language_hint: Some("rust".to_string()),
+			replaces: None,
+		})
+		.await;
 
 		assert!(
 			!direct.exists(),

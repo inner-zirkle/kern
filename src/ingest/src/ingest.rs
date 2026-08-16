@@ -19,9 +19,6 @@ pub use ingest_config::{review_for, valid_until_from_retention, Config, ReviewPo
 pub use llm::LlmFunc;
 
 pub use crate::ingest_dedup as dedup;
-pub use crate::ingest_filter::{
-	filter_rejected_count, increment_filter_rejected, FilterResult, WriteFilter,
-};
 pub use crate::ingest_direct as direct;
 pub use crate::ingest_distill as distill;
 pub use crate::ingest_file_watcher as file_watcher;
@@ -32,15 +29,5 @@ pub use crate::ingest_worker as worker;
 pub use ingest_config as config;
 
 #[cfg(test)]
-pub(crate) fn stub_one_hot(seed: &str) -> Vec<f32> {
-	let h = util::content_hash(seed);
-	let bytes = h.as_bytes();
-	let slot = if bytes.is_empty() {
-		0
-	} else {
-		bytes[0] as usize
-	};
-	let mut v = vec![0.0_f32; 256];
-	v[slot] = 1.0;
-	v
-}
+#[path = "tests/ingest_test.rs"]
+pub(crate) mod ingest_tests;

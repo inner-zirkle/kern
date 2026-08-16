@@ -28,7 +28,7 @@ run:
 
 # headless daemon only (no TUI/panes) — servers or background use
 daemon:
-    cargo run --bin kern -- --daemon
+    cargo run --bin kern -- daemon
 
 # full test suite: nextest + doc tests + e2e pytest
 test:
@@ -89,9 +89,11 @@ docs:
 docs-build:
     cd docs/site && npm run build
 
-# download the retrieval benchmark datasets into tests/eval/ (gitignored, CC BY-NC)
-eval-fetch:
-    python3 tests/e2e/eval/datasets.py
+# download the benchmark datasets into tests/eval/ (gitignored; LoCoMo is
+# CC BY-NC, BEAM is CC BY-SA). `just eval-fetch beam --beam-scales 500K,1M`
+# for the bigger BEAM splits.
+eval-fetch *args:
+    python3 tests/e2e/eval/datasets.py {{args}}
 
 # LoCoMo-10 retrieval-only benchmark against a local real embedder (Ollama).
 # Slow and user-run by design — CI only runs the scorer unit tests.
@@ -108,6 +110,12 @@ eval-longmemeval *args:
 # intake pipeline and scores claims by their cited-turn provenance.
 eval-ground *args:
     python3 tests/e2e/eval/run_ground.py {{args}}
+
+# BEAM end-to-end benchmark: kern retrieval feeds an answer LLM, an LLM
+# judge scores against the dataset rubric, per-ability report (IE..SUM).
+# `--mode retrieval` is the no-LLM coverage proxy. Needs `just eval-fetch beam`.
+eval-beam *args:
+    python3 tests/e2e/eval/run_beam.py {{args}}
 
 # install e2e harness dependencies. Plain install first: --break-system-packages
 # is unknown to pip < 23 and would turn a working environment into a hard error,

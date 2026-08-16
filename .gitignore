@@ -54,6 +54,10 @@ ghpages.zip
 __pycache__/
 NUL
 
+# python venv for the e2e suite (`pytest tests/e2e`) — machine-local, created
+# from tests/e2e/requirements.txt, never committed
+/.venv*/
+
 # docs site (fumadocs) — generated artifacts only, source is tracked
 /docs/site/node_modules/
 /docs/site/.next/
@@ -73,3 +77,5 @@ NUL
 # per-worktree pointer at the shared build cache (see worktrees.md) — machine
 # local, never committed; a tracked absolute path would break every other clone
 /.cargo/
+.pi/
+.DS_Store

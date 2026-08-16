@@ -6,7 +6,8 @@
 use std::time::SystemTime;
 
 #[cfg(test)]
-use config::HeatConfig;
+#[path = "tests/heat_test.rs"]
+mod heat_tests;
 
 pub fn decayed(heat: f32, since: Option<SystemTime>, now: SystemTime, half_life_secs: u64) -> f32 {
 	if heat <= 0.0 {
@@ -34,83 +35,97 @@ pub fn deposit(
 	decayed(heat, since, now, half_life_secs) + deposit
 }
 
-#[cfg(test)]
-mod tests {
-	use super::*;
-	use std::time::Duration;
+// ==== [weibull] ====
 
-	const HL: u64 = 100;
+/// Per-claim-kind Weibull decay parameters. `shape` < 1.0 = decreasing hazard
+/// (the longer it survives, the slower it decays — preferences); `shape` = 1.0
+/// is plain exponential; > 1.0 = increasing hazard (ages out fast). The scale
+/// η is `eta_factor × half_life/ln2`, so the operator's configured half-life
+/// stays the single time knob and `{1.0, 1.0}` is bit-identical to [`decayed`].
+/// Adapted from mnemosyne's per-memory-type Weibull table (MIT).
+#[derive(Debug, Clone, Copy)]
+pub struct KindDecay {
+	pub shape: f64,
+	pub eta_factor: f64,
+}
 
-	#[test]
-	fn decayed_zero_or_negative_heat_is_zero() {
-		let now = SystemTime::now();
-		assert_eq!(decayed(0.0, Some(now), now, HL), 0.0);
-		assert_eq!(
-			decayed(-5.0, Some(now), now, HL),
-			0.0,
-			"guard clamps non-positive heat"
-		);
+impl Default for KindDecay {
+	fn default() -> Self {
+		Self {
+			shape: 1.0,
+			eta_factor: 1.0,
+		}
 	}
+}
 
-	#[test]
-	fn decayed_none_since_returns_heat_unchanged() {
-		assert_eq!(decayed(3.0, None, SystemTime::now(), HL), 3.0);
-	}
+/// The decay curve for a distilled claim's kind label. Ratios are mnemosyne's
+/// hour table normalized to its `general` row, remapped onto kern's built-in
+/// claim kinds. An empty or unknown label — every non-distilled entity — is
+/// the default curve, exactly today's exponential.
+pub fn kind_decay(label: &str) -> KindDecay {
+	let (shape, eta_factor) = match label {
+		"preference" => (0.4, 26.0),
+		"decision" => (1.0, 2.0),
+		"project" => (0.85, 6.4),
+		"fact" => (0.8, 4.3),
+		"code-fact" => (0.75, 12.9),
+		"reference" => (0.5, 26.0),
+		"procedural" => (0.9, 2.9),
+		_ => return KindDecay::default(),
+	};
+	KindDecay { shape, eta_factor }
+}
 
-	#[test]
-	fn decayed_clock_skew_returns_heat_unchanged() {
-		let now = SystemTime::now();
-		let since = now + Duration::from_secs(60);
-		assert_eq!(decayed(4.0, Some(since), now, HL), 4.0);
-	}
+/// The claim-kind label an entity carries, or "" for everything that is not a
+/// distilled claim. The one label decode, shared with the query filter's
+/// convention (`session://<kind>` in the Session source title).
+pub fn claim_kind_label(source: &base::base_types::Source) -> &str {
+	source.title().strip_prefix("session://").unwrap_or("")
+}
 
-	#[test]
-	fn decayed_one_half_life_halves_the_heat() {
-		let since = SystemTime::UNIX_EPOCH;
-		let now = since + Duration::from_secs(HL);
-		let got = decayed(8.0, Some(since), now, HL);
-		assert!(
-			(got - 4.0).abs() < 1e-4,
-			"one half-life halves 8 -> ~4, got {got}"
-		);
-		let now2 = since + Duration::from_secs(2 * HL);
-		let got2 = decayed(8.0, Some(since), now2, HL);
-		assert!(
-			(got2 - 2.0).abs() < 1e-4,
-			"two half-lives -> ~2, got {got2}"
-		);
+/// Weibull survival decay: `heat × exp(-(Δt/η)^k)`. With the default curve
+/// this equals [`decayed`] to the last bit (k=1 collapses the power).
+pub fn decayed_weibull(
+	heat: f32,
+	since: Option<SystemTime>,
+	now: SystemTime,
+	half_life_secs: u64,
+	kd: KindDecay,
+) -> f32 {
+	if kd.shape == 1.0 && kd.eta_factor == 1.0 {
+		return decayed(heat, since, now, half_life_secs);
 	}
+	if heat <= 0.0 {
+		return 0.0;
+	}
+	let Some(since) = since else {
+		return heat;
+	};
+	let dt = match now.duration_since(since) {
+		Ok(d) => d.as_secs_f64(),
+		Err(_) => return heat,
+	};
+	let eta = (half_life_secs as f64).max(1.0) / std::f64::consts::LN_2 * kd.eta_factor;
+	(heat as f64 * (-(dt / eta).powf(kd.shape)).exp()) as f32
+}
 
-	#[test]
-	fn decayed_zero_half_life_is_clamped_to_one_second() {
-		let since = SystemTime::UNIX_EPOCH;
-		let now = since + Duration::from_secs(10);
-		let got = decayed(8.0, Some(since), now, 0);
-		assert!(
-			got.is_finite() && got >= 0.0,
-			"no NaN/inf for zero half-life, got {got}"
-		);
-		assert!(
-			got < 0.01,
-			"10s over a clamped 1s half-life decays heavily, got {got}"
-		);
-	}
+/// [`decayed`] with the entity's own claim-kind curve.
+pub fn decayed_for(e: &base::base_types::Entity, now: SystemTime, half_life_secs: u64) -> f32 {
+	decayed_weibull(
+		e.heat,
+		e.heat_updated_at,
+		now,
+		half_life_secs,
+		kind_decay(claim_kind_label(&e.source)),
+	)
+}
 
-	#[test]
-	fn deposit_adds_on_top_of_the_decayed_value() {
-		let since = SystemTime::UNIX_EPOCH;
-		let now = since + Duration::from_secs(HL);
-		let got = deposit(8.0, Some(since), now, HL, 1.5);
-		assert!(
-			(got - 5.5).abs() < 1e-4,
-			"decayed (~4) + deposit (1.5) = ~5.5, got {got}"
-		);
-	}
-
-	#[test]
-	fn config_default_is_a_one_week_half_life() {
-		let c = HeatConfig::default();
-		assert_eq!(c.half_life_secs, 7 * 24 * 60 * 60);
-		assert_eq!(c.deposit_access, 1.0);
-	}
+/// [`deposit`] with the entity's own claim-kind curve.
+pub fn deposit_for(
+	e: &base::base_types::Entity,
+	now: SystemTime,
+	half_life_secs: u64,
+	amount: f32,
+) -> f32 {
+	decayed_for(e, now, half_life_secs) + amount
 }

@@ -10,6 +10,5 @@ One page per non-obvious mechanism: what was decided, why, what lost, what we kn
 | [PageRank for authority](./pagerank-authority.mdx) | Retrieval runs a damped, query-personalised PageRank over the reason graph and fuses it by rank. |
 | [Bayesian confidence](./bayesian-confidence.mdx) | Belief in a claim is a Beta distribution updated by weighted observations, not a scalar the last writer overwrites. |
 | [Edit convergence](./edit-convergence.mdx) | Conflicting statements resolve by supersession chains, not Wikipedia-style revision machinery. |
-| [CRDTs over consensus](./crdts-over-consensus.mdx) | Replicas converge through commutative per-field merges — no leader, no locks. |
-| [Knowledge, not gradients](./knowledge-not-gradients.mdx) | Peers gossip typed claims, never model updates; only federated learning's robustness tricks were kept. |
+| [CRDTs over consensus](./crdts-over-consensus.mdx) | An external commit and an in-memory snapshot reconcile through commutative per-field merges — no leader, no locks. |
 | [DiskANN-style spill](./diskann-spill.mdx) | Past a size threshold the vector index spills to a memory-mapped Vamana snapshot; opt-in, not default. |

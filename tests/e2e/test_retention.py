@@ -116,7 +116,7 @@ def test_an_expired_fact_is_served_by_id_but_flagged(project):
 	stdout, stderr = project.run("ingest", ID_PROBE, "--retention-secs", str(RETENTION))
 	assert "status=committed" in stdout, f"ttl ingest failed: out={stdout} err={stderr}"
 
-	# Captured before the deadline: `search` is the only printer of a short id, and
+	# Captured before the deadline: recall is the only printer of a short id, and
 	# resolving one after expiry is the thing under test, not a precondition of it.
 	thought_id = full_id(project, ID_PROBE)
 

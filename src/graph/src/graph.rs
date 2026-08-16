@@ -136,23 +136,11 @@ impl GraphGnn {
 	}
 }
 
-
-pub struct PendingDelta {
-	pub object_id: String,
-	pub target: u8,
-	pub replica: String,
-	pub value: u64,
-	pub lamport: u64,
-	pub producer: String,
-	pub lww_value: Vec<u8>,
-}
-
 pub struct GraphGnn {
 	pub root: Kern,
-	pub network_id: String,
+	pub replica_id: String,
 	pub data_dir: String,
 	lamport: std::sync::atomic::AtomicU64,
-	pending_deltas: parking_lot::Mutex<HashMap<(String, u8), PendingDelta>>,
 	// Rephrase edges re-pointed at a supersede (the carrying entity was
 	// superseded by a different update than the deferred candidate) awaiting
 	// re-classification on the tick loop (ROADMAP item 60). (kern_id, reason_id).
@@ -202,14 +190,6 @@ impl EntityAdjacency {
 		}
 		let mut out: Vec<Vec<usize>> = vec![Vec::new(); ids.len()];
 		for kern in g.map().values() {
-			// SECURITY: PageRank feeds the RRF seed list, so an edge is a vote. A peer owns
-			// every reason in its own phantom kern and can farm them; remote entities stay
-			// NODES (still rankable) but cast no votes. Filtered on the owning kern, not
-			// Reason::is_remote() — that flags a cross-NETWORK edge, which a peer's
-			// self-contained edge farm is not.
-			if kern.is_remote() {
-				continue;
-			}
 			for r in kern.reasons.values() {
 				if r.from == r.to {
 					continue;
@@ -237,18 +217,17 @@ impl Default for GraphGnn {
 impl GraphGnn {
 	pub fn new() -> Self {
 		let mut root = Kern::new_root();
-		let network_id = util::uuid_v4();
-		root.root_id = network_id.clone();
+		let replica_id = util::uuid_v4();
+		root.root_id = replica_id.clone();
 		let root_id = root.id.clone();
 		let mut kerns = HashMap::new();
 		kerns.insert(root_id, root.clone());
 		let quant_mode = QuantizationMode::default();
 		Self {
 			root,
-			network_id,
+			replica_id,
 			data_dir: String::new(),
 			lamport: std::sync::atomic::AtomicU64::new(0),
-			pending_deltas: parking_lot::Mutex::new(HashMap::new()),
 			pending_reclass: parking_lot::Mutex::new(Vec::new()),
 			store: None,
 			quant_mode,
@@ -398,7 +377,11 @@ impl GraphGnn {
 		let entity_count = self.resident_searchable_entity_count();
 		let spill = !self.data_dir.is_empty() && entity_count > self.disk_threshold;
 		let (e_items, g_items, r_items) = if spill {
-			(self.collect_entity_items(), self.collect_gnn_items(), self.collect_reason_items())
+			(
+				self.collect_entity_items(),
+				self.collect_gnn_items(),
+				self.collect_reason_items(),
+			)
 		} else {
 			(Vec::new(), Vec::new(), Vec::new())
 		};
@@ -540,13 +523,12 @@ impl GraphGnn {
 	// back to a full build (fresh by construction). A stale-but-valid snapshot
 	// is OPENED as-is — the caller reconciles the diff into the delta, which is
 	// O(changed) instead of a full Vamana build per write (RECALL_PLAN F4).
-	fn open_snapshot(
-		&self,
-		subdir: &str,
-		items: &[(String, Vec<f32>)],
-	) -> (Option<DiskIndex>, bool) {
+	fn open_snapshot(&self, subdir: &str, items: &[(String, Vec<f32>)]) -> (Option<DiskIndex>, bool) {
 		let dir = Path::new(&self.data_dir).join("diskann").join(subdir);
-		let fresh = match (self.store().as_ref().map(|s| s.read_epoch()), super::diskann::snapshot_epoch(&dir)) {
+		let fresh = match (
+			self.store().as_ref().map(|s| s.read_epoch()),
+			super::diskann::snapshot_epoch(&dir),
+		) {
 			(Some(e), Some(se)) => e == se,
 			_ => false,
 		};
@@ -614,10 +596,7 @@ impl GraphGnn {
 			self.reason_idx = VectorBackend::resident(16, 200, self.quant_mode);
 			match self.build_disk_snapshot("reason", self.collect_reason_items()) {
 				Some(snapshot) => self.reason_idx = VectorBackend::disk(snapshot, self.quant_mode),
-				None => {
-					self.rebuild_index();
-					return;
-				}
+				None => self.rebuild_index(),
 			}
 		}
 	}
@@ -692,6 +671,11 @@ impl GraphGnn {
 		}
 	}
 
+	// INVARIANT: every content mutation must move this epoch — via `get_mut`,
+	// or an explicit bump on the paths that reach `kerns` directly
+	// (`remove_entity`, `move_entity`, `merge_remote_entity`,
+	// `degrade_entity_reasons`). The daemon's query cache is keyed on it; a
+	// mutation the epoch misses is a stale result served after a delete.
 	pub fn bump_mutation_epoch(&mut self) {
 		self.mutation_epoch = self.mutation_epoch.wrapping_add(1);
 	}
@@ -716,17 +700,6 @@ impl GraphGnn {
 				Err(actual) => current = actual,
 			}
 		}
-	}
-
-	pub fn push_delta(&self, delta: PendingDelta) {
-		let key = (delta.object_id.clone(), delta.target);
-		self.pending_deltas.lock().insert(key, delta);
-	}
-
-	pub fn drain_pending_deltas(&self) -> Vec<PendingDelta> {
-		let mut deltas = self.pending_deltas.lock();
-		let drained: Vec<PendingDelta> = deltas.drain().map(|(_, v)| v).collect();
-		drained
 	}
 
 	pub fn mutation_epoch(&self) -> u64 {
@@ -933,7 +906,7 @@ impl GraphGnn {
 
 	pub fn from_saved_with_mode(
 		root: Kern,
-		network_id: String,
+		replica_id: String,
 		data_dir: String,
 		kerns: HashMap<String, Kern>,
 		unloaded: HashSet<String>,
@@ -941,10 +914,9 @@ impl GraphGnn {
 	) -> Self {
 		let mut g = Self {
 			root: root.clone(),
-			network_id,
+			replica_id,
 			data_dir,
 			lamport: std::sync::atomic::AtomicU64::new(0),
-			pending_deltas: parking_lot::Mutex::new(HashMap::new()),
 			pending_reclass: parking_lot::Mutex::new(Vec::new()),
 			store: None,
 			quant_mode,

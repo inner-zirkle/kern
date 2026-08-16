@@ -26,7 +26,6 @@ mod tests {
 			replaces: None,
 			result_tx: None,
 			scoping: Scoping::default(),
-			trust_tier: TrustTier::Unknown,
 		}
 	}
 
@@ -41,9 +40,35 @@ mod tests {
 
 	#[test]
 	fn beta_params_map_confidence_to_prior() {
-		assert_eq!(beta_params_from_confidence(1.0), (2.0, 1.0));
-		assert_eq!(beta_params_from_confidence(0.0), (1.0, 2.0));
-		assert_eq!(beta_params_from_confidence(0.5), (1.5, 1.5));
+		// Full veracity: one whole pseudo-observation.
+		assert_eq!(beta_params_from_confidence(1.0, 1.0), (2.0, 1.0));
+		assert_eq!(beta_params_from_confidence(0.0, 1.0), (1.0, 2.0));
+		assert_eq!(beta_params_from_confidence(0.5, 1.0), (1.5, 1.5));
+		// Lower veracity scales evidence STRENGTH toward the Jeffreys prior,
+		// not the estimate: same 1.0 confidence, weaker claim on it.
+		assert_eq!(beta_params_from_confidence(1.0, 0.5), (1.5, 1.0));
+	}
+
+	#[test]
+	fn veracity_weights_by_channel_keep_inline_a_full_observation() {
+		assert_eq!(
+			veracity_weight("inline"),
+			1.0,
+			"a deliberate ingest is a full observation"
+		);
+		assert_eq!(
+			veracity_weight("session"),
+			0.7,
+			"a distilled claim is an inference"
+		);
+		assert_eq!(
+			veracity_weight("file"),
+			0.6,
+			"a watched file is a tool observation"
+		);
+		assert_eq!(veracity_weight("ticket"), 0.6);
+		assert_eq!(veracity_weight("agent"), 0.8);
+		assert_eq!(veracity_weight("anything-else"), 0.8);
 	}
 
 	#[test]
@@ -82,7 +107,6 @@ mod tests {
 			1.0,
 			None,
 			&Scoping::default(),
-			TrustTier::Unknown,
 		);
 		assert_eq!(
 			e.id,
@@ -96,7 +120,8 @@ mod tests {
 		assert!(matches!(e.kind, EntityKind::Claim));
 		assert!(matches!(e.status, EntityStatus::Active));
 		assert_eq!(e.chunks.len(), 1, "single statement-ref chunk part");
-		assert_eq!((e.conf_alpha, e.conf_beta), (2.0, 1.0));
+		// Session channel: veracity 0.7 of one pseudo-observation at conf 1.0.
+		assert_eq!((e.conf_alpha, e.conf_beta), (1.7, 1.0));
 	}
 
 	#[test]
@@ -110,9 +135,8 @@ mod tests {
 			5.0,
 			None,
 			&Scoping::default(),
-			TrustTier::Unknown,
 		);
-		assert_eq!((hi.conf_alpha, hi.conf_beta), (2.0, 1.0));
+		assert_eq!((hi.conf_alpha, hi.conf_beta), (1.7, 1.0));
 		let lo = build_chunk_entity(
 			"y",
 			&[1.0],
@@ -122,9 +146,8 @@ mod tests {
 			-3.0,
 			None,
 			&Scoping::default(),
-			TrustTier::Unknown,
 		);
-		assert_eq!((lo.conf_alpha, lo.conf_beta), (1.0, 2.0));
+		assert_eq!((lo.conf_alpha, lo.conf_beta), (1.0, 1.7));
 	}
 
 	#[test]
@@ -296,28 +319,6 @@ mod tests {
 			e.valid_until_lamport > 0 && !e.valid_until_producer.is_empty(),
 			"the existing LWW stamping fired for the new writer"
 		);
-
-		// The stamp alone is local. A peer only ever learns a deadline from the
-		// delta, so the fresh-placement path must queue one as well — naming the
-		// id that entered the graph and carrying the very lamport/producer written
-		// to the entity. Moving the stamp after accept must not cost this.
-		let deltas: Vec<_> = g
-			.read()
-			.drain_pending_deltas()
-			.into_iter()
-			.filter(|d| d.target == 3)
-			.collect();
-		assert_eq!(
-			deltas.len(),
-			1,
-			"a placed entity gossips exactly one ValidUntil delta"
-		);
-		assert_eq!(deltas[0].object_id, id, "named for the placed entity");
-		assert_eq!(
-			(deltas[0].lamport, deltas[0].producer.as_str()),
-			(e.valid_until_lamport, e.valid_until_producer.as_str()),
-			"the delta carries the stamp that was written, not a second one"
-		);
 	}
 
 	// Same vector for both texts, so the dedup gates fire on content-identity the
@@ -353,14 +354,19 @@ mod tests {
 			.clone()
 	}
 
-	// Drains, so a test can ignore the deltas of its setup and read only its act.
-	fn valid_until_delta_ids(g: &Arc<RwLock<GraphGnn>>) -> Vec<String> {
-		g.read()
-			.drain_pending_deltas()
+	// Every id the graph holds a ValidUntil stamp for. The stamp is the whole
+	// observable now: it names which id the tightening actually landed on.
+	fn valid_until_stamped_ids(g: &Arc<RwLock<GraphGnn>>) -> Vec<String> {
+		let gg = g.read();
+		let mut ids: Vec<String> = gg
+			.all()
 			.into_iter()
-			.filter(|d| d.target == 3)
-			.map(|d| d.object_id)
-			.collect()
+			.flat_map(|k| k.entities.values())
+			.filter(|e| e.valid_until_lamport > 0)
+			.map(|e| e.id.clone())
+			.collect();
+		ids.sort();
+		ids
 	}
 
 	#[test]
@@ -430,7 +436,6 @@ mod tests {
 		let sid = util::content_hash(SURVIVOR);
 		let before = stored(&g, &sid);
 
-		valid_until_delta_ids(&g);
 		ingest_chunk(&g, NEAR_DUP, None);
 
 		let after = stored(&g, &sid);
@@ -440,43 +445,40 @@ mod tests {
 			"min(t, ∞) = t — omitting retention is no opinion, not 'make this permanent'"
 		);
 		assert_eq!(after.valid_until_lamport, before.valid_until_lamport);
-		assert_eq!(after.valid_until_producer, before.valid_until_producer);
-		assert!(
-			valid_until_delta_ids(&g).is_empty(),
-			"an unchanged deadline gossips nothing"
+		assert_eq!(
+			after.valid_until_producer, before.valid_until_producer,
+			"an unchanged deadline re-stamps nothing"
 		);
 	}
 
 	#[test]
-	fn a_tightening_dedup_queues_one_delta_against_the_survivor_only() {
+	fn a_tightening_dedup_stamps_the_survivor_only() {
 		let deadline = SystemTime::now() + std::time::Duration::from_secs(3600);
 		let g = empty_graph();
 		ingest_chunk(&g, SURVIVOR, None);
-		valid_until_delta_ids(&g);
 
 		ingest_chunk(&g, NEAR_DUP, Some(deadline));
 
-		let ids = valid_until_delta_ids(&g);
+		let ids = valid_until_stamped_ids(&g);
 		assert_eq!(
 			ids,
 			vec![util::content_hash(SURVIVOR)],
-			"exactly one ValidUntil delta, named for the survivor"
+			"exactly one ValidUntil stamp, on the survivor"
 		);
 		assert!(
 			!ids.contains(&util::content_hash(NEAR_DUP)),
-			"no orphan delta for the id that never entered the graph"
+			"nothing stamped for the id that never entered the graph"
 		);
 	}
 
 	#[test]
-	fn the_second_dedup_gate_tightens_too_and_orphans_no_delta() {
+	fn the_second_dedup_gate_tightens_too_and_orphans_no_stamp() {
 		let deadline = SystemTime::now() + std::time::Duration::from_secs(3600);
 		let g = empty_graph();
 		ingest_chunk(&g, SURVIVOR, None);
 		let sid = util::content_hash(SURVIVOR);
 
 		hide_from_gate_one(&g, &sid);
-		valid_until_delta_ids(&g);
 
 		let placed = ingest_chunk(&g, NEAR_DUP, Some(deadline));
 		assert_eq!(placed, 1);
@@ -498,9 +500,9 @@ mod tests {
 			"stamped with a producer"
 		);
 		assert_eq!(
-			valid_until_delta_ids(&g),
+			valid_until_stamped_ids(&g),
 			vec![sid],
-			"one delta, against the survivor — never the discarded incoming id"
+			"one stamp, on the survivor — never the discarded incoming id"
 		);
 	}
 

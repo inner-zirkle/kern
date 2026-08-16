@@ -6,6 +6,7 @@ license.workspace = true
 
 [dependencies]
 base = { path = "../base" }
+hygiene = { path = "../hygiene" }
 tracing.workspace = true
 
 [lints]

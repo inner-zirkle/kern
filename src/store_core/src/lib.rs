@@ -41,7 +41,7 @@ const EMBED_KEY: &str = "embed";
 // Version byte prepended ahead of the zstd frame so a reader rejects any other
 // format instead of mis-decoding it. Alpha: exactly one version is ever
 // decodable — a mismatch is a clean BadVersion, never a migration.
-const FORMAT_VERSION: u8 = 10; // v10: removed legacy_network_id from ParamsV0
+const FORMAT_VERSION: u8 = 11; // v11: federation removed — Reason.to_net_id gone (reason ids rehash), GraphMeta.network_id renamed replica_id
 const ZSTD_LEVEL: i32 = 3;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -70,6 +70,39 @@ pub enum StoreError {
 	RootMissing { kerns: usize },
 }
 
+mod legacy;
+
+#[cfg(test)]
+#[path = "tests/layout_guard.rs"]
+mod layout_guard;
+
+// The oldest format any row in this process turned out to be written in, or 0.
+// A process-global for the same reason the degradation counters are: the read
+// that discovers it is buried under the graph, and the surfaces that report it
+// (`kern doctor`, `kern migrate`) are nowhere near that call. Sticky by design —
+// once a store has been seen as stale, saying so again costs nothing and
+// forgetting it costs the operator the one signal they had.
+static MIGRATED_FROM: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// The older format version rows were read from in this process, if any.
+/// `None` once every row a process has read was already current.
+pub fn migrated_from() -> Option<u8> {
+	match MIGRATED_FROM.load(std::sync::atomic::Ordering::Relaxed) {
+		0 => None,
+		v => u8::try_from(v).ok(),
+	}
+}
+
+/// The format this build writes. `kern doctor` names it beside what it read.
+pub fn format_version() -> u8 {
+	FORMAT_VERSION
+}
+
+/// Older formats this build can still read and convert forward.
+pub fn readable_legacy_versions() -> &'static [u8] {
+	legacy::READABLE_VERSIONS
+}
+
 // Shared by both backends so encodings never drift; the 1 GiB alloc cap rejects
 // corrupt length prefixes (tests/persist_fuzz.rs).
 pub(crate) fn bincode_cfg() -> impl bincode::config::Config {
@@ -90,16 +123,76 @@ fn encode<T: Serialize>(v: &T) -> Result<Vec<u8>, StoreError> {
 	encode_at(FORMAT_VERSION, v)
 }
 
-fn strip_version(bytes: &[u8]) -> Result<(u8, Vec<u8>), StoreError> {
+// The version and the decompressed body, with no verdict on the version. Only
+// the kern-row path uses this: everything else stays strict, because a
+// migration that reaches further than it can prove is how a store gets
+// silently rewritten wrong.
+fn split_version(bytes: &[u8]) -> Result<(u8, Vec<u8>), StoreError> {
 	let (&ver, body) = bytes.split_first().ok_or(StoreError::BadVersion(0))?;
-	if ver != FORMAT_VERSION {
-		return Err(StoreError::BadVersion(ver));
-	}
 	Ok((ver, zstd::decode_all(body)?))
 }
 
-fn decode<T: DeserializeOwned>(bytes: &[u8]) -> Result<T, StoreError> {
-	let (_ver, raw) = strip_version(bytes)?;
+/// Decode one kern row, reading a previous format when the row carries one.
+///
+/// The current version decodes as it always did. An older *readable* version
+/// goes through `legacy`, which converts it to current types in memory — the
+/// row on disk is untouched until something saves it, so a read never rewrites
+/// a store behind the caller's back. `migrated` says which happened, so callers
+/// can report it (`kern doctor`) or force the rewrite (`kern migrate`).
+pub struct DecodedKern {
+	pub stored: StoredKern,
+	pub migrated_from: Option<u8>,
+}
+
+fn decode_kern_row(bytes: &[u8]) -> Result<DecodedKern, StoreError> {
+	let (ver, raw) = split_version(bytes)?;
+	if ver == FORMAT_VERSION {
+		let (stored, _) = bincode::serde::decode_from_slice::<StoredKern, _>(&raw, bincode_cfg())?;
+		return Ok(DecodedKern {
+			stored,
+			migrated_from: None,
+		});
+	}
+	if ver == 10 {
+		if let Some(row) = legacy::decode_v10_kern(&raw) {
+			return Ok(DecodedKern {
+				stored: StoredKern {
+					kern: row.kern,
+					entity_vecs: row.entity_vecs,
+					reason_vecs: row.reason_vecs,
+					temporal: row.temporal,
+				},
+				migrated_from: Some(ver),
+			});
+		}
+	}
+	Err(StoreError::BadVersion(ver))
+}
+
+// Record that a row was read in an older format. Called from every path that
+// accepts one, so the reporting surfaces (`kern doctor`, `migrated_from`) see it
+// no matter which row type discovered it first.
+fn note_migration(ver: u8) {
+	MIGRATED_FROM.store(u64::from(ver), std::sync::atomic::Ordering::Relaxed);
+}
+
+/// Decode a row whose layout is IDENTICAL across every readable version, so the
+/// version byte is the only thing that differs.
+///
+/// Only the meta rows qualify: the epoch (`u64`), the embed stamp, and
+/// `GraphMeta` — whose v10→v11 change was `network_id` → `replica_id`, a rename,
+/// and bincode is positional so a rename is not a layout change. Do NOT reach
+/// for this for a row that embeds `Entity` or `Reason`: those DID change, and
+/// accepting an old version byte for them is exactly how a store silently
+/// misdecodes. `layout_guard` is what keeps that claim honest over time.
+fn decode_layout_stable<T: DeserializeOwned>(bytes: &[u8]) -> Result<T, StoreError> {
+	let (ver, raw) = split_version(bytes)?;
+	if ver != FORMAT_VERSION {
+		if !legacy::READABLE_VERSIONS.contains(&ver) {
+			return Err(StoreError::BadVersion(ver));
+		}
+		note_migration(ver);
+	}
 	let (v, _) = bincode::serde::decode_from_slice(&raw, bincode_cfg())?;
 	Ok(v)
 }
@@ -210,11 +303,24 @@ fn encode_cold(row: &ColdRow) -> Result<Vec<u8>, StoreError> {
 }
 
 // A decode failure here is real corruption and must reach scan_with's warning
-// instead of being swallowed by a fallback that succeeds.
+// instead of being swallowed by a fallback that succeeds. The legacy arm is not
+// such a fallback: it fires only on an older *version byte*, never on a failed
+// decode of the current one.
 fn decode_cold(bytes: &[u8]) -> Result<ColdRow, StoreError> {
-	let (_ver, raw) = strip_version(bytes)?;
-	let (row, _) = bincode::serde::decode_from_slice::<ColdRow, _>(&raw, bincode_cfg())?;
-	Ok(row)
+	let (ver, raw) = split_version(bytes)?;
+	if ver == FORMAT_VERSION {
+		let (row, _) = bincode::serde::decode_from_slice::<ColdRow, _>(&raw, bincode_cfg())?;
+		return Ok(row);
+	}
+	// A cold row carries an `Entity`, so it changed shape exactly the way a kern
+	// row did and takes the same frozen snapshots.
+	if ver == 10 {
+		if let Some(row) = legacy::decode_v10_cold(&raw) {
+			note_migration(ver);
+			return Ok(row);
+		}
+	}
+	Err(StoreError::BadVersion(ver))
 }
 
 #[derive(Serialize, Deserialize)]
@@ -297,7 +403,7 @@ pub enum EmbedCheck {
 
 #[derive(Serialize, Deserialize)]
 struct GraphMeta {
-	network_id: String,
+	replica_id: String,
 	quant_mode: QuantizationMode,
 }
 
@@ -386,7 +492,7 @@ impl Store {
 		db: Database<Str, Bytes>,
 		key: &str,
 	) -> Result<Option<T>, StoreError> {
-		self.get_with(db, key, decode)
+		self.get_with(db, key, decode_layout_stable)
 	}
 
 	fn get_with<T>(
@@ -515,7 +621,7 @@ impl Store {
 	// Read inside the open txn so the guard's check and the write commit atomically.
 	fn epoch_in(&self, wtxn: &heed::RwTxn) -> Result<u64, StoreError> {
 		match self.meta.get(wtxn, EPOCH_KEY)? {
-			Some(b) => Ok(decode::<u64>(b).unwrap_or(0)),
+			Some(b) => Ok(decode_layout_stable::<u64>(b).unwrap_or(0)),
 			None => Ok(0),
 		}
 	}
@@ -528,7 +634,7 @@ impl Store {
 		&self,
 		wtxn: &mut heed::RwTxn,
 		kerns: &HashMap<String, Kern>,
-		network_id: &str,
+		replica_id: &str,
 		quant_mode: QuantizationMode,
 		next_epoch: u64,
 		spare: &std::collections::HashSet<String>,
@@ -553,7 +659,7 @@ impl Store {
 			self.kern.put(wtxn, id.as_str(), &bytes)?;
 		}
 		let meta = GraphMeta {
-			network_id: network_id.to_string(),
+			replica_id: replica_id.to_string(),
 			quant_mode,
 		};
 		let meta_bytes = encode(&meta)?;
@@ -567,13 +673,13 @@ impl Store {
 	pub fn save_all_kerns(
 		&self,
 		kerns: &HashMap<String, Kern>,
-		network_id: &str,
+		replica_id: &str,
 		quant_mode: QuantizationMode,
 		spare: &std::collections::HashSet<String>,
 	) -> Result<u64, StoreError> {
 		let mut wtxn = self.env.write_txn()?;
 		let next = self.epoch_in(&wtxn)?.wrapping_add(1);
-		self.write_snapshot(&mut wtxn, kerns, network_id, quant_mode, next, spare)?;
+		self.write_snapshot(&mut wtxn, kerns, replica_id, quant_mode, next, spare)?;
 		wtxn.commit()?;
 		Ok(next)
 	}
@@ -583,7 +689,7 @@ impl Store {
 	pub fn flush_guarded(
 		&self,
 		kerns: &HashMap<String, Kern>,
-		network_id: &str,
+		replica_id: &str,
 		quant_mode: QuantizationMode,
 		expected: u64,
 		spare: &std::collections::HashSet<String>,
@@ -598,24 +704,61 @@ impl Store {
 			});
 		}
 		let next = disk.wrapping_add(1);
-		self.write_snapshot(&mut wtxn, kerns, network_id, quant_mode, next, spare)?;
+		self.write_snapshot(&mut wtxn, kerns, replica_id, quant_mode, next, spare)?;
 		wtxn.commit()?;
 		Ok(FlushOutcome::Flushed { epoch: next })
+	}
+
+	/// Re-write every meta row at the current format version.
+	///
+	/// The kern rows go current the moment something saves them, but the meta
+	/// rows — epoch, `GraphMeta`, embed stamp — are only written when their own
+	/// value changes, so a migrated store kept reporting itself as old forever:
+	/// `migrated_from` fired on every load, `doctor` warned after a successful
+	/// `migrate`, and `migrate` was never idempotent. Reads them through the
+	/// layout-stable decoder (which accepts the old byte) and puts them back
+	/// through `encode` (which always writes the current one).
+	pub fn rewrite_meta(&self) -> Result<(), StoreError> {
+		if let Some(epoch) = self.get::<u64>(self.meta, EPOCH_KEY)? {
+			self.put(self.meta, EPOCH_KEY, &epoch)?;
+		}
+		if let Some(meta) = self.get::<GraphMeta>(self.meta, META_KEY)? {
+			self.put(self.meta, META_KEY, &meta)?;
+		}
+		if let Some(stamp) = self.get::<EmbedStamp>(self.meta, EMBED_KEY)? {
+			self.put(self.meta, EMBED_KEY, &stamp)?;
+		}
+		Ok(())
 	}
 
 	pub fn load_all_kerns(
 		&self,
 	) -> Result<(HashMap<String, Kern>, String, QuantizationMode), StoreError> {
-		let stored: Vec<(String, StoredKern)> = self.scan_with(self.kern, decode::<StoredKern>)?;
+		let stored: Vec<(String, DecodedKern)> = self.scan_with(self.kern, decode_kern_row)?;
 		let mut kerns = HashMap::with_capacity(stored.len());
-		for (id, sk) in stored {
-			kerns.insert(id, sk.into_kern());
+		let mut migrated: Option<u8> = None;
+		for (id, d) in stored {
+			migrated = migrated.or(d.migrated_from);
+			kerns.insert(id, d.stored.into_kern());
 		}
-		let (network_id, quant_mode) = match self.get::<GraphMeta>(self.meta, META_KEY)? {
-			Some(m) => (m.network_id, m.quant_mode),
+		if let Some(from) = migrated {
+			// Loud, once per load: the rows are current in RAM and stale on disk
+			// until something flushes. Silence here would let a store sit
+			// half-migrated for weeks with nothing saying so.
+			tracing::warn!(
+				target: "kern.store",
+				from,
+				to = FORMAT_VERSION,
+				"read rows written in an older format — they persist as v{} on the next save (`kern migrate` forces it now)",
+				FORMAT_VERSION
+			);
+			note_migration(from);
+		}
+		let (replica_id, quant_mode) = match self.get::<GraphMeta>(self.meta, META_KEY)? {
+			Some(m) => (m.replica_id, m.quant_mode),
 			None => (String::new(), QuantizationMode::None),
 		};
-		Ok((kerns, network_id, quant_mode))
+		Ok((kerns, replica_id, quant_mode))
 	}
 
 	pub fn save_one_kern(&self, kern: &Kern) -> Result<(), StoreError> {
@@ -625,8 +768,8 @@ impl Store {
 	pub fn load_one_kern(&self, id: &str) -> Result<Option<Kern>, StoreError> {
 		Ok(
 			self
-				.get_with(self.kern, id, decode::<StoredKern>)?
-				.map(StoredKern::into_kern),
+				.get_with(self.kern, id, decode_kern_row)?
+				.map(|d| d.stored.into_kern()),
 		)
 	}
 
@@ -883,7 +1026,7 @@ mod tests {
 			nums: vec![1.0, -2.5, 3.25],
 		};
 		let bytes = encode(&v).unwrap();
-		let back: Sample = decode(&bytes).unwrap();
+		let back: Sample = decode_layout_stable(&bytes).unwrap();
 		assert_eq!(v, back);
 	}
 
@@ -900,17 +1043,30 @@ mod tests {
 		);
 	}
 
+	// This used to assert that EVERY other version is refused. A readable one is
+	// now migrated instead — that is the whole feature — so what needs pinning is
+	// the line between the two: readable is read, everything else still refused.
 	#[test]
-	fn decode_rejects_older_version_bytes() {
-		let mut bytes = encode(&Sample {
+	fn a_readable_older_version_is_migrated_and_an_unreadable_one_is_not() {
+		let sample = Sample {
 			name: "x".into(),
 			nums: vec![1.0],
-		})
-		.unwrap();
-		bytes[0] = FORMAT_VERSION - 1;
-		match decode::<Sample>(&bytes) {
-			Err(StoreError::BadVersion(v)) => assert_eq!(v, FORMAT_VERSION - 1),
-			other => panic!("expected BadVersion, got {other:?}"),
+		};
+		for readable in legacy::READABLE_VERSIONS {
+			let mut bytes = encode(&sample).unwrap();
+			bytes[0] = *readable;
+			let back: Sample = decode_layout_stable(&bytes)
+				.unwrap_or_else(|e| panic!("v{readable} is declared readable but did not decode: {e}"));
+			assert_eq!(back, sample, "a migrated row must carry the same values");
+		}
+
+		// Not on the list: refused, with the version named so the operator knows
+		// which build wrote it.
+		let mut bytes = encode(&sample).unwrap();
+		bytes[0] = 6;
+		match decode_layout_stable::<Sample>(&bytes) {
+			Err(StoreError::BadVersion(6)) => {}
+			other => panic!("expected BadVersion(6), got {other:?}"),
 		}
 	}
 
@@ -918,17 +1074,25 @@ mod tests {
 	// the bump has to reject a v6 store outright rather than read one field short.
 	// Pinned on the literal 6, not on `FORMAT_VERSION - 1`: the next bump must not
 	// silently drag this assertion forward and stop covering this one.
+	// The `ReviewState` field made every v6 Entity row mis-decode positionally, so
+	// the bump has to reject a v6 store outright rather than read one field short.
+	// Now checked through the row type that actually carries entities: a version
+	// with no frozen snapshot is refused, migration or no migration.
 	#[test]
-	fn a_v6_entity_row_is_rejected_rather_than_misdecoded() {
+	fn a_v6_row_is_rejected_rather_than_misdecoded() {
 		let e = mk_entity("v6", "written before review states", 0.5, EntityKind::Claim);
-		let mut bytes = encode_at(6, &e).unwrap();
-		match decode::<Entity>(&bytes) {
+		let row = ColdRow {
+			entity: e,
+			temporal: StoredTemporal::default(),
+		};
+		let mut bytes = encode_at(6, &row).unwrap();
+		match decode_cold(&bytes) {
 			Err(StoreError::BadVersion(v)) => assert_eq!(v, 6),
-			other => panic!("expected BadVersion(6), got {other:?}"),
+			other => panic!("expected BadVersion(6), got {:?}", other.map(|_| "ok")),
 		}
 		bytes[0] = FORMAT_VERSION;
 		assert_eq!(
-			decode::<Entity>(&bytes).unwrap().review,
+			decode_cold(&bytes).unwrap().entity.review,
 			ReviewState::Active,
 			"the same bytes at the live version still decode — 6 is refused for its VERSION, not its shape"
 		);
@@ -942,7 +1106,7 @@ mod tests {
 		})
 		.unwrap();
 		bytes[0] = 0xFF;
-		match decode::<Sample>(&bytes) {
+		match decode_layout_stable::<Sample>(&bytes) {
 			Err(StoreError::BadVersion(0xFF)) => {}
 			other => panic!("expected BadVersion(0xFF), got {other:?}"),
 		}
@@ -984,7 +1148,7 @@ mod tests {
 			)
 			.unwrap();
 		}
-		let mut rows: Vec<(String, Sample)> = s.scan_with(s.kern, decode).unwrap();
+		let mut rows: Vec<(String, Sample)> = s.scan_with(s.kern, decode_layout_stable).unwrap();
 		rows.sort_by(|a, b| a.0.cmp(&b.0));
 		assert_eq!(rows.len(), 5);
 		assert_eq!(rows[2].0, "k2");
@@ -1091,7 +1255,7 @@ mod tests {
 
 		let bytes = encode(&StoredKern::from_kern(&k)).unwrap();
 		assert_eq!(bytes[0], FORMAT_VERSION, "kern rows carry the live version");
-		let back = decode::<StoredKern>(&bytes).unwrap().into_kern();
+		let back = decode_kern_row(&bytes).unwrap().stored.into_kern();
 		let be = &back.entities["e1"];
 		assert_eq!(be.valid_from, Some(t0), "valid_from survives");
 		assert_eq!(be.valid_to, Some(t1), "valid_to survives");

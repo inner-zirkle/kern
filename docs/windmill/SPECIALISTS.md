@@ -10,8 +10,8 @@ sets; parallelize only what does not overlap.
   `VISION.md`.
 - **Knows:** the surveyed competitor set (Zep/Graphiti, Mem0, Letta, Cognee;
   YourMemory on the decay+LoCoMo axis; mnemo, AgentDB/ruvector,
-  mcp-memory-service on the Rust/embedded/MCP axis; federation has papers but
-  no shipped rival), which axes kern leads on feature-wise, and that no
+  mcp-memory-service on the Rust/embedded/MCP axis), which axes kern leads on
+  feature-wise, and that no
   quality ranking is claimable at all — the e2e scorer catches regressions and
   certifies nothing, so the claim standard is unchanged by its arrival.
 - **Delegate when:** positioning, "how do we compare", or any claim that
@@ -61,16 +61,6 @@ sets; parallelize only what does not overlap.
   embed warm-keeping.
 - **Delegate when:** distillation quality, claim typing, LLM latency, or
   model/endpoint wiring.
-
-## federation
-
-- **Scope:** `src/gossip/`, `src/transport/`, `src/gossip/src/gossip_types.rs`, `src/base/src/crdt.rs`
-  (merge semantics), `docs/site/content/docs/concepts/security.mdx`.
-- **Knows:** LAN gossip heartbeats, content-addressed CRDT entity-body merge,
-  multicast discovery and `network_id` pairing, which message kinds have
-  receivers but no senders, and that the transport is unauthenticated and
-  unencrypted today.
-- **Delegate when:** anything crossing a machine boundary.
 
 ## surface
 

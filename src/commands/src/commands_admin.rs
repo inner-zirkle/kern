@@ -1,32 +1,35 @@
 //! Operator subcommands: health, gc, compact, compress, gravitons, claim
-//! kinds, unnamed-kern triage, peers, hub control, and store registration —
+//! kinds, unnamed-kern triage, hub control, and store registration —
 //! administration of the daemon and its graph, not recall or ingest.
 
 use graph::graph_ops::graviton_rows;
 
-use transport::kern_rpc::AuthReq;
 use transport::typed::Endpoint;
 
 use util::short_id;
 
 use crate::commands_route::{route_to, Routed};
 use crate::{
-	load_graph, save_graph_unguarded, with_graph, ClaimKindAction, Client, GravitonAction,
-	UnnamedAction,
+	fail, hint, load_graph, save_graph_unguarded, with_graph, ClaimKindAction, Client,
+	GravitonAction, UnnamedAction,
 };
 
 pub(crate) fn cmd_compress(src: &str, mode_str: &str, out: Option<&str>) {
 	let Some(mode) = math::quant::QuantizationMode::parse(mode_str) else {
-		eprintln!("compress: unknown mode '{mode_str}' (expected: none | int8)");
-		return;
+		return fail(
+			"compress",
+			format!("unknown mode '{mode_str}' — expected int8 or none"),
+		);
 	};
 	let mode_label = mode.as_str();
 	let out_dir = out
 		.map(|s| s.to_string())
 		.unwrap_or_else(|| format!("{src}.{mode_label}"));
 	if std::path::Path::new(&out_dir).exists() {
-		eprintln!("compress: output path '{out_dir}' already exists; refusing to overwrite");
-		return;
+		return fail(
+			"compress",
+			format!("refused — '{out_dir}' already exists and would be overwritten"),
+		);
 	}
 	match graph::persist::compress_dir(src, &out_dir, mode) {
 		Ok(()) => {
@@ -37,7 +40,7 @@ pub(crate) fn cmd_compress(src: &str, mode_str: &str, out: Option<&str>) {
 				bpd,
 			);
 		}
-		Err(e) => eprintln!("compress: {e}"),
+		Err(e) => fail("compress", e),
 	}
 }
 
@@ -46,7 +49,7 @@ pub(crate) async fn cmd_health(cfg: &config::Config) {
 	let h = ::health::graph_health_stats(&g);
 	// Asked once, before anything prints: the degradation lines below need it too,
 	// not just the tick lines.
-	let d = daemon_health(cfg).await;
+	let d = daemon_health().await;
 
 	println!("data_dir:    {}", g.data_dir);
 	if h.gravitons.is_empty() {
@@ -128,13 +131,12 @@ pub(crate) async fn cmd_health(cfg: &config::Config) {
 
 // The tick queue lives in the daemon; an offline CLI has no view of it. One
 // attempt, no retry: `kern health` must not stall when nothing is serving.
-async fn daemon_health(cfg: &config::Config) -> Option<transport::kern_rpc::HealthRes> {
+async fn daemon_health() -> Option<transport::kern_rpc::HealthRes> {
 	use transport::kern_rpc::KernRpcClient;
 	use transport::typed::{Endpoint, JsonEnvelopeCodec};
 
 	let client = KernRpcClient::<JsonEnvelopeCodec>::connect_endpoint_with_retry(
 		&Endpoint::kern(),
-		&::rpc::caller_of(cfg),
 		1,
 		std::time::Duration::ZERO,
 	)
@@ -155,7 +157,7 @@ fn degradation_lines(
 	h: &::health::HealthStats,
 	d: Option<&transport::kern_rpc::HealthRes>,
 ) -> Vec<String> {
-	let [cold_evicted, query_dim_rejected, below_floor_deliveries, clock_skew_skips, ingest_dropped_chunks, remote_cap_dropped, unspilled_drops, ingest_queue_refused] =
+	let [cold_evicted, query_dim_rejected, below_floor_deliveries, clock_skew_skips, ingest_dropped_chunks, unspilled_drops, ingest_queue_refused] =
 		match d {
 			Some(d) => [
 				d.cold_evicted,
@@ -163,7 +165,6 @@ fn degradation_lines(
 				d.below_floor_deliveries,
 				d.clock_skew_skips,
 				d.ingest_dropped_chunks,
-				d.remote_cap_dropped,
 				d.unspilled_drops,
 				d.ingest_queue_refused,
 			],
@@ -173,7 +174,6 @@ fn degradation_lines(
 				h.below_floor_deliveries,
 				h.clock_skew_skips,
 				h.ingest_dropped_chunks,
-				h.remote_cap_dropped,
 				h.unspilled_drops,
 				h.ingest_queue_refused,
 			],
@@ -186,17 +186,15 @@ fn degradation_lines(
 		+ below_floor_deliveries
 		+ clock_skew_skips
 		+ ingest_dropped_chunks
-		+ remote_cap_dropped
 		+ unspilled_drops
 		+ ingest_queue_refused;
 	if degraded > 0 {
 		lines.push(format!(
-			"degraded:    {} off-model queries dropped, {} below-floor deliveries, {} clock-skewed entities GC could not age, {} chunks lost to embedding, {} remote ids refused at the cap, {} dropped with nowhere to spill, {} ingest jobs refused at the queue bound",
+			"degraded:    {} off-model queries dropped, {} below-floor deliveries, {} clock-skewed entities GC could not age, {} chunks lost to embedding, {} dropped with nowhere to spill, {} ingest jobs refused at the queue bound",
 			query_dim_rejected,
 			below_floor_deliveries,
 			clock_skew_skips,
 			ingest_dropped_chunks,
-			remote_cap_dropped,
 			unspilled_drops,
 			ingest_queue_refused
 		));
@@ -406,14 +404,17 @@ fn llm_health_lines(h: Option<&transport::kern_rpc::HealthRes>) -> Vec<String> {
 	lines
 }
 
-// Daemon must be stopped: a live daemon would race and re-persist the bloated graph.
+// Reap then compact, in that order and always both: reaping is what frees the
+// pages, and LMDB only returns them to the filesystem on compaction — a reap
+// that left data.mdb the same size read as a no-op to everyone who ran it.
+// Daemon must be stopped: a live daemon would race and re-persist the bloated
+// graph, and the compaction renames data.mdb under any open environment.
 pub(crate) fn cmd_gc(cfg: &config::Config) {
 	let _lock = match store::lock::acquire(&cfg.data_dir, "gc") {
 		Ok(l) => l,
 		Err(e) => {
-			eprintln!("gc: {e}");
-			eprintln!("  stop it first — a live daemon re-persists the graph this reaped from");
-			return;
+			fail("gc", e);
+			return hint("stop it first — a live daemon re-persists the graph this reaped from");
 		}
 	};
 	let mut g = load_graph(cfg);
@@ -435,33 +436,72 @@ pub(crate) fn cmd_gc(cfg: &config::Config) {
 				0.0
 			},
 		),
-		Err(e) => eprintln!("gc: compaction failed: {e}"),
+		Err(e) => fail("gc", format!("compaction failed: {e}")),
 	}
 }
 
-// Daemon must be stopped: compaction swaps data.mdb underneath any open env.
-pub(crate) fn cmd_compact(cfg: &config::Config) {
-	let _lock = match store::lock::acquire(&cfg.data_dir, "compact") {
+// The forcing function for the format hop. Reading an old store already
+// converts every row in memory (`store_core::legacy`), so the rows on disk stay
+// old until something saves — which is right for a read, and wrong for an
+// operator who wants it done and verifiable. This is that save, and nothing
+// else: no reap, no compaction, no scoring. Daemon must be stopped for the same
+// reason `gc` needs it — a live daemon would flush its own copy over this one.
+pub(crate) fn cmd_migrate(cfg: &config::Config) {
+	let _lock = match store::lock::acquire(&cfg.data_dir, "migrate") {
 		Ok(l) => l,
 		Err(e) => {
-			eprintln!("compact: {e}");
-			eprintln!("  stop it first — compaction renames data.mdb under any open environment");
-			return;
+			fail("migrate", e);
+			return hint("stop it first — a live daemon re-persists the graph this rewrote");
 		}
 	};
-	match store_core::compact_dir(&cfg.data_dir) {
-		Ok((old, new)) => println!(
-			"compact: data.mdb {} -> {} ({:.0}% reclaimed)",
-			human_bytes(old),
-			human_bytes(new),
-			if old > 0 {
-				(old - new) as f64 * 100.0 / old as f64
-			} else {
-				0.0
-			},
-		),
-		Err(e) => eprintln!("compact: failed: {e}"),
+	// The load is the migration: every kern row decodes through the frozen
+	// snapshots and lands in memory as current types.
+	let g = load_graph(cfg);
+	let from = store_core::migrated_from();
+	let Some(from) = from else {
+		println!(
+			"migrate: nothing to do — every row is already format v{}",
+			store_core::format_version()
+		);
+		return;
+	};
+
+	let kerns = g.all().len();
+	if let Err(e) = graph::persist::save_all(&g) {
+		return fail("migrate", format!("rewriting the graph failed: {e}"));
 	}
+	// Meta rows last, and unconditionally: they are only written when their value
+	// changes, so without this the store reports itself old forever — `doctor`
+	// warning after a clean migrate, and this command never idempotent.
+	if let Some(store) = g.store() {
+		if let Err(e) = store.rewrite_meta() {
+			return fail(
+				"migrate",
+				format!("rewriting the store metadata failed: {e}"),
+			);
+		}
+	}
+	// The cold tier carries entities too, and nothing else in this command would
+	// touch it — a hot-only migration would leave half the store behind.
+	let cold = match g.store() {
+		Some(store) => match store.cold_all() {
+			Ok(rows) if rows.is_empty() => 0,
+			Ok(rows) => {
+				let n = rows.len();
+				if let Err(e) = store.cold_put_all(&rows) {
+					return fail("migrate", format!("rewriting the cold tier failed: {e}"));
+				}
+				n
+			}
+			Err(e) => return fail("migrate", format!("reading the cold tier failed: {e}")),
+		},
+		None => 0,
+	};
+
+	println!(
+		"migrate: rewrote {kerns} kern(s) and {cold} cold row(s) from format v{from} to v{}",
+		store_core::format_version()
+	);
 }
 
 fn human_bytes(n: u64) -> String {
@@ -488,18 +528,13 @@ fn print_graviton_removed(name: &str) {
 }
 
 pub(crate) async fn cmd_graviton(cfg: &config::Config, action: GravitonAction) {
-	graviton_at(cfg, &Endpoint::kern(), &::rpc::caller_of(cfg), action).await
+	graviton_at(cfg, &Endpoint::kern(), action).await
 }
 
 // Routed first for the same reason as forget: `with_graph` writes the whole kern
 // map back unguarded, so a local graviton edit beside a serving daemon drops
 // everything that daemon has committed since this process loaded.
-async fn graviton_at(
-	cfg: &config::Config,
-	endpoint: &Endpoint,
-	auth: &AuthReq,
-	action: GravitonAction,
-) {
+async fn graviton_at(cfg: &config::Config, endpoint: &Endpoint, action: GravitonAction) {
 	match action {
 		GravitonAction::Add {
 			name,
@@ -512,14 +547,13 @@ async fn graviton_at(
 			// embedding here would be a second call to the same model for nothing.
 			match route_to(
 				endpoint,
-				auth,
 				"graviton",
 				serde_json::json!({"action": "add", "name": &name, "text": &text, "mass": mass}),
 			)
 			.await
 			{
 				Routed::Done(_) => return print_graviton_added(&name, mass),
-				Routed::Refused(e) => return eprintln!("{e}"),
+				Routed::Refused(e) => return fail("graviton add", e),
 				Routed::NoDaemon => {}
 			}
 			let (url, model) = embed.resolve(cfg);
@@ -530,15 +564,11 @@ async fn graviton_at(
 			for ex in graph::accept::seed_examples(&text) {
 				match llm_client.embed(&ex).await {
 					Ok(v) => vecs.push(v),
-					Err(e) => {
-						eprintln!("embed: {e}");
-						return;
-					}
+					Err(e) => return fail("graviton add", format!("embedding the seed failed: {e}")),
 				}
 			}
 			let Some(vec) = graph::accept::mean_pool(&vecs) else {
-				eprintln!("embed: empty or mismatched embeddings");
-				return;
+				return fail("graviton add", "the seed embedded to nothing usable");
 			};
 			with_graph(cfg, |g| {
 				graph::accept::add_graviton_with_mass(g, &name, vec, mass)
@@ -558,21 +588,20 @@ async fn graviton_at(
 		GravitonAction::Remove { name } => {
 			match route_to(
 				endpoint,
-				auth,
 				"graviton",
 				serde_json::json!({"action": "remove", "name": &name}),
 			)
 			.await
 			{
 				Routed::Done(_) => return print_graviton_removed(&name),
-				Routed::Refused(e) => return eprintln!("{e}"),
+				Routed::Refused(e) => return fail("graviton remove", e),
 				Routed::NoDaemon => {}
 			}
 			let removed = with_graph(cfg, |g| graph::accept::remove_graviton(g, &name));
 			if removed {
 				print_graviton_removed(&name);
 			} else {
-				eprintln!("graviton not found: {name}");
+				fail("graviton remove", format!("no graviton named {name}"));
 			}
 		}
 	}
@@ -586,15 +615,10 @@ fn print_claim_kind_removed(name: &str) {
 }
 
 pub(crate) async fn cmd_claim_kind(cfg: &config::Config, action: ClaimKindAction) {
-	claim_kind_at(cfg, &Endpoint::kern(), &::rpc::caller_of(cfg), action).await
+	claim_kind_at(cfg, &Endpoint::kern(), action).await
 }
 
-async fn claim_kind_at(
-	cfg: &config::Config,
-	endpoint: &Endpoint,
-	auth: &AuthReq,
-	action: ClaimKindAction,
-) {
+async fn claim_kind_at(cfg: &config::Config, endpoint: &Endpoint, action: ClaimKindAction) {
 	match action {
 		ClaimKindAction::Add {
 			name,
@@ -603,14 +627,13 @@ async fn claim_kind_at(
 		} => {
 			match route_to(
 				endpoint,
-				auth,
 				"claim_kind",
 				serde_json::json!({"action": "add", "name": &name, "description": &description, "parent": parent.as_deref().unwrap_or("")}),
 			)
 			.await
 			{
 				Routed::Done(_) => return print_claim_kind_added(&name),
-				Routed::Refused(e) => return eprintln!("{e}"),
+				Routed::Refused(e) => return fail("claim-kind add", e),
 				Routed::NoDaemon => {}
 			}
 			let mut refused: Option<String> = None;
@@ -625,21 +648,20 @@ async fn claim_kind_at(
 				}
 			});
 			match refused {
-				Some(e) => eprintln!("{e}"),
+				Some(e) => fail("claim-kind add", e),
 				None => print_claim_kind_added(&name),
 			}
 		}
 		ClaimKindAction::Rm { name } => {
 			match route_to(
 				endpoint,
-				auth,
 				"claim_kind",
 				serde_json::json!({"action": "rm", "name": &name}),
 			)
 			.await
 			{
 				Routed::Done(_) => return print_claim_kind_removed(&name),
-				Routed::Refused(e) => return eprintln!("{e}"),
+				Routed::Refused(e) => return fail("claim-kind rm", e),
 				Routed::NoDaemon => {}
 			}
 			with_graph(cfg, |g| {
@@ -650,49 +672,38 @@ async fn claim_kind_at(
 	}
 }
 
-pub(crate) fn cmd_peers(cfg: &config::Config) {
-	print!("{}", peers_summary(cfg));
-}
-
-fn peers_summary(cfg: &config::Config) -> String {
-	let g = &cfg.gossip;
-	let mut out = String::new();
-	if !g.enabled {
-		out.push_str("gossip:  disabled\n");
-		out.push_str("  enable with [gossip] enabled = true in kern.toml\n");
-		return out;
-	}
-	out.push_str("gossip:     enabled\n");
-	out.push_str(&format!("addr:       {}\n", g.addr));
-	out.push_str(&format!(
-		"discovery:  {} (udp :{})\n",
-		if g.discovery { "on" } else { "off" },
-		g.discovery_port
-	));
-	if g.peers.is_empty() {
-		out.push_str("peers:      (none configured)\n");
-	} else {
-		out.push_str(&format!("peers ({}):\n", g.peers.len()));
-		for p in &g.peers {
-			out.push_str(&format!("  {p}\n"));
-		}
-	}
-	out.push_str("  (runtime-discovered peers visible in daemon logs)\n");
-	out
-}
-
 pub(crate) fn cmd_register(cfg: &config::Config, path: &str) {
+	// Checked before the open, not after: `Store::open` CREATES the env it is
+	// pointed at, so a typo'd path was silently made into an empty store and
+	// then reported as registered. A miss has to read as a miss.
+	let src = crate::launch_dir_join(path);
+	if !src.is_dir() {
+		return fail("register", format!("{path} is not a directory"));
+	}
+	if !src.join("data.mdb").is_file() {
+		fail("register", format!("{path} holds no kern store"));
+		return hint(
+			"point it at a data dir — the one holding data.mdb (`kern status` names this project's)",
+		);
+	}
+	let src = src.to_string_lossy().into_owned();
 	// The loaded graph is bound to the SOURCE store, so write into a freshly
 	// opened destination store — save_graph_unguarded would write back to the source.
-	match graph::persist::load_dir(path) {
+	match graph::persist::load_dir(&src) {
 		Ok(g) => match store_core::Store::open(&cfg.data_dir) {
 			Ok(dest) => {
-				let _ = graph::persist::save_graph_into(&dest, &g);
-				println!("registered {path}");
+				let h = ::health::graph_health_stats(&g);
+				if let Err(e) = graph::persist::save_graph_into(&dest, &g) {
+					return fail("register", format!("writing into this store failed: {e}"));
+				}
+				println!(
+					"registered {path}: {} kern(s), {} thought(s)",
+					h.kerns, h.entities
+				);
 			}
-			Err(e) => eprintln!("register: {e}"),
+			Err(e) => fail("register", format!("opening this store failed: {e}")),
 		},
-		Err(e) => eprintln!("load: {e}"),
+		Err(e) => fail("register", format!("reading {path} failed: {e}")),
 	}
 }
 
@@ -729,15 +740,11 @@ pub(crate) async fn cmd_unnamed(cfg: &config::Config, action: UnnamedAction) {
 			for ex in graph::accept::seed_examples(&text) {
 				match llm_client.embed(&ex).await {
 					Ok(v) => vecs.push(v),
-					Err(e) => {
-						eprintln!("embed: {e}");
-						return;
-					}
+					Err(e) => return fail("unnamed promote", format!("embedding the seed failed: {e}")),
 				}
 			}
 			let Some(vec) = graph::accept::mean_pool(&vecs) else {
-				eprintln!("embed: empty or mismatched embeddings");
-				return;
+				return fail("unnamed promote", "the seed embedded to nothing usable");
 			};
 			// Resolve a short id to the full kern id the way `kern unnamed` prints it.
 			let full = {
@@ -748,14 +755,17 @@ pub(crate) async fn cmd_unnamed(cfg: &config::Config, action: UnnamedAction) {
 					.find(|kid| short_id(kid) == id || kid == &id)
 			};
 			let Some(full) = full else {
-				eprintln!("no unnamed kern matching id {id}");
-				return;
+				return fail("unnamed promote", format!("no unnamed kern with id {id}"));
 			};
+			let mut refused: Option<String> = None;
 			with_graph(cfg, |g| {
 				if let Err(e) = graph::accept::promote_unnamed(g, &full, &name, vec.clone(), mass) {
-					eprintln!("{e}");
+					refused = Some(e);
 				}
 			});
+			if let Some(e) = refused {
+				return fail("unnamed promote", e);
+			}
 			println!("promoted unnamed {id} -> graviton {name} (mass {mass})");
 		}
 	}
@@ -764,6 +774,95 @@ pub(crate) async fn cmd_unnamed(cfg: &config::Config, action: UnnamedAction) {
 fn default_root() -> String {
 	let cwd = std::env::current_dir().unwrap_or_default();
 	config::Config::resolve_root(&cwd).display().to_string()
+}
+
+// ==== hub link ====
+
+// Drop the child handle — detach flags + redirected stdio keep it alive past our exit.
+pub(crate) fn spawn_detached(arg: &str, log_dir: &std::path::Path) -> std::io::Result<()> {
+	use std::process::{Command, Stdio};
+	let exe = std::env::current_exe()?;
+	let (out, err) = config::stdio(log_dir, arg);
+	let mut cmd = Command::new(exe);
+	cmd.arg(arg).stdin(Stdio::null()).stdout(out).stderr(err);
+	#[cfg(windows)]
+	{
+		use std::os::windows::process::CommandExt;
+		const DETACHED_PROCESS: u32 = 0x0000_0008;
+		const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
+		cmd.creation_flags(DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP);
+	}
+	#[cfg(unix)]
+	{
+		use std::os::unix::process::CommandExt;
+		cmd.process_group(0);
+	}
+	let _child = cmd.spawn()?;
+	Ok(())
+}
+
+// Connect to the machine hub, auto-starting one when allowed. A lost spawn
+// race lands on AlreadyRunning in the second hub and the retry still connects.
+pub(crate) async fn connect_hub_or_start(
+	auto_start: bool,
+	log_dir: &std::path::Path,
+) -> Option<transport::hub_rpc::HubRpcClient<transport::typed::JsonEnvelopeCodec>> {
+	use transport::hub_rpc::HubRpcClient;
+	use transport::typed::JsonEnvelopeCodec;
+
+	if let Ok(h) = HubRpcClient::<JsonEnvelopeCodec>::connect_hub().await {
+		return Some(h);
+	}
+	if !auto_start {
+		return None;
+	}
+	if let Err(e) = spawn_detached("hub", log_dir) {
+		tracing::warn!(target: "kern.hub", error = %e, "hub auto-start failed");
+		return None;
+	}
+	for _ in 0..6 {
+		tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+		if let Ok(h) = HubRpcClient::<JsonEnvelopeCodec>::connect_hub().await {
+			tracing::info!(target: "kern.hub", "auto-started machine hub");
+			return Some(h);
+		}
+	}
+	tracing::warn!(target: "kern.hub", "auto-started hub never answered");
+	None
+}
+
+// A booting daemon announces its root so the hub's persistent registry — and
+// with it `hub status` and the cross-kern search — sees hand-started daemons
+// too. Best-effort: no hub and no auto-start means no registration, never a
+// failed boot.
+pub(crate) async fn register_with_hub(cfg: &config::Config) {
+	use transport::hub_rpc::ResolveReq;
+
+	// Let our own accept loop come up first: the hub's resolve probes the
+	// socket and would otherwise race a listener that has not bound yet.
+	tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+	let Some(hub) = connect_hub_or_start(cfg.hub.auto_start, &cfg.log_dir()).await else {
+		return;
+	};
+	let Ok(root) = std::env::current_dir() else {
+		return;
+	};
+	match hub
+		.resolve(ResolveReq {
+			root: root.display().to_string(),
+		})
+		.await
+	{
+		Ok(res) if res.ok => {
+			tracing::info!(target: "kern.hub", root = %root.display(), "registered with machine hub");
+		}
+		Ok(res) => {
+			tracing::warn!(target: "kern.hub", error = %res.err, "hub registration refused");
+		}
+		Err(e) => {
+			tracing::warn!(target: "kern.hub", error = %e, "hub registration failed");
+		}
+	}
 }
 
 pub(crate) async fn cmd_hub(action: Option<crate::HubAction>, idle_unload_secs: u64) {
@@ -776,10 +875,7 @@ pub(crate) async fn cmd_hub(action: Option<crate::HubAction>, idle_unload_secs: 
 			let root = root.unwrap_or_else(default_root);
 			let client = match HubRpcClient::<JsonEnvelopeCodec>::connect_hub().await {
 				Ok(c) => c,
-				Err(e) => {
-					eprintln!("hub: not running ({e})");
-					return;
-				}
+				Err(e) => return fail("hub resolve", format!("no hub running ({e})")),
 			};
 			match client.resolve(ResolveReq { root: root.clone() }).await {
 				Ok(res) if res.ok => println!(
@@ -787,22 +883,19 @@ pub(crate) async fn cmd_hub(action: Option<crate::HubAction>, idle_unload_secs: 
 					if res.spawned { "spawned" } else { "running" },
 					res.endpoint
 				),
-				Ok(res) => eprintln!("resolve {root}: {}", res.err),
-				Err(e) => eprintln!("hub resolve: {e}"),
+				Ok(res) => fail("hub resolve", format!("{root}: {}", res.err)),
+				Err(e) => fail("hub resolve", e),
 			}
 		}
 		Some(crate::HubAction::Status) => {
 			let client = match HubRpcClient::<JsonEnvelopeCodec>::connect_hub().await {
 				Ok(c) => c,
-				Err(e) => {
-					eprintln!("hub: not running ({e})");
-					return;
-				}
+				Err(e) => return fail("hub status", format!("no hub running ({e})")),
 			};
 			match client.status().await {
 				Ok(res) => {
 					if res.nodes.is_empty() {
-						println!("hub: running, no nodes");
+						println!("hub: running, no nodes loaded");
 					}
 					for n in res.nodes {
 						println!(
@@ -813,33 +906,46 @@ pub(crate) async fn cmd_hub(action: Option<crate::HubAction>, idle_unload_secs: 
 							n.endpoint
 						);
 					}
+					// The registry: every kern on the machine, live or cold,
+					// importance-sorted by the hub (entities, then bytes).
+					if !res.known.is_empty() {
+						println!();
+						println!("known kerns ({}):", res.known.len());
+						for k in res.known {
+							println!(
+								"{}  {:>8} thoughts  {:>4} kerns  {:>9}  {}",
+								if k.loaded { "loaded" } else { "cold  " },
+								k.entities,
+								k.kerns,
+								human_bytes(k.data_bytes),
+								k.root
+							);
+						}
+					}
 				}
-				Err(e) => eprintln!("hub status: {e}"),
+				Err(e) => fail("hub status", e),
 			}
 		}
 		Some(crate::HubAction::Unload { root }) => {
 			let root = root.unwrap_or_else(default_root);
 			let client = match HubRpcClient::<JsonEnvelopeCodec>::connect_hub().await {
 				Ok(c) => c,
-				Err(e) => {
-					eprintln!("hub: not running ({e})");
-					return;
-				}
+				Err(e) => return fail("hub unload", format!("no hub running ({e})")),
 			};
 			match client.unload(UnloadReq { root: root.clone() }).await {
 				Ok(res) if res.ok && res.existed => println!("unloaded {root}"),
 				Ok(res) if res.ok => println!("no node for {root}"),
-				Ok(res) => eprintln!("unload {root}: {}", res.err),
-				Err(e) => eprintln!("hub unload: {e}"),
+				Ok(res) => fail("hub unload", format!("{root}: {}", res.err)),
+				Err(e) => fail("hub unload", e),
 			}
 		}
 		Some(crate::HubAction::Merge { src, dst }) => cmd_hub_merge(&src, &dst).await,
 		Some(crate::HubAction::Stop) => match HubRpcClient::<JsonEnvelopeCodec>::connect_hub().await {
 			Ok(client) => match client.stop().await {
 				Ok(_) => println!("hub stopped (nodes stay up)"),
-				Err(e) => eprintln!("hub stop: {e}"),
+				Err(e) => fail("hub stop", e),
 			},
-			Err(e) => eprintln!("hub: not running ({e})"),
+			Err(e) => fail("hub stop", format!("no hub running ({e})")),
 		},
 	}
 }
@@ -856,23 +962,22 @@ async fn cmd_hub_merge(src: &str, dst: &str) {
 		Some(config::Config::resolve_root(&p))
 	};
 	let Some(src_root) = canon(src) else {
-		eprintln!("merge: src {src} does not exist");
-		return;
+		return fail("hub merge", format!("src {src} does not exist"));
 	};
 	let Some(dst_root) = canon(dst) else {
-		eprintln!("merge: dst {dst} does not exist");
-		return;
+		return fail("hub merge", format!("dst {dst} does not exist"));
 	};
 	if src_root == dst_root {
-		eprintln!(
-			"merge: src and dst are the same root {}",
-			src_root.display()
+		return fail(
+			"hub merge",
+			format!("src and dst are the same root {}", src_root.display()),
 		);
-		return;
 	}
 	if !src_root.join(".kern").is_dir() {
-		eprintln!("merge: src {} has no .kern store", src_root.display());
-		return;
+		return fail(
+			"hub merge",
+			format!("src {} has no .kern store", src_root.display()),
+		);
 	}
 
 	if let Ok(client) = HubRpcClient::<JsonEnvelopeCodec>::connect_hub().await {
@@ -886,11 +991,11 @@ async fn cmd_hub_merge(src: &str, dst: &str) {
 	}
 	for root in [&src_root, &dst_root] {
 		if ::hub::probe(root).await {
-			eprintln!(
-				"merge: a daemon still serves {} — stop it first",
-				root.display()
+			fail(
+				"hub merge",
+				format!("a daemon still serves {}", root.display()),
 			);
-			return;
+			return hint("stop it first — a live daemon's flush would clobber the merge");
 		}
 	}
 
@@ -899,25 +1004,21 @@ async fn cmd_hub_merge(src: &str, dst: &str) {
 	// caller happens to stand in.
 	let src_cfg = match config::Config::load(&src_root) {
 		Ok(c) => c,
-		Err(e) => {
-			eprintln!("merge: src config error: {e}");
-			return;
-		}
+		Err(e) => return fail("hub merge", format!("src config: {e}")),
 	};
 	let dst_cfg = match config::Config::load(&dst_root) {
 		Ok(c) => c,
-		Err(e) => {
-			eprintln!("merge: dst config error: {e}");
-			return;
-		}
+		Err(e) => return fail("hub merge", format!("dst config: {e}")),
 	};
 	let src_g = load_graph(&src_cfg);
 	let mut dst_g = load_graph(&dst_cfg);
 
 	let src_h = ::health::graph_health_stats(&src_g);
 	if src_h.entities == 0 {
-		eprintln!("merge: src {} holds no entities", src_root.display());
-		return;
+		return fail(
+			"hub merge",
+			format!("src {} holds no entities", src_root.display()),
+		);
 	}
 	let before = ::health::graph_health_stats(&dst_g);
 	let changed = graph::merge::absorb_graph(&mut dst_g, src_g);
@@ -945,8 +1046,7 @@ pub(crate) async fn cmd_status(cfg: &config::Config) {
 	println!("data dir     {}", cfg.data_dir);
 	println!("kern socket  {}", kern_ep.display());
 
-	let caller = ::rpc::caller_of(cfg);
-	let daemon = probe(&kern_ep, &caller).await;
+	let daemon = probe(&kern_ep).await;
 	match &daemon {
 		Some(h) => println!(
 			"daemon       serving  ({} kerns, {} entities, idle {}s)",
@@ -957,7 +1057,7 @@ pub(crate) async fn cmd_status(cfg: &config::Config) {
 		None => println!("daemon       not serving this directory"),
 	}
 
-	match probe(&hub_ep, &caller).await {
+	match probe(&hub_ep).await {
 		Some(_) => println!("hub          running   {}", hub_ep.display()),
 		None => println!("hub          not running"),
 	}
@@ -1025,22 +1125,14 @@ pub(crate) async fn cmd_status(cfg: &config::Config) {
 // A caller the daemon refuses reads as "not serving" here, the same as one that
 // found nothing — this line describes reachability, and an unreachable daemon is
 // unreachable either way. `route` is where the distinction has teeth.
-async fn probe(
-	ep: &Endpoint,
-	auth: &transport::kern_rpc::AuthReq,
-) -> Option<transport::kern_rpc::HealthRes> {
-	KernRpcClient::<JsonEnvelopeCodec>::connect_endpoint_with_retry(
-		ep,
-		auth,
-		1,
-		std::time::Duration::ZERO,
-	)
-	.await
-	.ok()?
-	.health()
-	.await
-	.ok()
-	.filter(|h| h.ok)
+async fn probe(ep: &Endpoint) -> Option<transport::kern_rpc::HealthRes> {
+	KernRpcClient::<JsonEnvelopeCodec>::connect_endpoint_with_retry(ep, 1, std::time::Duration::ZERO)
+		.await
+		.ok()?
+		.health()
+		.await
+		.ok()
+		.filter(|h| h.ok)
 }
 
 #[cfg(test)]

@@ -1,6 +1,6 @@
 //! Configuration, whole: the resolved [`Config`] with every section
-//! (embed, reason, gnn, graph, hub, ingest, intake, reload, retrieval, serve,
-//! tick, watcher, gossip), the `.git`-first root resolution and deep merge of
+//! (embed, reason, gnn, graph, hub, ingest, intake, reload, retrieval,
+//! tick, watcher), the `.git`-first root resolution and deep merge of
 //! global-then-project TOML in the io half, the tuning presets, secret
 //! redirection, and the detached-log plumbing.
 
@@ -33,10 +33,9 @@ pub struct Config {
 	pub preset: Preset,
 	pub embed: EmbedConfig,
 	pub reason: ReasonConfig,
-	pub serve: ServeConfig,
 	pub retrieval: RetrievalConfig,
 	pub ingest: IngestConfig,
-	pub gossip: GossipConfig,
+	pub hygiene: HygieneConfig,
 	pub tick: TickConfig,
 	pub heat: HeatConfig,
 	pub gnn: GnnConfig,
@@ -75,17 +74,13 @@ impl Config {
 			.map(PathBuf::from)
 			.unwrap_or_else(|| cwd.join(".kern"));
 		let mut cfg = Self {
-			data_dir: kern_dir
-				.join("data")
-				.to_string_lossy()
-				.into_owned(),
+			data_dir: kern_dir.join("data").to_string_lossy().into_owned(),
 			preset: Preset::default(),
 			embed: EmbedConfig::default(),
 			reason: ReasonConfig::default(),
-			serve: ServeConfig::default(),
 			retrieval: RetrievalConfig::default(),
 			ingest: IngestConfig::default(),
-			gossip: GossipConfig::default(),
+			hygiene: HygieneConfig::default(),
 			tick: TickConfig::default(),
 			heat: HeatConfig::default(),
 			gnn: GnnConfig::default(),
@@ -97,7 +92,6 @@ impl Config {
 		};
 		let preset = cfg.preset;
 		preset.apply(&mut cfg);
-		cfg.retrieval.resolve_voice_overrides();
 		cfg
 	}
 
@@ -145,7 +139,6 @@ impl Config {
 			.map_err(|e: toml::de::Error| crate::config::Error::Parse(e.to_string()))?;
 		let preset = cfg.preset;
 		preset.apply(&mut cfg);
-		cfg.retrieval.resolve_voice_overrides();
 		// serde's struct-level default pins data_dir to the *process* cwd. A
 		// caller loading another root (hub merge, any cross-root tooling) must
 		// get that root's store, never its own — re-pin when no config set it.
@@ -188,6 +181,10 @@ impl Config {
 			return Err("embed.model is required".into());
 		}
 		self.ingest.validate().map_err(|e| format!("ingest: {e}"))?;
+		self
+			.hygiene
+			.validate()
+			.map_err(|e| format!("hygiene: {e}"))?;
 		self.intake.validate().map_err(|e| format!("intake: {e}"))?;
 		self
 			.watcher
@@ -351,7 +348,7 @@ fn read_value(path: &Path) -> Result<toml::Value, Error> {
 /// Recursive merge at every depth: where both scopes hold a table the two are
 /// merged key by key, so a project setting one field of a section never drops the
 /// user's other fields in it. Arrays are leaves — `over` replaces, never appends
-/// (`watcher.roots` and `gossip.peers` are complete lists, not accumulators).
+/// (`watcher.roots` is a complete list, not an accumulator).
 fn merge_deep(base: toml::Value, over: toml::Value) -> toml::Value {
 	match (base, over) {
 		(toml::Value::Table(mut a), toml::Value::Table(b)) => {
@@ -602,23 +599,15 @@ impl Default for GraphConfig {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(default)]
 pub struct HubConfig {
-	// `kern mcp` spawns a detached machine-level hub when none answers, same as
-	// it already auto-spawns a project daemon. false = hub is opt-in via
-	// `kern hub`; the direct-connect fallback works either way.
+	// A booting daemon and `kern search --all` spawn a detached machine-level
+	// hub when none answers. false = hub is opt-in via `kern hub`; the
+	// direct-connect fallback works either way.
 	pub auto_start: bool,
-	// A client attaching to a daemon built from a different binary, or booted
-	// against a different config, restarts it before proxying. Without this a
-	// long-lived daemon serves stale code and stale config indefinitely — the
-	// failure that makes every shipped fix look like it did nothing.
-	pub auto_restart: bool,
 }
 
 impl Default for HubConfig {
 	fn default() -> Self {
-		Self {
-			auto_start: true,
-			auto_restart: true,
-		}
+		Self { auto_start: true }
 	}
 }
 
@@ -645,20 +634,10 @@ pub struct IngestConfig {
 	// an `exclude_pending` query until `promote` curates them. Like
 	// `source_trust` this weights the CHANNEL, not the author (ROADMAP 20).
 	pub review_policy: ReviewPolicy,
-	/// Enable the pre-ingestion noise filter. Default: true.
-	#[serde(default = "default_filter_enabled")]
-	pub filter_enabled: bool,
-	/// Custom filter patterns. Empty = use built-in defaults.
-	#[serde(default)]
-	pub filter_patterns: Vec<String>,
 }
 
 fn default_dedup_threshold_by_kind() -> [Option<f64>; EntityKind::Conclusion as usize + 1] {
 	[None; EntityKind::Conclusion as usize + 1]
-}
-
-const fn default_filter_enabled() -> bool {
-	true
 }
 
 impl Default for IngestConfig {
@@ -667,8 +646,6 @@ impl Default for IngestConfig {
 			dedup_threshold: INGEST_DEDUP_THRESHOLD,
 			dedup_threshold_by_kind: default_dedup_threshold_by_kind(),
 			review_policy: ReviewPolicy::new(),
-			filter_enabled: default_filter_enabled(),
-			filter_patterns: Vec::new(),
 		}
 	}
 }
@@ -687,11 +664,65 @@ impl IngestConfig {
 		ingest_config::Config {
 			dedup_threshold: self.dedup_threshold,
 			dedup_threshold_by_kind: self.dedup_threshold_by_kind,
-			filter_enabled: self.filter_enabled,
-			filter_patterns: self.filter_patterns.clone(),
 			..Default::default()
 		}
 		.validate()
+	}
+}
+
+// ==== [hygiene] ====
+
+/// The write-time hygiene gate: refuse (or log) noisy and secret-bearing
+/// ingests before they enter the graph. Curation, not tuning — like
+/// `review_policy` it is user-settable, so it lives in its own table rather
+/// than the preset-managed `[ingest]`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct HygieneConfig {
+	/// "off" (default) | "warn" (log what strict would refuse) | "strict".
+	pub gate: String,
+	/// Operator regexes; matching content is refused when the gate is strict.
+	pub ignore_patterns: Vec<String>,
+}
+
+impl Default for HygieneConfig {
+	fn default() -> Self {
+		Self {
+			gate: "off".into(),
+			ignore_patterns: Vec::new(),
+		}
+	}
+}
+
+impl HygieneConfig {
+	pub fn validate(&self) -> Result<(), String> {
+		// A misspelled mode would silently gate nothing and read as a working
+		// knob, so an unknown value is an error rather than a silent `off`.
+		if hygiene::GateMode::parse(&self.gate).is_none() {
+			return Err(format!(
+				"hygiene.gate {:?} is not a gate mode (off, warn, strict)",
+				self.gate
+			));
+		}
+		hygiene::compile_patterns(&self.ignore_patterns)?;
+		Ok(())
+	}
+
+	/// The runtime gate an ingest job travels with. An invalid pattern was
+	/// refused by `validate` at load; a caller that skipped validation gets the
+	/// valid prefix and an error log, never a silently weaker gate mode.
+	pub fn gate_config(&self) -> hygiene::GateConfig {
+		let extra_patterns = match hygiene::compile_patterns(&self.ignore_patterns) {
+			Ok(p) => p,
+			Err(e) => {
+				tracing::error!(target: "kern.config", error = %e, "unusable hygiene ignore_patterns; gating with built-ins only");
+				Vec::new()
+			}
+		};
+		hygiene::GateConfig {
+			mode: hygiene::GateMode::parse(&self.gate).unwrap_or_default(),
+			extra_patterns,
+		}
 	}
 }
 
@@ -764,7 +795,7 @@ impl Default for ReloadConfig {
 
 // ==== [retrieval] ====
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 
 use base::base_constants as constants;
 
@@ -806,23 +837,12 @@ pub struct RetrievalConfig {
 	pub traversal_credit_weight: f64,
 	pub fact_score_boost: f64,
 	pub gravity_weight: f64,
-	// Multiplier on the final score of an entity held in a `remote-*` phantom kern.
-	// Federation is unauthenticated: this is what stops peer-supplied content from
-	// outranking local knowledge. 1.0 disables the penalty; 0.0 keeps remote
-	// entities retrievable but always last.
-	pub remote_trust_weight: f64,
 	// Per-source-scheme trust prior, keyed on `Source::scheme()` — file, ticket,
 	// session, agent, inline. An absent key is 1.0, so the empty default leaves
 	// every score bit-identical. This weights the CHANNEL a claim arrived on, not
 	// its author: `kern ingest` and an MCP agent's default ingest both write
 	// `inline`, so no key here separates a human from an agent (ROADMAP 20).
 	pub source_trust: BTreeMap<String, f64>,
-	// Per-trust-tier weight override, keyed on TrustTier::as_str() — "Stated",
-	// "Inferred", "Tool", "Imported", "Unknown". An absent key falls back to the
-	// tier's built-in `default_weight()`, so the empty default leaves every score
-	// bit-identical to the pre-knob baseline.
-	#[serde(default)]
-	pub trust_tier_weights: HashMap<String, f64>,
 	pub min_deliver_score: f64,
 	pub max_deliver_results: usize,
 	pub important_min_cosine: f64,
@@ -849,13 +869,11 @@ pub struct RetrievalConfig {
 	pub pagerank_damping: f64,
 	pub pagerank_iters: usize,
 	pub pagerank_top_k: usize,
-	// Voice kill switches — env-var overridable so each retrieval voice can be
-	// disabled independently at runtime without recompiling or config changes.
-	// See `resolve_voice_overrides()`.
-	pub voice_vector_enabled: bool,
-	pub voice_lexical_enabled: bool,
-	pub voice_graph_enabled: bool,
-	pub voice_pagerank_enabled: bool,
+	// Regex query-intent classification biasing the hybrid RRF fusion: a
+	// temporal question leans lexical, a procedural one dense, an entity or
+	// preference one importance. A query no pattern matches fuses
+	// bit-identically to `false`.
+	pub intent_enabled: bool,
 }
 
 impl Default for RetrievalConfig {
@@ -874,9 +892,7 @@ impl Default for RetrievalConfig {
 			traversal_credit_weight: constants::TRAVERSAL_CREDIT_WEIGHT,
 			fact_score_boost: constants::FACT_SCORE_BOOST,
 			gravity_weight: 0.15,
-			remote_trust_weight: 0.4,
 			source_trust: BTreeMap::new(),
-			trust_tier_weights: HashMap::new(),
 			min_deliver_score: 0.0,
 			max_deliver_results: 25,
 			important_min_cosine: constants::IMPORTANT_MIN_COSINE,
@@ -909,39 +925,12 @@ impl Default for RetrievalConfig {
 			pagerank_damping: 0.85,
 			pagerank_iters: 25,
 			pagerank_top_k: 100,
-			voice_vector_enabled: true,
-			voice_lexical_enabled: true,
-			voice_graph_enabled: true,
-			voice_pagerank_enabled: true,
+			intent_enabled: true,
 		}
 	}
 }
 
 impl RetrievalConfig {
-	/// Read `KERN_VOICE_VECTOR`, `KERN_VOICE_LEXICAL`, `KERN_VOICE_GRAPH`, and
-	/// `KERN_VOICE_PAGERANK` env vars and override the matching field. Each env
-	/// value "0", "false", or "off" (case-insensitive) disables the voice;
-	/// anything else (or absent) leaves the field unchanged.
-	pub fn resolve_voice_overrides(&mut self) {
-		let voice = |var: &str| -> Option<bool> {
-			let raw = std::env::var(var).ok()?;
-			let lower = raw.trim().to_lowercase();
-			Some(!matches!(lower.as_str(), "0" | "false" | "off"))
-		};
-		if let Some(v) = voice("KERN_VOICE_VECTOR") {
-			self.voice_vector_enabled = v;
-		}
-		if let Some(v) = voice("KERN_VOICE_LEXICAL") {
-			self.voice_lexical_enabled = v;
-		}
-		if let Some(v) = voice("KERN_VOICE_GRAPH") {
-			self.voice_graph_enabled = v;
-		}
-		if let Some(v) = voice("KERN_VOICE_PAGERANK") {
-			self.voice_pagerank_enabled = v;
-		}
-	}
-
 	pub fn validate(&self) -> Vec<String> {
 		let mut errs = Vec::new();
 
@@ -956,11 +945,7 @@ impl RetrievalConfig {
 			}
 		}
 
-		for (name, v) in [
-			("mmr_lambda", self.mmr_lambda),
-			("bm25_b", self.bm25_b),
-			("remote_trust_weight", self.remote_trust_weight),
-		] {
+		for (name, v) in [("mmr_lambda", self.mmr_lambda), ("bm25_b", self.bm25_b)] {
 			if !(0.0..=1.0).contains(&v) {
 				errs.push(format!("{name} ({v}) must be in [0.0, 1.0]"));
 			}
@@ -1030,31 +1015,6 @@ impl RetrievalConfig {
 
 // ==== [serve] ====
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(default)]
-pub struct ServeConfig {
-	// Empty = read (or mint) the token file instead; see `resolve_mcp_token`.
-	pub mcp_token: String,
-	// Empty = no MCP-over-HTTP listener. `--mcp-addr` overrides it.
-	pub mcp_addr: String,
-}
-
-pub fn mcp_token_path(data_dir: &Path) -> PathBuf {
-	data_dir.join("mcp-token")
-}
-
-fn mint_token() -> String {
-	use rand::RngExt;
-	let mut rng = rand::rng();
-	format!(
-		"{:016x}{:016x}{:016x}{:016x}",
-		rng.random::<u64>(),
-		rng.random::<u64>(),
-		rng.random::<u64>(),
-		rng.random::<u64>()
-	)
-}
-
 // Owner-only from the moment the file exists, so content is never briefly world-readable.
 #[cfg(unix)]
 fn private_opts() -> std::fs::OpenOptions {
@@ -1069,10 +1029,6 @@ fn private_opts() -> std::fs::OpenOptions {
 	std::fs::OpenOptions::new()
 }
 
-fn create_private(path: &Path) -> std::io::Result<std::fs::File> {
-	private_opts().write(true).create_new(true).open(path)
-}
-
 /// Append-open (creating if absent), owner-only. `mode` applies only on creation,
 /// so an already-loose file is re-tightened; a chmod that the filesystem refuses
 /// must not cost us the handle.
@@ -1084,61 +1040,6 @@ pub fn open_private_append(path: &Path) -> std::io::Result<std::fs::File> {
 		let _ = f.set_permissions(std::fs::Permissions::from_mode(0o600));
 	}
 	Ok(f)
-}
-
-impl ServeConfig {
-	/// The token the HTTP/SSE surface must demand. An explicit `mcp_token` wins;
-	/// otherwise the per-graph token file is read, minting it on first use so a
-	/// local user never has to configure anything.
-	pub fn resolve_mcp_token(&self, data_dir: &Path) -> std::io::Result<String> {
-		if !self.mcp_token.is_empty() {
-			return Ok(self.mcp_token.clone());
-		}
-		let path = mcp_token_path(data_dir);
-		match std::fs::read_to_string(&path) {
-			Ok(t) if !t.trim().is_empty() => return Ok(t.trim().to_string()),
-			Ok(_) => {
-				let _ = std::fs::remove_file(&path);
-			}
-			Err(e) if e.kind() != std::io::ErrorKind::NotFound => return Err(e),
-			Err(_) => {}
-		}
-		if let Some(parent) = path.parent() {
-			std::fs::create_dir_all(parent)?;
-		}
-		let token = mint_token();
-		match create_private(&path) {
-			Ok(mut f) => {
-				use std::io::Write;
-				f.write_all(token.as_bytes())?;
-				Ok(token)
-			}
-			// Lost the create race to a sibling process: its token is the real one.
-			Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
-				Ok(std::fs::read_to_string(&path)?.trim().to_string())
-			}
-			Err(e) => Err(e),
-		}
-	}
-
-	/// Read-only twin of `resolve_mcp_token`, for the *callers* of kern.sock.
-	/// A client must be able to present the daemon's secret, never to invent
-	/// one: minting here would drop an `mcp-token` into every directory a CLI
-	/// is run in, and — the part that matters — a client that mints its own
-	/// token is a client authenticating against nothing.
-	///
-	/// `None` means "no secret to present", which the daemon refuses. That is
-	/// the right answer: whenever a daemon is listening it has already minted
-	/// the file, so an absent one means nothing is there to talk to anyway.
-	pub fn read_mcp_token(&self, data_dir: &Path) -> Option<String> {
-		if !self.mcp_token.is_empty() {
-			return Some(self.mcp_token.clone());
-		}
-		std::fs::read_to_string(mcp_token_path(data_dir))
-			.ok()
-			.map(|t| t.trim().to_string())
-			.filter(|t| !t.is_empty())
-	}
 }
 
 // ==== [tick] ====
@@ -1214,126 +1115,6 @@ impl WatcherConfig {
 					}
 				})
 				.collect()
-		}
-	}
-}
-
-// ==== [gossip] ====
-
-use base::base_constants::{GOSSIP_MAX_PEERS, GOSSIP_SEED_ADDR};
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(default)]
-pub struct GossipConfig {
-	pub enabled: bool,
-	pub addr: String,
-	pub discovery: bool,
-	pub network_id: Option<String>,
-	pub discovery_port: u16,
-	pub peers: Vec<String>,
-	pub seed: bool,
-	pub seed_addr: String,
-	// Small-world ring topology (FEDERATION_PLAN §2). Off = legacy flat peers.
-	pub ring: bool,
-	// Path of the ed25519 peer key file; empty = <data_dir>/peer.key.
-	pub identity_path: String,
-	// Anti-entropy cadence for contract kerns (FEDERATION_PLAN §4).
-	pub sync_interval_secs: u64,
-	// Contract ids (hex) to subscribe to on boot.
-	pub subscriptions: Vec<String>,
-	// Contracts this node hosts/owns.
-	pub contracts: Vec<ContractConfig>,
-}
-
-// One `[[gossip.contracts]]` table: the policy whose hash is the contract key
-// (FEDERATION_PLAN §3). Keys are hex-encoded ed25519 public keys.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(default)]
-pub struct ContractConfig {
-	pub kind: String,
-	pub owners: Vec<String>,
-	// "open" | "owners-only" | allowlist implied by non-empty `writers` list.
-	pub writers: String,
-	pub writer_keys: Vec<String>,
-	pub kinds: Vec<String>,
-	pub max_entities: u32,
-	pub retention_secs: Option<u64>,
-}
-
-impl Default for ContractConfig {
-	fn default() -> Self {
-		Self {
-			kind: "signed-crdt-v0".into(),
-			owners: Vec::new(),
-			writers: "owners-only".into(),
-			writer_keys: Vec::new(),
-			kinds: Vec::new(),
-			max_entities: base::base_constants::GOSSIP_REMOTE_KERN_ENTITY_CAP as u32,
-			retention_secs: None,
-		}
-	}
-}
-
-impl GossipConfig {
-	pub fn effective_seed(&self) -> Option<&str> {
-		if !self.enabled || !self.seed {
-			return None;
-		}
-		let addr = self.seed_addr.trim();
-		(!addr.is_empty()).then_some(addr)
-	}
-
-	// The only peer source that runs before any inbound contact; still bounded by GOSSIP_MAX_PEERS.
-	pub fn bootstrap_peers(&self) -> Vec<String> {
-		if !self.enabled {
-			return Vec::new();
-		}
-		let mut peers = self.peers.clone();
-		if let Some(seed) = self.effective_seed() {
-			if !peers.iter().any(|p| p == seed) {
-				peers.push(seed.to_string());
-			}
-		}
-		peers.truncate(GOSSIP_MAX_PEERS);
-		peers
-	}
-
-	// A ':' in the id would corrupt the `kern:<id>:<addr>` announce wire format.
-	pub fn effective_network_id(&self, generated: &str) -> String {
-		match self.network_id.as_deref() {
-			Some(id) if !id.is_empty() && !id.contains(':') => id.to_string(),
-			Some(id) if !id.is_empty() => {
-				tracing::warn!(
-					target: "kern.gossip",
-					network_id = %id,
-					"[gossip] network_id must not contain ':'; falling back to the generated id"
-				);
-				generated.to_string()
-			}
-			_ => generated.to_string(),
-		}
-	}
-}
-
-impl Default for GossipConfig {
-	fn default() -> Self {
-		Self {
-			enabled: false,
-			addr: "0.0.0.0:7400".into(),
-			discovery: true,
-			network_id: None,
-			discovery_port: 7475,
-			peers: Vec::new(),
-			// Dialing a public host is opt-in: federation is unauthenticated, so a
-			// default-on seed would auto-join a stranger's network.
-			seed: false,
-			seed_addr: GOSSIP_SEED_ADDR.into(),
-			// Ring routing is phase-gated off until a network opts in.
-			ring: false,
-			identity_path: String::new(),
-			sync_interval_secs: 300,
-			subscriptions: Vec::new(),
-			contracts: Vec::new(),
 		}
 	}
 }

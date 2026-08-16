@@ -13,65 +13,6 @@ mod tests {
 	}
 
 	#[test]
-	fn adjacency_ignores_edges_a_peer_farmed_inside_its_own_phantom_kern() {
-		use base::base_types::Reason;
-
-		let edge = |id: &str, from: &str, to: &str| Reason {
-			id: id.into(),
-			from: from.into(),
-			to: to.into(),
-			..Default::default()
-		};
-		let with_entities = |k: &mut Kern, ids: &[&str]| {
-			for id in ids {
-				k.entities.insert(
-					(*id).into(),
-					Entity {
-						id: (*id).into(),
-						..Default::default()
-					},
-				);
-			}
-		};
-
-		let mut g = GraphGnn::new();
-		let root = g.root.id.clone();
-
-		let mut local = Kern::new("k1", &root);
-		with_entities(&mut local, &["a", "b"]);
-		local.reasons.insert("r1".into(), edge("r1", "a", "b"));
-		g.kerns.insert("k1".into(), local);
-
-		// The attack: a peer owns every reason in its own phantom kern, so it can farm
-		// inbound edges to itself for free. Note to_net_id is EMPTY — these edges do not
-		// cross a network boundary, so Reason::is_remote() would not catch them.
-		let mut phantom = Kern::new("remote-evilnet-k1", &root);
-		with_entities(&mut phantom, &["evil", "sock1", "sock2"]);
-		phantom
-			.reasons
-			.insert("f1".into(), edge("f1", "sock1", "evil"));
-		phantom
-			.reasons
-			.insert("f2".into(), edge("f2", "sock2", "evil"));
-		assert!(
-			phantom.reasons.values().all(|r| !r.is_remote()),
-			"the farmed edges are not flagged by Reason::is_remote()"
-		);
-		g.kerns.insert("remote-evilnet-k1".into(), phantom);
-
-		let adj = EntityAdjacency::build(&g);
-		let out_of = |id: &str| adj.out[adj.id_to_idx[id]].len();
-
-		assert_eq!(out_of("a"), 1, "legitimate local edges survive");
-		assert_eq!(out_of("sock1"), 0, "a farmed vote is dropped");
-		assert_eq!(out_of("sock2"), 0, "a farmed vote is dropped");
-		assert!(
-			adj.id_to_idx.contains_key("evil"),
-			"the remote entity stays a NODE — it is still rankable, it just gets no votes"
-		);
-	}
-
-	#[test]
 	fn query_dim_guard_follows_the_dominant_indexed_dimension() {
 		let vecs = |g: &mut GraphGnn, dims: &[(&str, usize)]| {
 			let root = g.root.id.clone();
@@ -563,7 +504,10 @@ mod tests {
 		}
 		g.set_disk_threshold(10);
 		g.rebuild_index();
-		assert!(matches!(g.entity_idx, VectorBackend::Disk { .. }), "spilled");
+		assert!(
+			matches!(g.entity_idx, VectorBackend::Disk { .. }),
+			"spilled"
+		);
 
 		// Store changed: five new entities, one re-embedded, one removed.
 		if let Some(k) = g.get_mut(&kid) {

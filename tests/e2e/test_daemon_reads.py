@@ -7,9 +7,9 @@ rewriting `.kern/kern.toml` to name an empty `data_dir` blinds every *later* CLI
 process without moving the graph the daemon is already serving. From that point
 on, anything the CLI prints came over the socket.
 
-`search` and `list` stay local by decision (item 9 notes), which is what makes
-them the control here: with the config repointed they must go blind in the same
-breath that `get` and `query` still answer.
+`query --mode vector` and `list` stay local by decision (item 9 notes), which is
+what makes them the control here: with the config repointed they must go blind in
+the same breath that `get` and a full `query` still answer.
 """
 
 import sys
@@ -48,8 +48,8 @@ def test_get_and_query_read_the_serving_daemons_live_graph(project):
 
 	# Control: the two deliberately-local commands go blind, which is what proves
 	# the repoint took and that the disk under this CLI really is empty.
-	stdout, _ = project.run("search", BIKE)
-	assert not hits(stdout), f"search must stay local and see nothing: {stdout}"
+	stdout, _ = project.run("query", "--mode", "vector", BIKE)
+	assert not hits(stdout), f"vector recall must stay local and see nothing: {stdout}"
 	stdout, _ = project.run("list")
 	assert "bicycle" not in stdout, f"list must stay local and see nothing: {stdout}"
 
@@ -73,7 +73,7 @@ def test_get_and_query_read_the_serving_daemons_live_graph(project):
 	# not answer at all), then pointed back at the real one.
 	project.stop(daemon)
 	_, stderr = project.run("get", bike_id)
-	assert f"thought not found: {bike_id}" in stderr, (
+	assert f"kern get: no thought with id {bike_id}" in stderr, (
 		f"NoDaemon get must read the local store, not the dead socket: {stderr}"
 	)
 	stdout, _ = project.run("query", "where does ada store her bicycle")

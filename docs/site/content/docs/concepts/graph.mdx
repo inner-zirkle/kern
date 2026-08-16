@@ -53,7 +53,7 @@ A transcript in `.kern/intake/` is never stored as memory. One LLM pass distills
 
 Id = SHA-256 of the text.
 
-- Identical content = same node everywhere, forever. Federation merge is set union — no coordinator.
+- Identical content = same node everywhere, forever — so reconciling two views of one store is set union.
 - **Text and vector never overwritten under an existing id** — a near-duplicate with different phrasing gets a `Rephrase` edge; the tick decides contradiction later.
 - A duplicate (cosine above the preset's dedup threshold — 0.98 on default `relaxed`) is not discarded: it bumps the existing thought's confidence.
 

@@ -1,5 +1,5 @@
-"""Answer-retrieval e2e: ingest facts through the real binary, then assert
-search and query surface the right one. The embed leg is served
+"""Answer-retrieval e2e: ingest facts through the real binary, then assert both
+read modes of `query` surface the right one. The embed leg is served
 by the deterministic fake in fake_llm.py, so ranking is real cosine ranking."""
 
 from ranking import hits, ingest_all
@@ -20,9 +20,9 @@ def test_query_on_an_empty_graph_says_no_results(project):
 	assert "no results" in stdout
 
 
-def test_search_ranks_the_matching_fact_first(project):
+def test_vector_recall_ranks_the_matching_fact_first(project):
 	ingest_facts(project)
-	stdout, stderr = project.run("search", "where does ada store her bicycle")
+	stdout, stderr = project.run("query", "--mode", "vector", "where does ada store her bicycle")
 	ranked = hits(stdout)
 	assert ranked, f"no hits: out={stdout} err={stderr}"
 	assert "bicycle" in ranked[0].text, f"wrong top hit: {ranked[0]}"

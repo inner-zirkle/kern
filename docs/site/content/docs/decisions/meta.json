@@ -7,7 +7,6 @@
     "bayesian-confidence",
     "edit-convergence",
     "crdts-over-consensus",
-    "knowledge-not-gradients",
     "diskann-spill"
   ]
 }

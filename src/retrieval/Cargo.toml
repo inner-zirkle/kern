@@ -10,6 +10,7 @@ graph = { path = "../graph" }
 math = { path = "../math" }
 util = { path = "../util" }
 llm = { path = "../llm" }
+regex = "1"
 config = { path = "../config" }
 serde.workspace = true
 serde_json.workspace = true

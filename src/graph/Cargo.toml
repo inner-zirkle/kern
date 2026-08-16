@@ -6,6 +6,7 @@ license.workspace = true
 
 [dependencies]
 base = { path = "../base" }
+hygiene = { path = "../hygiene" }
 math = { path = "../math" }
 store_core = { path = "../store_core" }
 util = { path = "../util" }

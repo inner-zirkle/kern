@@ -9,13 +9,12 @@ base = { path = "../base" }
 bootstrap = { path = "../bootstrap" }
 config = { path = "../config" }
 graph = { path = "../graph" }
-gossip = { path = "../gossip" }
+identity = { path = "../identity" }
 health = { path = "../health" }
 hub = { path = "../hub" }
 ingest = { path = "../ingest" }
 llm = { path = "../llm" }
 math = { path = "../math" }
-mcp = { path = "../mcp" }
 retrieval = { path = "../retrieval" }
 rpc = { path = "../rpc" }
 store = { path = "../store" }
@@ -25,7 +24,7 @@ tick = { path = "../tick" }
 tick_loop = { path = "../tick_loop" }
 transport = { path = "../transport" }
 util = { path = "../util" }
-clap = { version = "4", features = ["derive"] }
+clap = { version = "4", features = ["derive", "wrap_help"] }
 serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true

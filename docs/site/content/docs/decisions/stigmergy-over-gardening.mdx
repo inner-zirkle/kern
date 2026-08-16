@@ -28,7 +28,6 @@ Shipped constants:
 | Manual gardening | doesn't scale past one attentive operator; silently stops happening |
 | Per-edge pheromone | storage cost for a weak signal; traversal counts feed scoring, not retention |
 | Multiple pheromone types | one scalar suffices; entity kinds already provide orthogonal typing |
-| Cross-peer heat gossip | a peer's usage is not evidence of yours; an injection surface |
 
 ## Trade-off accepted
 
@@ -38,9 +37,8 @@ Shipped constants:
 - The pulse used to deposit too, and a recurring deposit of *any* size settles far above the `0.01` gate: everything within its 5-level reach was permanently exempt from collection, used or not. Removed — retention is a consequence of use only (`tests/depth_bias.rs`).
 
 <Callout type="info" title="One administered exception">
-Active `Fact` and `Document` entities are immune to collection (locally — peers
-cannot pin storage by labelling gossip `kind=Fact`). Supersession revokes the
-immunity. See [Heat & compaction](../concepts/heat-and-compaction.mdx).
+Active `Fact` and `Document` entities are immune to collection. Supersession
+revokes the immunity. See [Heat & compaction](../concepts/heat-and-compaction.mdx).
 </Callout>
 
 ## Where you see it

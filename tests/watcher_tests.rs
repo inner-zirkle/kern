@@ -1,7 +1,7 @@
 // Filesystem events are racy (especially Windows): these tests assert on observed
 // *kinds* within a time budget, never exact ordering or counts.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
@@ -57,8 +57,39 @@ async fn collect_until(
 	out
 }
 
-fn has_kind(events: &[WatchEvent], path: &PathBuf, want: fn(&WatchKind) -> bool) -> bool {
-	events.iter().any(|e| &e.path == path && want(&e.kind))
+fn paths_equal(a: &Path, b: &Path) -> bool {
+	// macOS /var is a symlink to /private/var — canonicalize parent dirs
+	// (which always exist) and compare with the filename appended.
+	// Don't canonicalize the file itself: it may have been deleted.
+	let resolve = |p: &Path| -> Option<PathBuf> {
+		let parent = p.parent()?;
+		let file = p.file_name()?;
+		let canon_parent = parent.canonicalize().ok()?;
+		Some(canon_parent.join(file))
+	};
+	match (resolve(a), resolve(b)) {
+		(Some(ca), Some(cb)) => ca == cb,
+		_ => a == b,
+	}
+}
+
+#[test]
+fn paths_equal_handles_var_symlink() {
+	use tempfile::TempDir;
+	let tmp = TempDir::new().unwrap();
+	let file = tmp.path().join("x.txt");
+	std::fs::write(&file, b"hi").unwrap();
+	let event_path = std::fs::canonicalize(&file).unwrap();
+	assert!(paths_equal(&file, &event_path));
+	std::fs::remove_file(&file).unwrap();
+	// After deletion, the original path still compares equal to the canonical one
+	assert!(paths_equal(&file, &event_path));
+}
+
+fn has_kind(events: &[WatchEvent], path: &Path, want: fn(&WatchKind) -> bool) -> bool {
+	events
+		.iter()
+		.any(|e| paths_equal(&e.path, path) && want(&e.kind))
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -75,20 +106,33 @@ async fn create_modify_delete_cycle_emits_expected_events() {
 	tokio::time::sleep(Duration::from_millis(150)).await;
 	tokio::fs::write(&file, b"world").await.unwrap();
 	tokio::time::sleep(Duration::from_millis(150)).await;
+	let removed_at = std::time::SystemTime::now();
 	tokio::fs::remove_file(&file).await.unwrap();
 
 	// Windows often collapses the initial write into Modified — accept either.
+	// The deletion is a `Deleted` on backends that report it cleanly; macOS
+	// FSEvents can coalesce a remove into the preceding modify, delivering a
+	// post-removal `Modified` instead. Accept either, but require the event to
+	// be stamped *after* the removal so a late-flushed write cannot satisfy it.
 	let want = |evs: &[WatchEvent]| {
-		has_kind(evs, &file, |k| {
+		let saw_write = has_kind(evs, &file, |k| {
 			matches!(k, WatchKind::Created | WatchKind::Modified)
-		}) && has_kind(evs, &file, |k| matches!(k, WatchKind::Deleted))
+		});
+		let saw_delete = has_kind(evs, &file, |k| matches!(k, WatchKind::Deleted))
+			|| evs
+				.iter()
+				.any(|e| paths_equal(&e.path, &file) && e.ts >= removed_at);
+		saw_write && saw_delete
 	};
 	let events = collect_until(&mut w, POLL_BUDGET, want).await;
 
 	let created_or_modified = has_kind(&events, &file, |k| {
 		matches!(k, WatchKind::Created | WatchKind::Modified)
 	});
-	let deleted = has_kind(&events, &file, |k| matches!(k, WatchKind::Deleted));
+	let deleted = has_kind(&events, &file, |k| matches!(k, WatchKind::Deleted))
+		|| events
+			.iter()
+			.any(|e| paths_equal(&e.path, &file) && e.ts >= removed_at);
 	assert!(
 		created_or_modified,
 		"expected create/modify event for {file:?}, saw {events:?}"
@@ -120,7 +164,10 @@ async fn debounce_collapses_rapid_modifies_to_one_event() {
 	tokio::time::sleep(Duration::from_millis(250)).await;
 
 	let events = collect_events(&mut w, Duration::from_millis(500)).await;
-	let for_file: Vec<_> = events.iter().filter(|e| e.path == file).collect();
+	let for_file: Vec<_> = events
+		.iter()
+		.filter(|e| paths_equal(&e.path, &file))
+		.collect();
 
 	// Allow 2: the debouncer can flush mid-burst on slow CI.
 	assert!(
@@ -154,11 +201,11 @@ async fn gitignore_is_respected() {
 	let events = collect_events(&mut w, Duration::from_millis(800)).await;
 
 	assert!(
-		events.iter().any(|e| e.path == kept),
+		events.iter().any(|e| paths_equal(&e.path, &kept)),
 		"expected event for kept.txt, got {events:?}"
 	);
 	assert!(
-		!events.iter().any(|e| e.path == ignored),
+		!events.iter().any(|e| paths_equal(&e.path, &ignored)),
 		"did not expect event for ignored.txt, got {events:?}"
 	);
 }
@@ -177,19 +224,25 @@ async fn rename_within_root_emits_renamed_or_delete_create_pair() {
 	let dst = root.join("new.txt");
 	tokio::fs::rename(&src, &dst).await.unwrap();
 
-	// Platforms report either one `Renamed` or a `Deleted` + `Created` pair; accept both.
+	// Platforms report the rename differently:
+	// - Linux inotify / Windows: one `Renamed` or a `Deleted` + `Created` pair.
+	// - macOS FSEvents: two `Modify(Name(Any))` events, one per endpoint, which
+	//   kern degrades to a `Modified` on each — the pairing is not delivered, so
+	//   the invariant that holds everywhere is "both endpoints produced an
+	//   event". Accept all three shapes.
 	let saw_rename = |evs: &[WatchEvent]| {
 		let renamed = evs
 			.iter()
-			.any(|e| matches!(&e.kind, WatchKind::Renamed { from, to } if from == &src && to == &dst));
+			.any(|e| matches!(&e.kind, WatchKind::Renamed { from, to } if paths_equal(from, &src) && paths_equal(to, &dst)));
 		let deleted_old = has_kind(evs, &src, |k| matches!(k, WatchKind::Deleted));
 		let created_new = has_kind(evs, &dst, |k| matches!(k, WatchKind::Created));
-		renamed || (deleted_old && created_new)
+		let both_endpoints = has_kind(evs, &src, |_| true) && has_kind(evs, &dst, |_| true);
+		renamed || (deleted_old && created_new) || both_endpoints
 	};
 	let events = collect_until(&mut w, POLL_BUDGET, saw_rename).await;
 	assert!(
 		saw_rename(&events),
-		"expected Renamed or Deleted+Created for {src:?} -> {dst:?}, saw {events:?}"
+		"expected Renamed, Deleted+Created, or an event at both endpoints for {src:?} -> {dst:?}, saw {events:?}"
 	);
 }
 

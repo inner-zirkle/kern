@@ -67,7 +67,7 @@ Standalone fallback is a second writer against the same LMDB environment — a s
 - **`claim_kind`** — `add` with a markdown `description`, or `rm`; extends the built-in set distillation may label with.
 - **`pulse`** — force a clustering pass now. Useful after a bulk seed.
 - **`setup`** — wiring instructions for the calling agent: seed gravitons, install the capture hook, verify with an ingest/health/query round-trip. Idempotent — reports what is already `[done]`. Once per new project or agent host.
-- **`gc`** — reap empty/orphan kerns live. Returns before/after counts and `data.mdb` size (may not drop — LMDB returns disk only on compaction: next restart or offline `kern compact`).
+- **`gc`** — reap empty/orphan kerns live. Returns before/after counts and `data.mdb` size (may not drop — LMDB returns disk only on compaction: next restart or offline `kern gc`).
 - **`intake_drain`** — drain `.kern/intake/` now rather than at the next poll: queued `.txt` transcripts distilled, other readable files ingested whole, whatever committed archived into `done/`. No arguments; returns `archived`. `kern intake drain` routes through this, so the CLI and the daemon never drain the same file twice.
 
 <Callout type="info">

@@ -5,6 +5,7 @@ pub use llm::{EmbedFunc, LlmFunc};
 
 pub use crate::retrieval_diversify as diversify;
 pub use crate::retrieval_expand as expand;
+pub use crate::retrieval_intent as intent;
 pub use crate::retrieval_pagerank as pagerank;
 pub use crate::retrieval_query as query;
 pub use crate::retrieval_score as score;

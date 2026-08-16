@@ -1,35 +1,25 @@
-//! Shared test fixtures that need the full kern stack: an MCP server wired to
+//! Shared test fixtures that need the full kern stack: a daemon core wired to
 //! a stub embedder, a scratch daemon endpoint, and a second-writer commit
 //! helper.
 
 // A dead port: nothing in the default rig should reach an embedder.
-pub(crate) fn mcp_server() -> mcp::Server {
-	mcp::test_helpers::mcp_server()
+pub(crate) fn rpc_server() -> rpc::server::Server {
+	rpc::test_helpers::server()
 }
-
-
 
 #[cfg(unix)]
 pub(crate) fn scratch_endpoint(tag: &str) -> transport::typed::Endpoint {
-	let dir = std::env::temp_dir().join(format!(
-		"kern-route-{}-{}-{tag}",
-		std::process::id(),
-		util::now_ms()
-	));
+	// A socket path must fit `sun_path` (`SUN_LEN` 104 on macOS); `now_ms` was
+	// 13 digits of that budget for no real gain — pid disambiguates processes
+	// and tag disambiguates tests within one, so the pair is unique, and a
+	// stale socket from a recycled pid is reclaimed by `bind_unix`.
+	let dir = std::env::temp_dir().join(format!("kr-route-{}-{tag}", std::process::id()));
 	std::fs::create_dir_all(&dir).expect("scratch dir");
 	transport::typed::Endpoint::Unix(dir.join("kern.sock"))
 }
 
 #[cfg(unix)]
-pub(crate) const TEST_TOKEN: &str = "scratch-token";
-
-#[cfg(unix)]
-pub(crate) fn test_caller() -> transport::kern_rpc::AuthReq {
-	transport::kern_rpc::AuthReq::new(TEST_TOKEN)
-}
-
-#[cfg(unix)]
-pub(crate) async fn serving(srv: mcp::Server, endpoint: &transport::typed::Endpoint) {
+pub(crate) async fn serving(srv: rpc::server::Server, endpoint: &transport::typed::Endpoint) {
 	use std::sync::Arc;
 	use transport::typed::{bind_kern_listener, BindOutcome};
 
@@ -37,11 +27,7 @@ pub(crate) async fn serving(srv: mcp::Server, endpoint: &transport::typed::Endpo
 		panic!("scratch endpoint already bound");
 	};
 	let handler = rpc::KernRpcHandler::new(Arc::new(srv), Arc::new(tokio::sync::Notify::new()));
-	tokio::spawn(rpc::serve_kern_rpc_loop(
-		listener,
-		handler,
-		TEST_TOKEN.to_string(),
-	));
+	tokio::spawn(rpc::serve_kern_rpc_loop(listener, handler));
 }
 
 // A second writer committing straight through the shared store — how a daemon
@@ -61,7 +47,7 @@ pub(crate) fn commit_extra_kern_via_store(
 	store
 		.save_all_kerns(
 			&kerns,
-			&gg.network_id,
+			&gg.replica_id,
 			gg.quant_mode,
 			&std::collections::HashSet::new(),
 		)

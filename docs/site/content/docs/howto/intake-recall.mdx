@@ -41,7 +41,7 @@ Let your MCP client start it — `kern mcp` attaches to a running daemon, auto-s
 The daemon writes this entry into `.mcp.json` on startup if absent. To watch the first run (logs on stderr only; stdout is reserved for JSON-RPC):
 
 ```bash
-RUST_LOG=kern=info kern --daemon
+RUST_LOG=kern=info kern daemon
 ```
 
 ## 3. Seed gravitons and claim kinds
@@ -83,7 +83,7 @@ EOF
 
 `query` MCP tool: `mode`, `kind`, `source`, time ranges, `min_conf`, `as_of` (point-in-time), `include_history` (supersede chains). Returns scored passages, edges, chains — the agent synthesizes. See [Retrieval](../concepts/retrieval.mdx).
 
-Shell: `kern search "indentation" --k 5` or `kern query "what did we decide about indentation"`.
+Shell: `kern query "what did we decide about indentation"`, or `kern query --mode vector --k 5 "indentation"` for the raw nearest-neighbour probe.
 
 ## What a healthy graph looks like
 
@@ -129,7 +129,7 @@ flowchart TD
     B -->|"pending=0, done=0"| C["nothing is writing deltas — kern ships no writer; wire your harness/script to drop files, or use MCP ingest instead"]
     B -->|"STUCK entries"| D["the line names the cause: no [reason] endpoint, prose reply, or the embed/ingest failure verbatim"]
     B -->|"pending>0, all wait"| E{"daemon running?"}
-    E -->|"no"| F["start it: kern --daemon, or drain once: kern intake drain"]
+    E -->|"no"| F["start it: kern daemon, or drain once: kern intake drain"]
     E -->|"yes"| G["drain is mid-pass; re-run kern intake"]
     B -->|"done filling"| H{"kern health shows thoughts?"}
     H -->|"no"| I["embed endpoint failing — check logs for kern.ingest"]

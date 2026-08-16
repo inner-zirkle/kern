@@ -13,7 +13,6 @@ pub mod ingest_dedup;
 pub mod ingest_direct;
 pub mod ingest_distill;
 pub mod ingest_file_watcher;
-pub mod ingest_filter;
 pub mod ingest_intake;
 pub mod ingest_intake_status;
 pub mod ingest_place;

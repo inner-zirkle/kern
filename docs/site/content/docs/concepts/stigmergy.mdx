@@ -59,7 +59,7 @@ Gravitons replaced a single per-kern `purpose` field. One purpose forces one ans
 
 - `health` — graviton, kern, entity, reason counts (fastest way to spot unnamed-kern churn), plus `cold_evicted` — the one place retention stops being lossless.
 - The `gc` tool is a *different* collector: reaps empty and orphan kerns (structure, not content).
-- Deleting rows frees LMDB pages, not disk size — the file compacts on restart or `kern compact`. A `gc` reaping thousands of kerns with unchanged `data.mdb` is correct.
+- Deleting rows frees LMDB pages, not disk size — the file compacts on restart or when `kern gc` runs, which reaps and then compacts in one pass.
 
 ## See also
 

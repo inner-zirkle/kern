@@ -257,7 +257,6 @@ fn tick_head_of_line_delay() {
 			let ctx = tick_loop::TickContext {
 				llm: None,
 				embed: None,
-				broadcast_q: None,
 				gnn_cfg: GnnConfig::defaults(),
 				tick_cfg: TickConfig::default(),
 				heat_cfg: HeatConfig::default(),

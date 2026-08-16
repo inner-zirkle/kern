@@ -122,5 +122,9 @@ def test_kern_mcp_auto_starts_the_hub_and_routes_through_it(project):
 
 
 def test_status_without_a_hub_fails_softly(project):
-	_, stderr = project.run("hub", "status")
-	assert "not running" in stderr, f"no hub -> soft failure, not a hang: {stderr}"
+	"""Softly = it answers and exits, rather than hanging on a socket nobody
+	binds. It still exits non-zero: the caller asked for a hub's status and
+	there is no hub, which is a question left unanswered, not an answer."""
+	code, _, stderr = project.run_status("hub", "status")
+	assert "no hub running" in stderr, f"no hub -> soft failure, not a hang: {stderr}"
+	assert code != 0, f"an unanswered status must not exit 0: {stderr}"
