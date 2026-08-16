@@ -1024,6 +1024,7 @@ pub async fn run_server(cli: &Cli, cfg: &config::Config) {
 	}
 
 	{
+		#[cfg(unix)]
 		let takeover = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
 		#[cfg(unix)]
 		if cfg.reload.enabled {

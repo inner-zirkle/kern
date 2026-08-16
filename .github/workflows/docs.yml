@@ -51,6 +51,13 @@ jobs:
       - run: npm run build
         env:
           NEXT_PUBLIC_BASE_PATH: /kern
+          # lib/llm-txt.mjs bakes this into every absolute link inside
+          # llms.txt and each page's .txt export at build time (plain text
+          # has no request context to resolve a relative link against, unlike
+          # the HTML pages). Unset, it silently falls back to
+          # http://localhost:3000 — every link in the published llms.txt
+          # pointed at a dev server nobody could reach.
+          NEXT_PUBLIC_SITE_URL: https://inner-zirkle.github.io
       # Next emits _next/; without this Jekyll drops every underscore path.
       - run: touch out/.nojekyll
       - uses: actions/upload-pages-artifact@v3

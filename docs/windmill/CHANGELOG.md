@@ -2,6 +2,28 @@
 
 <!-- docs-check: historical -->
 
+- 2026-08-16 — every link inside the published `llms.txt` (and every
+  page's own `.txt` twin — `howto/install-run.txt`, `decisions.txt`, …)
+  pointed at `http://localhost:3000/...` instead of
+  `https://inner-zirkle.github.io/kern/...`. Reported by feb from the live
+  site, not caught by the doc sweep two entries below because that sweep
+  read source, never fetched the deployed page. `lib/llm-txt.mjs`'s `site`
+  const falls back to `http://localhost:${PORT ?? 3000}` when
+  `NEXT_PUBLIC_SITE_URL` is unset, and `.github/workflows/docs.yml`'s build
+  step set `NEXT_PUBLIC_BASE_PATH` but never `NEXT_PUBLIC_SITE_URL` — so
+  every production build baked in the dev fallback, silently, for both the
+  `scripts/gen-llm-txt.mjs` pre-build step and the `/llms.txt` route's own
+  `llmsTxt()` call (which also defaults to `site` outside
+  `NODE_ENV=development`). Fixed by setting `NEXT_PUBLIC_SITE_URL:
+  https://inner-zirkle.github.io` alongside the existing base-path env var.
+  Verified: `NEXT_PUBLIC_SITE_URL=https://inner-zirkle.github.io
+  NEXT_PUBLIC_BASE_PATH=/kern npm run build` locally, then `grep -c
+  localhost out/llms.txt` → `0` and `out/howto/install-run.txt` opens with
+  `https://inner-zirkle.github.io/kern/howto/install-run/`.
+  Decided by: feb (reported the live bug directly); verify-before-claiming
+  (reproduced the exact env-var gap in `docs.yml` rather than guessing at a
+  client-side routing cause, then confirmed the fixed build's output).
+
 - 2026-08-16 — the v2.0.0 release build (previous entry) is what finally
   exposed three portability bugs that had silently sat in every `release.yml`
   run since v1.1.0, each one failing 5-8 of the 16 matrix targets while the
@@ -34,12 +56,24 @@
   linker installed — but both were compile-time-const/type errors, not link
   errors, and both are gone); `cargo check --workspace --all-targets` and
   `cargo test --workspace --lib` (every crate, 0 failed) stay green natively.
+  **A fourth bug those three were hiding**: the re-cut `v2.0.0` tag's real
+  CI run still failed all 4 Windows targets — `commands/src/lib.rs`'s
+  `let takeover = Arc::new(AtomicBool::new(false))` was declared
+  unconditionally but read only inside two `#[cfg(unix)]` blocks (the hot
+  -reload takeover flag), so it never appeared in the old v1.1.0–v1.3.0 logs
+  at all: those runs died at the `wire.rs` `UnixListener` import before the
+  build ever reached this line. Gated the `let` behind `#[cfg(unix)]` too.
+  The honest caveat on the "verified" claim above: *local* verification
+  checked the specific error signatures already on record, not "every error
+  a real Windows toolchain would find" — this one was invisible until the
+  actual re-tagged CI run surfaced it, which is exactly why the tag was
+  re-cut on the fix rather than trusted on the local check alone.
   Decided by: feb (user-directed, folded into "release it"); fix-the-root
   (deleted the orphaned module rather than patching a `#[cfg(unix)]` onto
   code nothing calls); verify-before-claiming (traced actual CI logs from the
-  three prior failed releases rather than guessing at the failure mode, and
-  reproduced each fix's target-specific error clearing before writing this
-  entry).
+  three prior failed releases and the fresh re-run rather than guessing at
+  the failure mode, and named the limit of the local check rather than
+  letting the first "green" claim stand uncorrected).
 
 - 2026-08-16 — released v2.0.0: kern leaves alpha. `AGENTS.md`'s "Alpha — no
   compatibility" section is now "Format compatibility" — a store written by
@@ -648,17 +682,3 @@
   verify-before-claiming. Still open: top-10 stability; item 54 GC gate.
 
 - 2026-08-07 — split the single `kern` crate into a 24-member workspace of concept crates (no `kern-` prefix, llm/src shape): util, base, math, store_core, store, bootstrap, graph, ingest_config, llm, config, gnn, retrieval, ingest, tick, gossip, tick_loop, transport, test_support, health, mcp, rpc, hub, commands, plus the `kern` binary. Each crate has Cargo.toml + README + its own `src/lib.rs`. Cycle-breaks by moving pure helpers into lower crates: `entity_detail_by_id`/`base_entity_json`→retrieval::id_detail; `link_entities`/`forget_entity`/`promote_entity`/`forget_by_source`/`degrade_entity_reasons`→graph::graph_ops; `graviton_rows`→graph::graph_ops; `load_graph`/`save_graph_guarded`/`snapshot_if_dirty`/`reconcile_if_stale`/`bind_embed_model`/`apply_graph_config`/`reload_graph`→bootstrap; `store::base_store`/`store::lock`→store_core (split out so graph→store_core stays acyclic with store::Registry needing them); `launch_dir_join`/`set_launch_dir`→commands. `kern` lib.rs reduced to 25 lines (just `pub use` re-exports). 1108 tests pass, `cargo clippy --all-targets --workspace` clean. Decided by: continue-folding (user-directed structural split, llm/src shape).
-
-- 2026-08-07 — release-readiness audit: the tree is **not** release-clean.
-  `cargo fmt --check` failed on 20 files left unformatted by the 24-crate split
-  (CI lint gate would have rejected the push); fixed. A prior "tests pass"
-  reading was the root package only (12 tests) — `--workspace` is 1108, and one
-  of them, `base_types::observe_support_and_observe_contradict_stamp_updated_at`,
-  raced on `SystemTime::now()` under load (wall clock is not monotonic); rewritten
-  against a UNIX_EPOCH sentinel, 3 consecutive `--no-fail-fast` runs green.
-  `test_daemon_reads` also fails locally but only on a WSL-loopback stderr
-  warning the test forbids — environmental, green on CI's ubuntu runner.
-  Alpha exit deferred: leaving alpha means promising format stability, and the
-  codebase is built on the opposite policy (FORMAT_VERSION bump = wipe and
-  reingest, no migrations) — closed by the 2026-08-16 v2.0.0 entry above, once
-  that policy changed. Decided by: verify-before-claiming, name-the-tradeoff.
