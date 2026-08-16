@@ -36,7 +36,6 @@ ROOT = Path(__file__).resolve().parent.parent
 PAGE_DIRS = [
     ROOT / "docs" / "site" / "content",
     ROOT / "docs" / "kern",
-    ROOT / "docs" / "windmill",
 ]
 REF = re.compile(r"`(src/[A-Za-z0-9_/.-]+\.rs)(?::(\d+)(?:-(\d+))?)?`")
 REPO_PATH = re.compile(
@@ -275,8 +274,25 @@ def nominate(
     return (len(shared), shared) if len(shared) < bar else None
 
 
+
+# The direction files, singled out by name rather than swept in with a glob:
+# `docs/` also holds loose research notes (`bayesian-belief.md`,
+# `diskann-disk-index.md`, …) with their own long-standing, unrelated citation
+# debt from older layouts — a blanket `docs/*.md` scan pulled all of it in the
+# moment these files landed flat. Add a note here by name when it moves too.
+FLAT_DOCS = [
+    "VISION.md",
+    "FEATURES.md",
+    "ROADMAP.md",
+    "CHANGELOG.md",
+    "ORACLE.md",
+]
+
+
 def pages() -> list[Path]:
     found = [ROOT / "README.md"]
+    found += [ROOT / "docs" / name for name in FLAT_DOCS]
+    found += sorted((ROOT / "docs" / "specs").glob("*.md"))
     for d in PAGE_DIRS:
         found += sorted(d.rglob("*.md")) + sorted(d.rglob("*.mdx"))
     return found
@@ -392,11 +408,17 @@ def check_page(page: Path, failures: list[str], nominations: list[str] | None = 
                     span(m.group(2), m.group(3)), f"missing file {m.group(1)}",
                 )
             elif kind == "sibling":
-                # Beside the citing page first, then the repo root — `README.md:159` in
-                # docs/oracle/ROADMAP.md means the top-level README.
-                target = page.parent / m.group(1)
-                if not target.is_file():
+                # Beside the citing page first, then the repo root — `FEATURES.md:159` in
+                # docs/ROADMAP.md means the sibling doc. `README.md` is the one name this
+                # does not hold for: every subdirectory could grow its own stub (docs/
+                # already has one, a 3-line pointer at docs/index.md), so a bare
+                # `README.md:NNN` citation always means the top-level README, sibling or not.
+                if m.group(1) == "README.md":
                     target = ROOT / m.group(1)
+                else:
+                    target = page.parent / m.group(1)
+                    if not target.is_file():
+                        target = ROOT / m.group(1)
                 cur = target
                 check(
                     m.group(0), target, lineno, m.group(1),
@@ -504,14 +526,14 @@ def selftest() -> None:
         "./federation.mdx",
         "../howto/mcp.mdx",
     ]
-    assert LINK.findall("[v](../windmill/VISION.md)") == ["../windmill/VISION.md"]
+    assert LINK.findall("[v](../VISION.md)") == ["../VISION.md"]
     assert LINK.findall("[x](https://example.com/a.mdx)") == []
     assert SELF_URL.findall(
         "curl https://raw.githubusercontent.com/inner-zirkle/kern/main/scripts/install.sh | sh"
     ) == ["scripts/install.sh"]
     assert SELF_URL.findall(
-        "[v](https://github.com/inner-zirkle/kern/blob/main/docs/windmill/VISION.md)"
-    ) == ["docs/windmill/VISION.md"]
+        "[v](https://github.com/inner-zirkle/kern/blob/main/docs/VISION.md)"
+    ) == ["docs/VISION.md"]
     assert SELF_URL.findall("https://github.com/inner-zirkle/kern/releases") == []
     # The two renames the checker was blind to, each pinned by a case.
     assert STALE_SELF_URL.findall(
@@ -523,7 +545,8 @@ def selftest() -> None:
     assert not STALE_SELF_URL.findall(
         "https://github.com/inner-zirkle/kern/blob/main/README.md"
     ), "the current form is not stale"
-    assert (ROOT / "docs" / "windmill" / "ROADMAP.md") in pages(), "docs/windmill is scanned"
+    assert (ROOT / "docs" / "ROADMAP.md") in pages(), "flat docs/ is scanned"
+    assert (ROOT / "docs" / "specs" / "SPECIALISTS.md") in pages(), "docs/specs is scanned"
     assert (ROOT / "docs" / "kern" / "README.md") in pages(), "docs/kern is scanned"
     assert GONE.search("`docs/kern/x.md`, deleted 2026-07-20"), "a deletion excuses its line"
     assert not GONE.search("see `src/base/merge.rs:20`"), "a live citation is not excused"

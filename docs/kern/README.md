@@ -10,7 +10,7 @@ keep the reasoning that produced it.
 These are reference material, not a tutorial. For how to *use* kern, start with
 the [README](../../README.md) and the
 [Memory Bank guide](../site/content/docs/howto/memory-bank.mdx);
-for what it is and why it exists, read the [Vision](../windmill/VISION.md).
+for what it is and why it exists, read the [Vision](../VISION.md).
 
 Most notes are point-in-time studies: each opens with a status line saying what
 has shipped since, and code paths inside them may reference the older `crates/`
@@ -48,7 +48,7 @@ says so and the body does not.
 
 ## Planning
 
-All open work lives in one file: **[ROADMAP.md](../windmill/ROADMAP.md)**.
+All open work lives in one file: **[ROADMAP.md](../ROADMAP.md)**.
 This directory holds reference and measurement records; any forward-looking
 plans a note carries are historical, and ROADMAP.md alone is authoritative
 for new work.

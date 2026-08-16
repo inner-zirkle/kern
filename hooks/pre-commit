@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# windmill-gate: an unrecorded decision cannot be committed.
+# decisions gate: an unrecorded decision cannot be committed.
 #
 # Rule 1: a commit touching a direction file must add a new CHANGELOG entry at
 # the top. The topmost entry is compared before against after — never counted
@@ -7,12 +7,12 @@
 # never grepped for the phrase (which matches from the second commit onward
 # forever, so the hook would go green exactly when it is wrong).
 #
-# WINDMILL.md and SPECIALISTS.md are not direction files: wording and learned
-# notes are not evolution.
+# ORACLE.md and docs/specs/SPECIALISTS.md are not direction files: wording and
+# learned notes are not evolution.
 set -u
 
-CHANGELOG="docs/windmill/CHANGELOG.md"
-DIRECTION="docs/windmill/VISION.md docs/windmill/FEATURES.md docs/windmill/ROADMAP.md"
+CHANGELOG="docs/CHANGELOG.md"
+DIRECTION="docs/VISION.md docs/FEATURES.md docs/ROADMAP.md"
 CAP=50
 
 staged="$(git diff --cached --name-only)"
@@ -31,7 +31,7 @@ if [ "$changelog_staged" -eq 1 ]; then
 	count="$(git show ":$CHANGELOG" 2>/dev/null | grep -c 'Decided by:' || true)"
 	: "${count:=0}"
 	if [ "$count" -gt "$CAP" ]; then
-		printf 'windmill rule 1: %s holds %s entries, the cap is %s.\nDrop the oldest in this same commit — git keeps what you remove.\n' \
+		printf 'decisions gate: %s holds %s entries, the cap is %s.\nDrop the oldest in this same commit — git keeps what you remove.\n' \
 			"$CHANGELOG" "$count" "$CAP" >&2
 		exit 1
 	fi
@@ -39,14 +39,14 @@ fi
 
 if [ "$touched" -eq 1 ]; then
 	if [ "$changelog_staged" -eq 0 ]; then
-		printf 'windmill rule 1: a direction file changed but %s is not staged.\nRecord the decision in the same change, one line, or you are not making one.\n' \
+		printf 'decisions gate: a direction file changed but %s is not staged.\nRecord the decision in the same change, one line, or you are not making one.\n' \
 			"$CHANGELOG" >&2
 		exit 1
 	fi
 	after="$(git show ":$CHANGELOG" 2>/dev/null | grep -m1 'Decided by:' || true)"
 	before="$(git show "HEAD:$CHANGELOG" 2>/dev/null | grep -m1 'Decided by:' || true)"
 	if [ -z "$after" ] || [ "$after" = "$before" ]; then
-		printf 'windmill rule 1: a direction file changed but %s gained no new "Decided by:" entry at the top.\nRecord the decision in the same change, one line, or you are not making one.\n' \
+		printf 'decisions gate: a direction file changed but %s gained no new "Decided by:" entry at the top.\nRecord the decision in the same change, one line, or you are not making one.\n' \
 			"$CHANGELOG" >&2
 		exit 1
 	fi
@@ -54,7 +54,7 @@ fi
 
 # Rule 2: non-markdown changed with no changelog entry — warn, let through.
 if printf '%s\n' "$staged" | grep -qv '\.md$' && [ "$changelog_staged" -eq 0 ]; then
-	printf 'windmill rule 2: non-markdown files changed with no %s entry — a feature or decision may have gone unrecorded.\n' "$CHANGELOG" >&2
+	printf 'decisions gate rule 2: non-markdown files changed with no %s entry — a feature or decision may have gone unrecorded.\n' "$CHANGELOG" >&2
 fi
 
 exit 0

@@ -1,6 +1,6 @@
 # kern — agent notes
 
-Read `docs/windmill/ORACLE.md` before acting.
+Read `docs/ORACLE.md` before acting.
 
 ## Format compatibility
 

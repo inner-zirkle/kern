@@ -38,7 +38,7 @@ flowchart TD
 - **Cold backfill** — fewer than `k` hot results scans the cold tier, flags hits `cold:true`; `as_of` stays exact over backfill.
 
 <Callout type="warn" title="A reason edge cannot yet lift its neighbour into the results">
-Measured, not suspected: over 8 linked A→B pairs probed with text matching only A, the edge moves one pair by one rank. An entity reached both by content and across an edge keeps the larger of its two scores — the edge contributes nothing. **No claim that traversal improves what is recalled is true today.** Item 86 in [`ROADMAP.md`](https://github.com/inner-zirkle/kern/blob/main/docs/windmill/ROADMAP.md).
+Measured, not suspected: over 8 linked A→B pairs probed with text matching only A, the edge moves one pair by one rank. An entity reached both by content and across an edge keeps the larger of its two scores — the edge contributes nothing. **No claim that traversal improves what is recalled is true today.** Item 86 in [`ROADMAP.md`](https://github.com/inner-zirkle/kern/blob/main/docs/ROADMAP.md).
 </Callout>
 
 ## Indexes

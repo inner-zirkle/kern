@@ -133,7 +133,7 @@ outweighs the consistency gain. The daemon's MCP tools clamp against
 would silently demote user-authored content. Both commands already use
 `flush_guarded` and `save_graph_guarded` with epoch-checked reload-on-conflict,
 so the safety argument for routing does not hold. The status quo wins.
-See `.pi/routing-investigation.md` for the full analysis.
+See `` `.pi/routing-investigation.md` `` (local, gitignored) for the full analysis.
 
 **Closed 2026-07-21: `graviton add`/`remove` and `claim-kind add`/`rm`.** These
 were the four shipped subcommands that reached `with_graph`
@@ -2733,7 +2733,7 @@ past `graph.rs`); with the skip, 0 failures, total == 1; negative control (skip
 disabled) reds on `` `:8080` `` as `store.rs:8080 beyond EOF`. **Honest finding —
 the skip is NOT a no-op on the real tree, contrary to the third pass's "none in
 the tree today":** three fenced `` `src/llm/src/llm.rs:11434` `` tokens in
-`docs/windmill/FEATURES.md:918` and `docs/windmill/ROADMAP.md:2916`/`:2925` were
+`docs/FEATURES.md:918` and `docs/ROADMAP.md:2916`/`:2925` were
 being matched as dead references (`llm.rs` has 991 lines). With the skip they are
 silent. Before: 3 dead references, 129 nominations. After: 0 dead references,
 129 nominations — nomination count unchanged, three false positives fixed.
@@ -2754,7 +2754,7 @@ while `REF`/`REPO_PATH`/`SIBLING_REF` still ran on raw `text`. So an illustrated
 spelled-out path reddened as a phantom past-EOF citation and docs-check stayed red
 from 2026-07-22 to 2026-07-24. Fixed 2026-07-24 by running every citation form over
 `quoted`, so the illustration escape is uniform; the four surviving single-backtick
-port tokens (`docs/windmill/FEATURES.md:925`, `docs/windmill/ROADMAP.md:2936`/`:3373`/`:3382`)
+port tokens (`docs/FEATURES.md:925`, `docs/ROADMAP.md:2936`/`:3373`/`:3382`)
 were escaped with the documented `` `:11434` `` idiom. `python3 tests/docs_check.py`
 now exits 0; the selftest pins the escape and its negative control. See the
 2026-07-24 CHANGELOG entry.
@@ -3034,12 +3034,12 @@ reads as adjudicated.
 `hooks/pre-commit` (byte-identical to the legacy `.git/hooks/pre-commit`, 3049 B,
 no logic change) and installed via a `just hooks` recipe that runs
 `git config core.hooksPath hooks` (idempotent — re-run is a no-op), wired into
-`.pi/update.sh` after the existing install lines so a fresh clone gets
+`` `.pi/update.sh` `` after the existing install lines so a fresh clone gets
 enforcement after `pi install`. `core.hooksPath` supersedes `.git/hooks/`
 entirely, so the legacy untracked file becomes inert and harmless — left in
 place (no `.git/` write) as a fallback if someone unsets the path. Negative
 control: with `core.hooksPath` unset and the legacy hook moved aside, a
-throwaway `docs/windmill/ROADMAP.md` edit commits clean (gate absent); with
+throwaway `docs/ROADMAP.md` edit commits clean (gate absent); with
 `just hooks` run, the same commit is refused by the oracle gate (rule 1
 block, the new entry uncited). `just check` + `just docs-check` green; no Rust, no
 hook-logic change, no new deps. Decided by fix-the-root (track + install the
@@ -3050,12 +3050,12 @@ commits, set+tracked blocks). See the 2026-07-22 CHANGELOG entry.
 
 ~~`ORACLE.md` rule 1 is enforced by `.git/hooks/pre-commit`, which lives only in
 `.git/` and is created by nothing in the repo — no `justfile` recipe, no
-`install.sh` step, no `.pi/update.sh` line. A fresh clone has **zero enforcement
+`install.sh` step, no `` `.pi/update.sh` `` line. A fresh clone has **zero enforcement
 of the ruling every commit is supposed to answer to**, and nothing announces it.
 The hook itself calls this out as a "per-clone install product"; the install half
 does not exist. Wanted: track it in the repo (`scripts/` was dissolved
 2026-07-22; `.pi/` or a tracked hooks dir) and install it via
-`core.hooksPath` or a `just` recipe run by `.pi/update.sh`.~~
+`core.hooksPath` or a `just` recipe run by `` `.pi/update.sh` ``.~~
 
 ### 75. Crash consistency on the DiskANN path `[store]`
 
@@ -4125,9 +4125,10 @@ number ("blocked on item 13") and renumbering would silently repoint them.
 - **CI runs the lint gate and the e2e suite** — were items 71 and 72. `just check`
   and `just e2e` as jobs in `.github/workflows/ci.yml`. The banned-vocabulary step
   beside them could never fail and was fixed in the same change.
-- **`.pi/update.sh` ships** — was item 73. It was gitignored, so the fresh-checkout
-  guarantee did not exist; now the single tracked exception to `/.pi/*`, running
-  `just docs-install` and `just e2e-install`.
+- **`` `.pi/update.sh` `` ships** — was item 73. It was gitignored, so the
+  fresh-checkout guarantee did not exist; briefly the single tracked exception
+  to `/.pi/*`, running `just docs-install` and `just e2e-install` — since
+  reverted, `.pi/` is gitignored wholesale again (see FEATURES.md §21c).
 - **A panicking tick task no longer kills maintenance** — was item 2. `catch_unwind`
   in `tick::start`, counted and surfaced on MCP, RPC and `kern health`. The GNN
   forward/backward chain is fallible end to end, so a failed propagation persists

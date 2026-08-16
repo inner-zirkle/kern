@@ -1381,12 +1381,14 @@ missing file or a line past EOF, any backticked repo path under
 `docs/`/`tests/`/`.github/`/`.pi/` that does not exist, any relative
 `.md`/`.mdx` page link whose target does not exist, and any link into this
 repo's own files on GitHub that names a file not committed — the check that
-would have caught the month-long dead `install.sh` link. It scans every
-documentation directory: `docs/site/content/`, `docs/kern/`, `docs/windmill/` and
-`README.md`. Two escapes carry the citations that are *meant* to name something
-gone — a page holding `<!-- docs-check: historical -->` is skipped whole
-(`CHANGELOG.md`), and a line naming a deletion is excused in place, so a
-present-tense page can still record what it removed. `--selftest` pins the
+would have caught the month-long dead `install.sh` link. It scans `docs/site/content/` and `docs/kern/` (recursive), `docs/specs/`
+(non-recursive), the five direction files named explicitly (`FLAT_DOCS` in
+`docs_check.py` — `docs/` also holds loose research notes with their own
+unrelated citation debt from older layouts, so it is not swept wholesale),
+and `README.md`. Two escapes carry the citations that are *meant* to name
+something gone — a page holding `<!-- docs-check: historical -->` is skipped
+whole (`CHANGELOG.md`), and a line naming a deletion is excused in place, so
+a present-tense page can still record what it removed. `--selftest` pins the
 regexes and the escapes.
 `.github/workflows/docs-check.yml` runs it on every push and PR, deliberately
 unfiltered by path. Pages state only what exists today (including honest "not
@@ -1430,10 +1432,11 @@ on every push and PR, deliberately unfiltered by path),
 targets, built `--release --locked`, packaged per-target and attached to the
 GitHub Release the install scripts fetch from).
 
-**Bootstrap** — `.pi/update.sh` is **tracked**. It was previously matched by the
-default-deny `.gitignore`, so the file existed locally and in no clone: the
-fresh-checkout guarantee it describes did not exist for anyone else. It runs
-`just docs-install` and `just e2e-install`.
+**Bootstrap** — `` `.pi/update.sh` `` is local, per-agent tooling (`.pi/` is
+gitignored wholesale, one machine's working state) that runs
+`just docs-install` and `just e2e-install` when present; it is not a
+fresh-checkout guarantee and was never meant to be one — a clean clone
+bootstraps through `just` recipes directly, not through anything under `.pi/`.
 
 **Gaps.** The lint job is the only gate on formatting, so a change that only
 touches non-Rust files can still land unformatted docs. Cross-compiled targets

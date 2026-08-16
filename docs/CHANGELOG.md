@@ -2,6 +2,48 @@
 
 <!-- docs-check: historical -->
 
+- 2026-08-16 — "windmill" retired as a name and as a subdirectory
+  (user-directed — "windmill should not be a thing anymore" / "we moved to
+  our new pi structure"). `docs/windmill/{VISION,FEATURES,ROADMAP,CHANGELOG,
+  ORACLE}.md` → flat `docs/*.md`, `docs/windmill/SPECIALISTS.md` →
+  `docs/specs/SPECIALISTS.md` (`git mv`, history intact) — exactly the layout
+  `docs/index.md`'s own `/index` dry-run already proposed, applied by hand
+  since its `.pi/index-plan.json` input wasn't present on this machine.
+  `hooks/pre-commit` repointed at the new paths and renamed from "windmill
+  gate" to "decisions gate" (same rules: a changed direction file needs a new
+  top CHANGELOG entry in the same commit, capped at 50 `Decided by:`
+  entries); `AGENTS.md`, `README.md`, `docs/kern/README.md`, and three
+  docs-site pages' dead GitHub-blob links repointed.
+  This is also what the failing `Docs check` CI run (green on every push
+  since 2026-08-09, silently, until now — a partial-success workflow reads
+  as fine unless you check job status, the same shape as the release.yml
+  finding two entries below) turned out to be about: `docs/{FEATURES,
+  ROADMAP}.md` cited `` .pi/update.sh `` and `` .pi/routing-investigation.md ``
+  as if they were tracked — `.pi/` is gitignored wholesale (confirmed via
+  `git ls-files`), so a fresh CI checkout never has them. FEATURES.md's
+  "is **tracked**" claim was rewritten to match reality (local, per-agent
+  tooling, not a fresh-checkout guarantee); the ROADMAP.md mentions are
+  historical record of a plan that was briefly tried and reverted, escaped
+  with the double-backtick illustration idiom rather than rewritten.
+  `tests/docs_check.py` itself needed two fixes exposed by the move, not
+  papered over: its `PAGE_DIRS` swept `docs/windmill/` recursively, so
+  simply widening that to flat `docs/*.md` pulled in loose research notes
+  (`bayesian-belief.md`, `diskann-disk-index.md`, …) with 80+ unrelated dead
+  citations from older layouts — narrowed back to the five direction files
+  by name (`FLAT_DOCS`), not a glob. And moving `ROADMAP.md` up a directory
+  put it beside a pre-existing 3-line `docs/README.md` stub, so its own bare
+  `README.md:NNN` citations (meant for the 430-line root README) started
+  resolving to the stub instead — `README.md` is now the one bare-citation
+  name that always means repo root, sibling or not, rather than
+  sibling-first-then-root like every other name. `python3 tests/docs_check.py
+  --selftest` and the real run both exit 0; `cargo check --workspace
+  --all-targets` and `cargo test --workspace --lib` stay green.
+  Decided by: feb (user-directed); verify-before-claiming (traced the actual
+  CI log rather than assuming the failure was cosmetic, confirmed `.pi/`'s
+  untracked status with `git ls-files` rather than trusting the doc's own
+  claim, and fixed the resolution bug the move caused instead of routing
+  around it with an escape).
+
 - 2026-08-16 — every link inside the published `llms.txt` (and every
   page's own `.txt` twin — `howto/install-run.txt`, `decisions.txt`, …)
   pointed at `http://localhost:3000/...` instead of
@@ -649,36 +691,5 @@
   passed. Decided by: fix-the-root, name-the-tradeoff, verify-before-claiming.
   Still open: the tuning sweep (item 55/87) — neither half-life measured vs
   recall.
-
-- 2026-07-23 — item 48 beside half-closed (per-kind dedup threshold, default-off):
-  `IngestConfig.dedup_threshold_by_kind: [Option<f64>; 5]` (new, indexed by
-  `EntityKind as u8`, default `[None; 5]` = bit-identical) + `dedup_threshold_for(kind)`
-  resolver (`None` → global). `validate` rejects out-of-range `Some` naming the
-  kind. Three production call sites (`place.rs` `place_document`/`place_chunks`,
-  `worker.rs`) resolve per-kind; `ingest_cmd` + `mcp tools_mutate` bridge into
-  the runtime `Config`. Array indexed by `as u8` avoids adding `Hash` to
-  `EntityKind`. Proved by `dedup_threshold_for_kind_resolves`,
-  `validate_rejects_out_of_range_per_kind`,
-  `per_kind_dedup_threshold_tightens_facts_loosens_claims` (Fact `Some(0.99)`
-  keeps `0.97`; Claim `Some(0.80)` dedups `0.81`). Existing dedup/place green
-  unedited at default. `cargo test -p kern --lib` 958 passed, 0 failed, 4
-  ignored; `cargo test -p trnsprt --lib` 61 passed. Negative control (Fact slot
-  → `None` → `0.97` dedups → reds) green on revert.
-  Decided by: fix-the-root, name-the-tradeoff, verify-before-claiming.
-  Still open: hard paraphrase-evadable dedup key (main body).
-
-- 2026-07-23 — item 62 `kern://health` surfacing closed: the active heat
-  retention half-life (`HeatConfig.half_life_secs`, the one `Preset::apply`
-  sets — relaxed=30d / medium=7d / tight=3d) is now surfaced. `Server::health_stats`
-  (`src/mcp/src/lib.rs`) JSON carries `heat_half_life_secs` from `self.cfg.heat`;
-  `trnsprt::HealthRes` gains `#[serde(default)] heat_half_life_secs` (old daemon
-  → `0`); `kern health` prints `heat: half-life {N}s` daemon-sourced only (item
-  100 rule); `kern://local/health` carries it by construction. Proved by dto
-  round-trip `2592000` + old-payload absence → `0`, and
-  `kern_health_prints_heat_half_life` (30d → `2592000s`, `0` → `0s`, no daemon →
-  no line); negative control (omit field → `0` → print reds, green on revert).
-  `cargo test -p kern --lib` 955 passed, 0 failed, 4 ignored; `cargo test -p
-  trnsprt --lib` 61 passed. Decided by: fix-the-root, name-the-tradeoff,
-  verify-before-claiming. Still open: top-10 stability; item 54 GC gate.
 
 - 2026-08-07 — split the single `kern` crate into a 24-member workspace of concept crates (no `kern-` prefix, llm/src shape): util, base, math, store_core, store, bootstrap, graph, ingest_config, llm, config, gnn, retrieval, ingest, tick, gossip, tick_loop, transport, test_support, health, mcp, rpc, hub, commands, plus the `kern` binary. Each crate has Cargo.toml + README + its own `src/lib.rs`. Cycle-breaks by moving pure helpers into lower crates: `entity_detail_by_id`/`base_entity_json`→retrieval::id_detail; `link_entities`/`forget_entity`/`promote_entity`/`forget_by_source`/`degrade_entity_reasons`→graph::graph_ops; `graviton_rows`→graph::graph_ops; `load_graph`/`save_graph_guarded`/`snapshot_if_dirty`/`reconcile_if_stale`/`bind_embed_model`/`apply_graph_config`/`reload_graph`→bootstrap; `store::base_store`/`store::lock`→store_core (split out so graph→store_core stays acyclic with store::Registry needing them); `launch_dir_join`/`set_launch_dir`→commands. `kern` lib.rs reduced to 25 lines (just `pub use` re-exports). 1108 tests pass, `cargo clippy --all-targets --workspace` clean. Decided by: continue-folding (user-directed structural split, llm/src shape).
