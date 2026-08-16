@@ -235,8 +235,12 @@ verbs (`query`, `get`, `forget`, `degrade`, `promote`, `graviton`,
 `claim-kind`, `intake drain`) land in its live graph, so you are reading and
 writing the serving state, not a stale disk copy.
 
-kern is alpha: store and wire formats change without migration paths. A store
-written by an older build is rejected at load — wipe `.kern/data` and reingest.
+kern is alpha: wire formats (the daemon RPC) change without migration paths.
+Store formats are the one exception — a store written by the previous build
+migrates one hop forward automatically on read (`kern migrate` rewrites it on
+disk; `kern doctor` flags a store that hasn't been). A store more than one
+format version behind is still rejected at load — wipe `.kern/data` and
+reingest in that case.
 
 ### Configure
 
@@ -355,7 +359,8 @@ store directly.
 | `kern intake {status\|drain}` | Intake queue report / one immediate drain pass (routed, so only one process ever drains). |
 | `kern gc` / `kern reembed` | Reap empty kerns and compact the store / re-embed on a new model. Both refuse while a daemon holds the writer lock, naming the holder. |
 | `kern export` / `kern import` | Versioned JSON of the hot graph out / CRDT-union merge in. |
-| `kern doctor` / `kern repair <manifest>` | Read-only store diagnosis / manifest-authorized fixes only. |
+| `kern doctor` / `kern repair <manifest>` | Read-only store diagnosis (flags a store still on the previous format, among other findings) / manifest-authorized fixes only. |
+| `kern migrate` | Rewrite a store written by the previous format version to the current one in place (kern rows, cold tier, meta), one hop back only. Idempotent, writer-lock-guarded; reads already migrate in memory without this — running it rewrites the disk rows too. |
 | `kern hub {status\|resolve\|unload\|merge\|stop}` | The machine hub: list every known kern (loaded or cold), resolve/spawn a project's daemon, unload one, merge two stores offline, stop the hub. |
 
 Four verbs carry git-shaped aliases (both spellings work): `kern grep` =

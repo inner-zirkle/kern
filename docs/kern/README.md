@@ -20,28 +20,28 @@ says so and the body does not.
 
 ## Self-organization
 
-- **[Stigmergy for self-improving memory](stigmergy-self-improving.md)** — the
+- **[Stigmergy for self-improving memory](../stigmergy-self-improving.md)** — the
   heat / decay / evict / cluster loop that keeps the hot graph small without
   manual gardening. Implemented by `tick::stigmergy`.
-- **[PageRank for authority](pagerank-authority.md)** — how graph centrality
+- **[PageRank for authority](../pagerank-authority.md)** — how graph centrality
   was meant to weight retrieval. Personalised PageRank runs at seed fusion, but a
   reason edge is measured to move ranking barely at all (1 of 8 pairs, by one
   rank), so the weighting is close to unobserved.
-- **[Bayesian belief](bayesian-belief.md)** — multi-observer truth convergence:
+- **[Bayesian belief](../bayesian-belief.md)** — multi-observer truth convergence:
   how confidence updates as independent observations accumulate.
-- **[Wikipedia edit-convergence](wikipedia-edit-convergence.md)** — the
+- **[Wikipedia edit-convergence](../wikipedia-edit-convergence.md)** — the
   NPOV-style model for converging on neutral, durable thoughts.
 
 ## Retrieval & indexing
 
-- **[DiskANN-style disk-resident index](diskann-disk-index.md)** — the design
+- **[DiskANN-style disk-resident index](../diskann-disk-index.md)** — the design
   for the on-disk ANN index, now wired as the opt-in `VectorBackend::Disk`
   spill for the entity index (off by default; see `base::diskann` and
   `base::vector_backend`).
 
 ## Runbooks
 
-- **[Running kern against vLLM](vllm.md)** — the one page here that is not a
+- **[Running kern against vLLM](../vllm.md)** — the one page here that is not a
   design study: how a `[reason]` / `[answer]` / `[embed]` leg points at an
   OpenAI-compatible server, and the WSL2 flags each of which clears one vLLM
   startup failure.
