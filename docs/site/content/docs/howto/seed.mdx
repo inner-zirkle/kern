@@ -8,15 +8,7 @@ Push existing knowledge — design docs, ADRs, README, notes — into a fresh gr
 
 Named focus areas: ingest routes each thought to the nearest one, ranking boosts thoughts near one. Seed first — content ingested before any graviton exists lands in `generic` and stays there.
 
-MCP `graviton` tool, once per focus area:
-
-```json
-{ "action": "add", "name": "decisions",   "text": "We chose LMDB over sled because readers never block writers.\nWe rejected a pluggable backend; an external store adds a network hop.\nDecision: contradiction detection runs on the background tick, with rationale recorded." }
-{ "action": "add", "name": "architecture", "text": "One long-running daemon per working directory owns the knowledge graph.\nRetrieval seeds candidates from HNSW and BM25, then expands over reason edges.\nPersistence is a single LMDB environment." }
-{ "action": "add", "name": "preferences",  "text": "Code style: as few comments as possible.\nOne responsibility per file, split early.\nAlways run the exact gate command before claiming green." }
-```
-
-CLI equivalent:
+Once per focus area:
 
 ```bash
 kern graviton add decisions "We chose LMDB over sled because readers never block writers.
@@ -36,42 +28,16 @@ Too few: one bucket. Too many: each starved. Dense `generic` clusters promote th
 
 ## Step 2 — Register claim kinds (optional)
 
-Built-ins (`preference`, `decision`, `project`, `fact`, `code-fact`, `reference`, `procedural`) cover most material. Extras via `claim_kind`; registered kinds are offered to the distillation LLM alongside built-ins:
-
-```json
-{ "action": "add", "name": "incident",  "description": "A production incident: what broke, the impact, and the remediation." }
-{ "action": "add", "name": "benchmark", "description": "A measured performance result and the conditions it was measured under." }
-```
+Built-ins (`preference`, `decision`, `project`, `fact`, `code-fact`, `reference`, `procedural`) cover most material. Extras via `claim-kind`; registered kinds are offered to the distillation LLM alongside built-ins:
 
 ```bash
 kern claim-kind add incident "A production incident: what broke, the impact, and the remediation."
 kern claim-kind rm incident
 ```
 
-Per-ingest chunking context: free-text `hint` on the `ingest` call — a prompt hint, not a kind.
-
 ## Step 3 — Push the content in
 
 ### Direct ingest, per document
-
-`ingest` MCP tool, text plus optional provenance:
-
-```json
-{
-  "text": "<the document body>",
-  "source": "file",
-  "object_id": "docs/decisions/0007-storage-engine.md",
-  "title": "ADR 7 — storage engine",
-  "hint": "an architecture decision record",
-  "sync": true
-}
-```
-
-- `sync: true`: blocks until complete, returns the outcome — use when seeding; the fire-and-forget default gives a batch no way to report failures.
-- `source`: provenance shape — `inline` (default), `file`, `session`, `agent`, or any other string (treated as a ticket system id).
-- `object_id`: stable identity — re-ingest with the same `object_id` is a revision, not a new object.
-
-CLI equivalent:
 
 ```bash
 kern ingest --file docs/decisions/0007-storage-engine.md
@@ -79,7 +45,7 @@ kern ingest "We chose LMDB because readers never block writers."
 ```
 
 <Callout type="warn" title="The CLI and the daemon are separate writers">
-`kern ingest` opens the graph directly and can race a running daemon — bulk seed via MCP against the live daemon, or CLI with the daemon stopped, never both. Also deliberate: CLI ingest is `user`-sourced at full confidence → **facts**, immune to eviction; MCP callers are agents, clamped below fact confidence, subject to decay. Material that must survive GC forever wants the CLI path.
+`kern ingest` always opens the graph directly, even while a daemon serves — it can race one, so stop the daemon (or run the whole bulk seed before starting it) rather than interleaving the two. This is also why it's the path that reaches full trust: `kern ingest` is `user`-sourced at full confidence → **facts**, immune to eviction. Everything else — the intake drop-dir, distilled claims — is capped below fact confidence and subject to decay, whether or not a daemon is serving it. Material that must survive GC forever wants the direct `kern ingest` path.
 </Callout>
 
 ### Bulk, through the intake
@@ -120,7 +86,7 @@ kern health
 - **Thoughts distributed across gravitons.** All-in-one: graviton texts too similar, or content seeded before gravitons existed.
 - **No `MISMATCH` on `embed:`.** If present: `kern reembed` before trusting the counts.
 
-Confirm retrieval (from MCP, the `query` tool exercises the full pipeline):
+Confirm retrieval — `kern query` exercises the full pipeline:
 
 ```bash
 kern query "which storage engine did we choose" --k 5

@@ -28,17 +28,7 @@ Pins to the nearest ancestor with `.git` or `.kern`. No config file required —
 
 ## 2. Start the daemon
 
-Let your MCP client start it — `kern mcp` attaches to a running daemon, auto-spawns a detached one if none answers:
-
-```json
-{
-  "mcpServers": {
-    "kern": { "command": "kern", "args": ["mcp"] }
-  }
-}
-```
-
-The daemon writes this entry into `.mcp.json` on startup if absent. To watch the first run (logs on stderr only; stdout is reserved for JSON-RPC):
+No client wiring needed — a routed CLI verb auto-spawns a detached daemon through the machine hub the first time one is needed. To bring it up explicitly instead, or to watch the first run (logs on stderr only):
 
 ```bash
 RUST_LOG=kern=info kern daemon
@@ -46,21 +36,19 @@ RUST_LOG=kern=info kern daemon
 
 ## 3. Seed gravitons and claim kinds
 
-Once per project, via MCP against the running daemon (the CLI can race a live daemon).
-
-- `graviton` tool, `action: "add"` per focus area — e.g. *decisions*, *project state*, *preferences*.
-- Seed `text`: **example statements, one per line** — each line embedded separately, mean-pooled into the pull vector; routes far better than an abstract description.
-- Optional `mass` (default `1.0`): stronger attraction.
-- Unmatched claims → `generic`. See [Acceptance & routing](../concepts/acceptance.mdx).
-- Built-in claim kinds: `preference`, `decision`, `project`, `fact`, `code-fact`, `reference`, `procedural`. Extras via `claim_kind`; registered kinds are offered to the distillation LLM alongside built-ins.
-
-CLI equivalents, daemon stopped:
+Once per project:
 
 ```bash
 kern graviton add decisions "architectural choices and their rationale" --mass 1.5
 kern graviton list
 kern claim-kind add incident "a production incident: what broke and the fix"
 ```
+
+- `kern graviton add <name> <text> [--mass N]` per focus area — e.g. *decisions*, *project state*, *preferences*.
+- Seed text: **example statements, one per line** — each line embedded separately, mean-pooled into the pull vector; routes far better than an abstract description.
+- `--mass` (default `1.0`): stronger attraction.
+- Unmatched claims → `generic`. See [Acceptance & routing](../concepts/acceptance.mdx).
+- Built-in claim kinds: `preference`, `decision`, `project`, `fact`, `code-fact`, `reference`, `procedural`. Extras via `kern claim-kind add`; registered kinds are offered to the distillation LLM alongside built-ins.
 
 ## 4. Drop a session into the intake
 
@@ -77,11 +65,11 @@ EOF
 - Daemon polls every 5s, distills each delta in one LLM pass, ingests the typed claims.
 - Moves to `.kern/intake/done/` only once every claim committed; LLM outage → stays put, retried.
 - Archived deltas pruned after seven days.
-- Synchronous, already-typed ingest (skips distillation): `ingest` MCP tool or `kern ingest`.
+- Synchronous, already-typed ingest (skips distillation): `kern ingest`.
 
 ## 5. Recall in the next session
 
-`query` MCP tool: `mode`, `kind`, `source`, time ranges, `min_conf`, `as_of` (point-in-time), `include_history` (supersede chains). Returns scored passages, edges, chains — the agent synthesizes. See [Retrieval](../concepts/retrieval.mdx).
+`kern query [--mode M] [--k N] [--exclude-pending] [--all [--live]]`. Returns scored passages, edges, chains — the agent synthesizes. See [Retrieval](../concepts/retrieval.mdx).
 
 Shell: `kern query "what did we decide about indentation"`, or `kern query --mode vector --k 5 "indentation"` for the raw nearest-neighbour probe.
 
@@ -126,7 +114,7 @@ intake .kern/intake  pending=2 stuck=1 failed=1 done=37
   chart={`
 flowchart TD
     A["nothing in the graph"] --> B["kern intake"]
-    B -->|"pending=0, done=0"| C["nothing is writing deltas — kern ships no writer; wire your harness/script to drop files, or use MCP ingest instead"]
+    B -->|"pending=0, done=0"| C["nothing is writing deltas — kern ships no writer; wire your harness/script to drop files, or use kern ingest instead"]
     B -->|"STUCK entries"| D["the line names the cause: no [reason] endpoint, prose reply, or the embed/ingest failure verbatim"]
     B -->|"pending>0, all wait"| E{"daemon running?"}
     E -->|"no"| F["start it: kern daemon, or drain once: kern intake drain"]
@@ -171,4 +159,4 @@ and a user `kern.toml` is refused for setting it.
 
 ---
 
-Related: [Acceptance & routing](../concepts/acceptance.mdx) · [Configure](./configure.mdx) · [MCP](./mcp.mdx)
+Related: [Acceptance & routing](../concepts/acceptance.mdx) · [Configure](./configure.mdx) · [Seed the graph](./seed.mdx)

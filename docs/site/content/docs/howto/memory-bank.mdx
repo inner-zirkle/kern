@@ -2,16 +2,16 @@
 title: "The Memory Bank"
 ---
 
-kern is a self-learning, self-compacting, optionally self-distributing memory substrate.
+kern is a self-learning, self-compacting memory substrate — one graph per project, reachable machine-wide through the [hub](./hub.mdx).
 
 ## Self-learning — intake → distill → recall
 
 One daemon per working directory owns one graph. No automatic session capture; knowledge enters two caller-driven ways:
 
-- MCP `ingest` tool, called directly.
+- `kern ingest`, called directly by your agent.
 - `.txt` transcript dropped into `<cwd>/.kern/intake/` — by your agent, a wrapper, or `kern ingest`; kern ships no writer. Daemon drains each delta: one LLM distillation pass extracts durable facts / decisions / preferences as typed claims. Archived to `intake/done/` only after every claim commits; on LLM outage it stays queued — transient failure never loses knowledge.
 
-Recall: `query` MCP tool against the live graph, provenance on every result. Intake is best-effort — daemon or LLM down, the session proceeds and the delta queues.
+Recall: `kern query` against the live graph, provenance on every result. Intake is best-effort — daemon or LLM down, the session proceeds and the delta queues.
 
 ## Self-compacting — heat, decay, eviction, clustering
 
@@ -38,7 +38,7 @@ enabled = true          # self-learning
 interval_secs = 60      # self-compaction cadence (0 = off)
 ```
 
-Intake and recall no-op without `.kern/` — a single global MCP registration is safe across all projects.
+Intake and recall no-op without `.kern/` — the same `kern` binary on `PATH` is safe to point at every project; each gets its own graph.
 
 Seed once: add `graviton`s — named top-level buckets the root routes memories into (unmatched → `generic`). Built-in claim kinds: `preference`, `decision`, `project`, `fact`, `code-fact`, `reference`, `procedural`; register extras with `claim_kind`. See [Seed the graph](./seed.mdx).
 

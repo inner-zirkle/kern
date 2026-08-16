@@ -6,7 +6,7 @@ title: "kern"
 graph. Recall = sub-millisecond graph walk. No LLM call at read time, no cloud.
 
 ```
-MCP ingest ─────────────────────► typed claims ─┐
+kern ingest (CLI → daemon) ──────► typed claims ─┐
 .kern/intake/ drop → distill (LLM) → typed claims ┴→ graph → recall
 ```
 
@@ -15,7 +15,7 @@ No automatic capture — writes are always the caller's call.
 ## Start here
 
 1. [Install & run](./howto/install-run.mdx)
-2. [Wire up MCP](./howto/mcp.mdx)
+2. [Intake & recall](./howto/intake-recall.mdx)
 3. [Seed the graph](./howto/seed.mdx)
 
 **[How-to](./howto/install-run.mdx)** — tasks ·

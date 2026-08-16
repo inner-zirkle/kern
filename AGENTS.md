@@ -2,18 +2,14 @@
 
 Read `docs/windmill/ORACLE.md` before acting.
 
-## Alpha — no compatibility
+## Format compatibility
 
-kern is version alpha. Features we change need **no** backward compatibility:
-no serde aliases for renamed fields, no wire-format stability across builds.
-When a persisted or wire format changes, bump the single live format version
-(`FORMAT_VERSION` in `src/store_core/src/lib.rs`, `WEIGHT_FILE_VERSION` in
-`src/gnn.rs`).
-
-**Amended 2026-08-16 (user-directed): a store is migrated one hop, not wiped.**
-"Old stores are wiped and reingested" was affordable while stores were empty;
-it stopped being affordable the moment one held a corpus. A bump now carries
-three things in the same commit:
+kern 2.0 is released, not alpha: a store written by the previous release must
+keep opening. When a persisted or wire format changes, bump the single live
+format version (`FORMAT_VERSION` in `src/store_core/src/lib.rs`,
+`WEIGHT_FILE_VERSION` in `src/gnn.rs`) and carry three things in the same
+commit — this replaced "old stores are wiped and reingested" on 2026-08-16,
+once a store held a real corpus and wiping it stopped being affordable:
 
 1. the outgoing layout, frozen in `src/store_core/src/legacy.rs` (decode-only —
    nothing may ever write a legacy type) and listed in `READABLE_VERSIONS`;
@@ -24,13 +20,18 @@ three things in the same commit:
    bump), which is why two mutually incompatible layouts both call themselves
    version 10.
 
-Still true: nothing is *sniffed* into a different version, and an unreadable
-version is refused by name rather than guessed at. Reading an old store
-converts it in memory only; `kern migrate` is what rewrites it on disk.
+Nothing is *sniffed* into a different version, and an unreadable version is
+refused by name rather than guessed at. Reading an old store converts it in
+memory only; `kern migrate` is what rewrites it on disk. `READABLE_VERSIONS`
+holds one hop back — a store more than one release behind is rejected at
+load, not silently wiped: `kern doctor` names it, and the fix is to migrate
+forward through the intermediate release first, or wipe and reingest by hand.
 
-Exception: tolerant RPC decode in `src/transport_kern_rpc_dto.rs` stays — it
-serves the live attach → detect-stale → auto-restart handshake with an
-already-running daemon from an older build, not persisted-data compat.
+Wire-format (the daemon RPC) still gets no compatibility promise across
+non-patch releases: DTOs decode tolerantly (`#[serde(default)]` throughout
+`src/transport/src/kern_rpc.rs`) so a CLI upgraded slightly ahead of a
+long-running detached daemon does not hard-fail, but that is a grace window,
+not a contract — restart the daemon on a real upgrade.
 
 ## Memory (kern)
 

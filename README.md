@@ -410,7 +410,9 @@ network layer and no remote writer, and the interconnection across projects is
 the machine hub reaching stores it already knows the location of — registered
 kerns are enumerable (`kern hub status`) and searchable (`kern query --all`)
 machine-wide, and cross-machine reach is explicitly out of scope. Version
-`1.4.0`.
+`2.0.0` — the first release under the format-compatibility policy in
+[AGENTS.md](./AGENTS.md#format-compatibility): a store written by the
+previous release migrates forward, it is not wiped.
 
 **Measurement.** `tests/e2e/test_recall.py` scores recall@1 / recall@5 / MRR over a
 corpus the test itself authors, with no LLM anywhere in the scoring loop — it

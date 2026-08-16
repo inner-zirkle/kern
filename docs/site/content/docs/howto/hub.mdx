@@ -9,7 +9,7 @@ one process a host runs to spawn, find, unload, and stop them.
 ## What it does
 
 - **Resolve** a cwd to the daemon serving it (or spawns one and reports the
-  socket path), so `kern mcp` and other clients never have to race the bind
+  socket path), so the CLI and other clients never have to race the bind
   themselves.
 - **Status** — every hub-owned daemon, alive or parked, with its pid and idle
   time.
@@ -20,21 +20,20 @@ one process a host runs to spawn, find, unload, and stop them.
 - **Stop** — ends the hub daemon; **nodes stay up**. A node without a hub is
   just a daemon with a socket, still serving its graph.
 
-## Auto-start and auto-restart
+## Auto-start
 
 `[hub]` config (`kern.toml`):
 
 | Key | Default | Effect |
 | --- | --- | --- |
-| `auto_start` | `true` | `kern mcp` spawn-attaches a detached hub when none answers, the same way it auto-spawns a project daemon. `false` = hub is opt-in via `kern hub`, and the direct-connect fallback still works. |
-| `auto_restart` | `true` | A client attaching to a daemon built from a different binary, or booted against a different config, restarts that daemon before proxying. Without this a long-lived detached daemon serves stale code and stale config indefinitely — the failure that makes every shipped fix look like it did nothing. |
+| `auto_start` | `true` | A routed CLI verb spawn-attaches a detached hub when none answers, the same way it auto-spawns a project daemon. `false` = hub is opt-in via `kern hub`, and the direct-connect fallback still works. |
 
 ## Idle unload
 
 A hub-owned daemon idle for `--idle-unload-secs` (default **1800 s** = 30 min) is
 unloaded and re-spawned on next contact; `0` disables. The root daemon is never
-auto-unloaded. Idle time is stamped in the MCP dispatch core and every typed
-RPC method, and the reaper double-checks under the root lock — a node that
+auto-unloaded. Idle time is stamped in the RPC dispatch core on every typed
+method call, and the reaper double-checks under the root lock — a node that
 touched anything between the sweep scheduling and the sweep running stays.
 
 ## Where state lives
@@ -60,4 +59,4 @@ kern hub stop                  # stop the hub (nodes stay up)
 ## Next
 
 - [Install & run](./install-run.mdx)
-- [Wire up MCP](./mcp.mdx)
+- [Intake & recall](./intake-recall.mdx)

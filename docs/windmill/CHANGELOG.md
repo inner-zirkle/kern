@@ -2,6 +2,37 @@
 
 <!-- docs-check: historical -->
 
+- 2026-08-16 — released v2.0.0: kern leaves alpha. `AGENTS.md`'s "Alpha — no
+  compatibility" section is now "Format compatibility" — a store written by
+  the previous release must keep opening (the one-hop migration two entries
+  below is what makes that true); the wire RPC still gets no cross-release
+  promise, decoded tolerantly instead. This was the blocker the 2026-08-07
+  release-readiness audit named for staying alpha ("leaving alpha is a
+  promise of format stability... no migrations"); it no longer applies.
+  Cargo.toml `1.4.0` → `2.0.0` — a major bump because two things broke
+  compatibility with the v1.x line in the same tree: the MCP surface and the
+  gossip/federation surface both removed outright (see the two same-day
+  entries below), which strands anyone who wired a v1.x client against
+  either. Alongside the version bump, a documentation pass: every public
+  docs-site page and `docs/llms.md` still described `kern mcp` — wiring JSON,
+  a sixteen-tool list, an HTTP/token auth section — as live (`howto/mcp.mdx`
+  deleted outright, ten other pages edited); `docs/kern/README.md`'s research-note
+  links were broken (pointed at `docs/kern/*.md`, the files live in `docs/`
+  since a1655c5 canonicalized the layout — six dead links fixed); README's
+  quickstart still claimed store formats reject with no migration path.
+  One real gap surfaced in the sweep, not fixed here: `kern query`'s CLI
+  flags (`--mode`/`--k`/`--exclude-pending`/`--all`/`--live`) never grew the
+  filter surface the old `query` MCP tool exposed (`kind`, `source`, time
+  range, `min_conf`, `as_of`, `include_history`) — the daemon's `query`
+  operation may still accept them, nothing on the CLI sends them. Docs now
+  describe only what `kern query` actually takes; restoring the rest is
+  follow-up work, not claimed as done.
+  Decided by: feb (user-directed — "bring everything up to a releasable
+  version... it is working"); verify-before-claiming (every compatibility and
+  surface claim in this entry checked against source before being written,
+  including the query-filter gap, which asserting an invented `--kind` flag
+  would have hidden).
+
 - 2026-08-16 — `kern query --all` searched every kern on the machine except the
   one you were standing in. The hub only knows roots it has resolved or that
   announced themselves at daemon boot, so a project that never ran a daemon was
@@ -588,16 +619,6 @@
   empty → `10`), dto round-trip `99`. `cargo test -p kern --lib` 954 passed, 0
   failed, 4 ignored; `cargo test -p trnsprt --lib` 61 passed. Negative control
   (skip the max → `0`) reds, green on revert.
-  Decided by: fix-the-root, name-the-tradeoff, verify-before-claiming.
-
-- 2026-07-23 — item 31 `route_entity` clone lever closed: `route_entity`
-  (`src/base/accept.rs`) now holds `&kern.children` alongside the `&GraphGnn`
-  reborrow in a scoped block (both immutable, borrow ends before
-  `current_id = child_id`), dropping the `Vec<String>` alloc per descent —
-  bit-identical routing. Proved by `route_entity_does_not_clone_children_per_descent`
-  (children vs no-children delta equal within 8 B; re-add `.clone()` of 4 vs 1
-  pushes ~72 B past → reds, green on revert). Routing tests green unedited.
-  `cargo test -p kern --lib` 953 passed, 0 failed, 4 ignored.
   Decided by: fix-the-root, name-the-tradeoff, verify-before-claiming.
 
 - 2026-08-07 — split the single `kern` crate into a 24-member workspace of concept crates (no `kern-` prefix, llm/src shape): util, base, math, store_core, store, bootstrap, graph, ingest_config, llm, config, gnn, retrieval, ingest, tick, gossip, tick_loop, transport, test_support, health, mcp, rpc, hub, commands, plus the `kern` binary. Each crate has Cargo.toml + README + its own `src/lib.rs`. Cycle-breaks by moving pure helpers into lower crates: `entity_detail_by_id`/`base_entity_json`→retrieval::id_detail; `link_entities`/`forget_entity`/`promote_entity`/`forget_by_source`/`degrade_entity_reasons`→graph::graph_ops; `graviton_rows`→graph::graph_ops; `load_graph`/`save_graph_guarded`/`snapshot_if_dirty`/`reconcile_if_stale`/`bind_embed_model`/`apply_graph_config`/`reload_graph`→bootstrap; `store::base_store`/`store::lock`→store_core (split out so graph→store_core stays acyclic with store::Registry needing them); `launch_dir_join`/`set_launch_dir`→commands. `kern` lib.rs reduced to 25 lines (just `pub use` re-exports). 1108 tests pass, `cargo clippy --all-targets --workspace` clean. Decided by: continue-folding (user-directed structural split, llm/src shape).

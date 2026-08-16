@@ -3,7 +3,7 @@
 A full technical scrape of everything that actually exists in the kern source
 today. Organized by subsystem. For each: **what** it does, **how** it works,
 **where** it lives in the code, and **gaps** (known limitations / improvement
-opportunities). Version: `1.4.0`. LoC ~63.6k (raw `wc -l`, tracked) across 128 `.rs` files in a 24-crate workspace.
+opportunities). Version: `2.0.0`. LoC ~63.6k (raw `wc -l`, tracked) across 128 `.rs` files in a 24-crate workspace.
 
 State legend: `active` (runs today), `building` (wired but partial/unverified),
 `off` (present but disabled by default).
@@ -1587,7 +1587,7 @@ Ranked by leverage:
 
 ---
 
-*Scraped from source at `v1.4.0`, last reconciled against the tree 2026-08-07;
+*Scraped from source at `v2.0.0`, last reconciled against the tree 2026-08-07;
 federation-removal, MCP-removal and local-federation surfaces (§1, §4, §12–§15,
 §18/§18a/§18b, §23, §24) re-verified against source 2026-08-16.
 Update this file when a subsystem's public surface changes — it is the canonical

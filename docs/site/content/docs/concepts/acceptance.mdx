@@ -2,7 +2,7 @@
 title: "Acceptance & routing"
 ---
 
-One gate for everything entering the graph: a claim arrives via MCP `ingest` or intake distillation, is embedded, then merged into something already known or routed down the kern tree. Two stages, failing differently:
+One gate for everything entering the graph: a claim arrives via `kern ingest` or intake distillation, is embedded, then merged into something already known or routed down the kern tree. Two stages, failing differently:
 
 1. **Distillation** — transcript → claims. The only LLM call on the path; decides *whether* anything is kept.
 2. **Acceptance** — places a claim. Pure vector math + traversal, no model; decides *where* it lives or whether it collapses into an existing thought.

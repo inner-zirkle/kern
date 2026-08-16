@@ -23,7 +23,7 @@ Premise: memory is a process that operates itself, not an index you operate.
 
 - Needs a model endpoint (local Ollama by default): an embedding model *and* a reasoning model.
 - Forgets by design — an untouched non-`Fact` eventually leaves the hot graph.
-- `Fact` is CLI-only (requires full confidence; only the user source reaches it). MCP durability levers: `Document`, or keep the thought warm.
+- `Fact` is reachable only through `kern ingest`'s direct write (requires full confidence; only the `user` source reaches it). Otherwise, the durability levers are: ingest as a `Document`, or keep the thought warm.
 
 ## Maturity
 

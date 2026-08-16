@@ -23,7 +23,7 @@ One atomic unit of memory; `kind` decides treatment:
 | `Document` | A chunk of an ingested source document. |
 | `Question` / `Conclusion` | Internal-only — seeded and resolved by the system itself. |
 
-Callers may supply only `Fact` and `Claim` (rest rejected at the MCP surface); `Fact` additionally requires a trusted source (user or agent, not an arbitrary file).
+`kind` is derived, not chosen: ingest confidence maps to `Fact` or `Claim` (`clamp_confidence`), the intake/document pipeline mints `Document` directly, and `Question`/`Conclusion` are never caller-reachable. `Fact` additionally requires full confidence, which only `kern ingest`'s direct write (not an arbitrary file or a distilled claim) reaches.
 
 Also on a thought:
 

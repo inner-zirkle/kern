@@ -47,7 +47,7 @@ kern daemon                                    # foreground, ctrl-c to stop
 kern daemon > .kern/daemon.log 2>&1 &          # detached, keep logs
 ```
 
-Usually unnecessary — `kern mcp` auto-spawns a detached daemon. See [Wire up MCP](./mcp.mdx).
+Usually unnecessary — the machine hub auto-spawns a detached daemon the first time a routed CLI verb needs one (`[hub] auto_start`, on by default). See [Intake & recall](./intake-recall.mdx).
 
 <Callout type="warn" title="A bad config stops the boot">
 Invalid `kern.toml`: offending key on stderr, exit **78** (`EX_CONFIG`), every invocation. Absent config boots on defaults — deleting the file is a valid fix.
@@ -63,7 +63,6 @@ All under `<project>/.kern/`:
 | `.kern/data/lock.mdb` | LMDB's lock file. Never edit or delete while running. |
 | `.kern/intake/*` | Dropped files waiting to drain: `.txt` distilled as transcripts, anything else stored as documents. |
 | `.kern/kern.toml` | Optional config overrides. Absent by default. |
-| `.kern/data/mcp-token` | Bearer token for the HTTP surface, minted on first use. |
 | `.kern/data/logs/*.log` | stdout+stderr of detached children (`daemon.log`, `hub.log`). Owner-only, append-only. |
 
 RPC socket, outside the project: `$XDG_RUNTIME_DIR/kern-<tag>.sock` (or `/tmp/kern-<user>-<tag>.sock`) on Unix; named pipe `\\.\pipe\kern-<user>-<tag>` on Windows. `<tag>` = hash of the canonical cwd — one daemon and graph per project. A second `kern daemon` in the same directory loses the bind race:
@@ -74,7 +73,7 @@ kern: another daemon already running at /run/user/1000/kern-3f2a91c4.sock — ex
 
 ## Is it healthy?
 
-`kern health` or the `health` MCP tool:
+`kern health`:
 
 - Non-zero entities: graph has content.
 - Growing `unnamed`: clustering has work queued.
@@ -101,7 +100,7 @@ hub          running   /run/user/1000/kern-hub.sock
 writer lock  held by daemon pid 1626183
 ```
 
-The `kern <subcommand>` CLI opens the graph directly, so it can race a live daemon — use MCP tools for live state. The offline admin commands (`kern reembed`, `kern gc`) take the writer lock and **refuse** while a daemon holds it, naming the holder, rather than losing a rewrite to whichever process flushes last. The lock is released by the OS when its holder exits, kill included, so a crash never leaves a stale one to clean up.
+Verbs with a routed counterpart (`query`, `get`, `forget`, `degrade`, `promote`, `log`, `intake drain`, …) dispatch straight to a live daemon and read its in-memory state; `kern ingest` always writes directly to the store, even while a daemon serves, so it can race one. The offline admin commands (`kern reembed`, `kern gc`) take the writer lock and **refuse** while a daemon holds it, naming the holder, rather than losing a rewrite to whichever process flushes last. The lock is released by the OS when its holder exits, kill included, so a crash never leaves a stale one to clean up.
 
 ## Stopping
 
@@ -117,11 +116,10 @@ rm -rf .kern               # wipe everything, including opt-in
 ```
 
 - `data.mdb` shrinks only on compaction — next restart auto-compacts, or `kern gc` offline.
-- Alpha: store format changes are not migrated — an old `data.mdb` is rejected; wipe `.kern/data` and reingest.
+- A store written by the previous release migrates forward automatically on read (`kern migrate` rewrites it on disk; `kern doctor` flags one that hasn't been). A store more than one version behind is rejected at load — wipe `.kern/data` and reingest in that case.
 
 ## Next
 
-- [Wire up MCP](./mcp.mdx)
 - [Intake & recall](./intake-recall.mdx)
 - [Seed the graph](./seed.mdx)
 - [Architecture](../concepts/architecture.mdx)

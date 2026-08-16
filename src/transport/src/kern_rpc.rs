@@ -1,5 +1,5 @@
-//! The kern RPC: the tolerant-decode DTOs (the live attach → detect-stale →
-//! auto-restart handshake must talk to daemons from older builds), the
+//! The kern RPC: the tolerant-decode DTOs (a CLI upgraded ahead of a
+//! long-running detached daemon must still be able to talk to it), the
 //! `service!`-generated client/server pair, and the local attach client. The
 //! socket lives in the daemon's own data dir, so filesystem ownership is the
 //! access model — there is no token handshake.

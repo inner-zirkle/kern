@@ -79,7 +79,7 @@ Victim written to the cold LMDB table *first*; dropped from the hot graph only o
 No store bound → no spill; the victim is simply removed. Spill-before-drop holds only for a persisted kern.
 </Callout>
 
-Unconditional survival: ingest as a `Document`, keep it warm, or make it a `Fact` — a CLI-only lever (kind derives from confidence, `Fact` needs full confidence, only `kern ingest` writing as the user reaches it; MCP callers clamped below).
+Unconditional survival: ingest as a `Document`, keep it warm, or make it a `Fact` — reachable only through `kern ingest`'s direct write (kind derives from confidence, `Fact` needs full confidence, only the `user`-sourced CLI write reaches it; the intake drop-dir and distilled claims are clamped below).
 
 ## Steady state
 

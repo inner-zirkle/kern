@@ -4,7 +4,7 @@
 
 ## Core model
 
-- **Write paths (2, caller-driven, never automatic):** MCP `ingest`, or drop a transcript into `.kern/intake/` — daemon distills it into typed claims via local LLM. LLM outage queues intake, never loses it.
+- **Write paths (2, caller-driven, never automatic):** `kern ingest`, or drop a transcript into `.kern/intake/` — daemon distills it into typed claims via local LLM. LLM outage queues intake, never loses it.
 - **Graph, not vector bag.** Entities = typed thoughts (Fact/Claim/Document/Question/Conclusion) with Beta-distribution confidence, access heat, content + structure vectors, bi-temporal validity window. Reason edges = typed justified links (the *why*), not similarity scores. IDs = content hashes: identical text is the same node everywhere, so reconciling two views of one store is set union.
 - **Kern tree + gravitons.** Seed named focus attractors (name + text + mass) once; ingest routes claims to the nearest graviton; unmatched → `generic`; dense clusters get promoted and LLM-named in the background.
 - **Nothing deleted.** Contradicted/updated claims are superseded. Query `as_of` past instants; `include_history` walks the chain. Update-vs-contradiction classification runs in the background tick, off the read path.
@@ -22,13 +22,13 @@
 - State in `<project>/.kern/`: `data/data.mdb` (LMDB hot graph + cold tier), `intake/`, `kern.toml`, `data/logs/`.
 - Config: `.kern/kern.toml` or `~/.config/kern/kern.toml`. Absent = defaults. Invalid = exit 78, key on stderr.
 - Presets: `relaxed` (default: 0.98 dedup, 30d heat half-life), `medium`, `tight`.
-- Health: MCP `health` / `kern health` — counts + degradation signals.
+- Health: `kern health` — counts + degradation signals.
 
 ## Surfaces
 
-- **MCP** (stdio + HTTP/SSE), 16 tools: `query`, `events`, `ingest`, `link`, `forget`, `forget_by_source`, `degrade`, `move`, `promote`, `health`, `graviton`, `claim_kind`, `pulse`, `gc`, `intake_drain`, `setup`. `setup` returns wiring instructions; kern never writes host config.
-- **CLI** `kern <subcommand>`: reads on-disk graph directly, can race a live daemon. Stop the daemon before `kern reembed` / `kern gc`. Failures print `kern <command>: ...` on stderr and exit non-zero.
-- **Local RPC** socket per project, no auth (local trust).
+- **CLI is the only surface** — no MCP, no HTTP, no client wiring or registration file. Every verb (`query`, `get`, `log`, `ingest`, `link`, `forget`, `forget_by_source`, `degrade`, `promote`, `graviton`, `claim-kind`, `health`, `gc`, `export`, `import`, `doctor`, `repair`, `migrate`, `hub`, …) is a thin dispatch to the daemon's typed RPC (`KernRpc::invoke(name, args)`); a few operations exist only on the wire, for a caller that talks RPC directly — `events` (change-feed cursor), `move`, `setup` (wiring instructions, kern never writes host config).
+- **`kern ingest`** always writes directly to the store, so it can race a live daemon — stop the daemon for a bulk write, or use it as the caller-driven write path it's meant to be. Verbs with a routed counterpart (`query`, `get`, `forget`, `degrade`, `promote`, `graviton`, `claim-kind`, `log`, `intake drain`) dispatch to a live daemon when one is serving. Stop the daemon before `kern reembed` / `kern gc`. Failures print `kern <command>: ...` on stderr and exit non-zero.
+- **Local RPC** socket per project, `0600` plus a `SO_PEERCRED` check — no token, process-ownership is the whole access model.
 
 ## Network — none
 
@@ -41,12 +41,11 @@ kern is local memory. No peer protocol, no network listener, no remote writer; n
 - **Bayesian confidence** — Beta distribution updated by support/contradiction, not a static score.
 - **Edit convergence** — supersede chains + LWW/CRDT merge, no locks.
 - **CRDTs over consensus** — content-hash IDs make merge conflict-free; no coordinator.
-- **Knowledge, not gradients** — learns by writing structured claims, not fine-tuning weights.
 - **DiskANN spill** — oversized kerns swap resident HNSW for disk-resident ANN.
 
 ## Honest limits
 
-- No retrieval-quality claims — no LLM-free quality metric exists yet. Latency claims only.
+- No retrieval-quality claims from a real embedding model — the CI recall floor runs on a deterministic, semantically-empty fake embedder; it's a regression detector, not a quality claim.
 - Reason edges are created and walkable but don't change ranking yet (tracked, xfail-tested).
 - Cold-tier eviction past 50k cap is permanent (counted in `health`).
-- No `kern status` — check socket or process list.
+- Cross-machine/SSH federation is explicitly out of scope — the hub only reaches stores this machine already knows the location of.

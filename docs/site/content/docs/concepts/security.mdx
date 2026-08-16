@@ -5,15 +5,14 @@ title: "Security"
 The trust model as implemented today: what the daemon exposes locally and what leaves the machine — including the parts that protect nothing.
 
 <Callout type="info" title="TL;DR">
-- **kern opens no network port, ever** — RPC over an owner-only Unix socket, MCP over stdio. There is no peer protocol and no remote writer.
+- **kern opens no network port, ever** — RPC over an owner-only Unix socket. There is no peer protocol and no remote writer.
 - **Memory is plaintext on disk** in `.kern/data` — treat it like the source tree it describes.
 - **Everything kern captures transits your LLM endpoints** — localhost Ollama by default. Pointing them at a hosted API is your configuration decision, not a kern default.
 </Callout>
 
 ## Nothing listens by default
 
-- **RPC socket** — Unix domain socket, mode `0600`. That permission is the entire access-control story: the socket serves unauthenticated reads and mutations, so only the owning user may reach it.
-- **MCP** — stdio by default; no listener. MCP-over-HTTP is opt-in and never unauthenticated: bearer token from config or a per-graph token file minted `0600` on first use; remote callers without it get a 401.
+- **RPC socket** — Unix domain socket, mode `0600`, plus a `SO_PEERCRED` check on connect. That is the entire access-control story: no token, no auth frame — only the owning user's processes may reach it, and the check runs on both ends (a client also refuses to talk to a socket it does not own). Agents reach this the same way a human does: the CLI, not a separate protocol.
 
 Local attack surface reduces to filesystem access: anyone who can read your files can read your memory; anyone who cannot, cannot reach the daemon either.
 
@@ -21,7 +20,7 @@ Local attack surface reduces to filesystem access: anyone who can read your file
 
 `.kern/data/data.mdb` is unencrypted. No at-rest encryption planned at this layer: the memory is exactly as sensitive as the code and conversations it was distilled from, which sit unencrypted in the same tree — encrypting one beside the other is theater. If the disk needs protection, full-disk encryption protects both.
 
-Also under `.kern/data`: the MCP token file (`0600`), and `logs/*.log` — owner-only, append-only, and at `RUST_LOG=debug` they can include graph content. Back up or sync `.kern/` with the same policy as a private repo.
+Also under `.kern/data`: `logs/*.log` — owner-only, append-only, and at `RUST_LOG=debug` they can include graph content. Back up or sync `.kern/` with the same policy as a private repo.
 
 ## What leaves the machine
 

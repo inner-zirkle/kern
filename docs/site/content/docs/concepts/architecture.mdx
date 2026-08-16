@@ -21,11 +21,11 @@ One long-running **memory daemon** per working directory owns a knowledge graph 
 ## The flow
 
 ```
-MCP ingest ──────────────────────► typed claims ─┐
+kern ingest (CLI → daemon) ───────► typed claims ─┐
 .kern/intake/ drop → distill (LLM) → typed claims ┴→ graph → tick → recall
 ```
 
-Two caller-driven write entries — MCP `ingest`, or a transcript dropped into `.kern/intake/` — same graph. Four independent loops:
+Two caller-driven write entries — `kern ingest`, or a transcript dropped into `.kern/intake/` — same graph. Four independent loops:
 
 1. **Write** — claim embedded, deduped, placed.
 2. **Read** — seed candidates, expand over edges, rank, return.
@@ -42,9 +42,9 @@ Entities live in **kerns**, a tree of buckets. Root is a pure dispatcher; named 
 
 Updated or contradicted claim is **superseded**, never removed — the old revision keeps its validity window; query `as_of` or `include_history`. The update-vs-contradiction call needs an LLM, so it runs in the tick, never on the read path. See [Time & contradiction](./time.mdx).
 
-## Thirteen MCP tools
+## The CLI is the surface
 
-`query`, `ingest`, `link`, `forget` (Facts are immune), `degrade`, `move`, `health`, `graviton`, `claim_kind`, `pulse`, `gc`, `intake_drain`, `setup`. Transports: stdio default, HTTP/SSE opt-in. See [MCP tools](../howto/mcp.mdx).
+Agents drive kern the same way a human does — there is no client wiring, no registration file, no token. Every verb (`query`, `ingest`, `get`, `log`, `link`, `forget` (Facts are immune), `degrade`, `promote`, `graviton`, `claim-kind`, `health`, `intake`, `gc`, `export`/`import`, `doctor`/`repair`, `migrate`, `hub`, …) is a thin CLI dispatch to the daemon's typed RPC (`KernRpc::invoke(name, args)` over a local Unix socket), authenticated by socket ownership (uid + `SO_PEERCRED`), not a bearer token. A few operations exist only on the daemon, for a caller that talks the wire protocol directly rather than shelling out: `events` (a read-only change-feed cursor), `move`, `setup` (wiring instructions for a calling agent). See the [full command table](https://github.com/inner-zirkle/kern#cli-commands).
 
 ## Fail-open, but counted
 
@@ -52,5 +52,4 @@ Every degradation returns something instead of erroring. Panicking tick tasks, d
 
 ## Staying current
 
-- **Auto-restart on attach** — `kern mcp` compares the daemon's build + config fingerprint against its own; gracefully replaces a stale daemon.
 - **Hot reload** (Unix, default on) — daemon watches its own binary; a new build drains, flushes, hands the socket to a successor without dropping connections.

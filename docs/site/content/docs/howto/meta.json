@@ -5,7 +5,7 @@
     "memory-bank",
     "intake-recall",
     "seed",
-    "mcp",
-    "configure"
+    "configure",
+    "hub"
   ]
 }
