@@ -1,9 +1,8 @@
-//! transport — the portable wire layer: JSON-RPC over tcp/unix/stdio/http/sse/
-//! ws/udp, typed request/response channels, HTTP server glue, and the kern/hub
-//! RPC DTOs + `service!`-generated client/server pairs.
+//! transport — the local-RPC substrate: typed request/response channels over
+//! a Unix socket or Windows named pipe, plus the kern/hub RPC DTOs +
+//! `service!`-generated client/server pairs.
 //!
-//! Copied byte-for-byte into every project that speaks JSON-RPC. Depends on no
-//! kern crate — only `transport-macros` and external crates.
+//! Depends on no kern crate — only `transport-macros` and external crates.
 //!
 //! Layer: L4 · May import: nothing in kern.
 
@@ -12,11 +11,6 @@ extern crate self as transport;
 pub mod hub_rpc;
 pub mod kern_rpc;
 pub mod typed;
-pub mod wire;
-
-pub use wire::{select, serve, Dispatch, Sink, Transport};
-
-pub const PROTOCOL_VERSION: &str = "2024-11-05";
 
 pub use transport_macros::service;
 

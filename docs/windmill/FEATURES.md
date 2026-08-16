@@ -1041,9 +1041,15 @@ configured model against the store before the first embed of a session.
 
 **What.** The typed local-RPC toolkit. The MCP JSON-RPC framing and HTTP/SSE
 transport (`transport/mcp.rs`, `transport/http.rs`, the `McpServer` trait,
-`PROTOCOL_VERSION`) were deleted with the MCP surface 2026-08-16; what
-remains is the substrate both RPC contracts run on: `typed.rs`, `wire.rs`,
-`kern_rpc.rs`, `hub_rpc.rs`, and the `service!` macro.
+`PROTOCOL_VERSION`) were deleted with the MCP surface 2026-08-16; `wire.rs`
+(the older tcp/unix/http/stdio framing + transport-selection module the MCP
+surface used to dispatch through) followed 2026-08-16 once the v2.0.0 release
+build proved it had zero remaining callers — and that it was the reason
+`x86_64-pc-windows-msvc`/`i686-pc-windows-msvc`/`x86_64-pc-windows-gnu`
+had failed to build in every release since v1.1.0 (`std::os::unix::net`
+imported with no `#[cfg(unix)]` guard). What remains is the substrate both
+RPC contracts actually run on: `typed.rs`, `kern_rpc.rs`, `hub_rpc.rs`, and
+the `service!` macro.
 
 **How.**
 
@@ -1056,8 +1062,6 @@ remains is the substrate both RPC contracts run on: `typed.rs`, `wire.rs`,
   (`:607`, `SO_PEERCRED`) guard both ends — `connect_kern` and `bind_unix`'s
   `AddrInUse` arm, which returns an untrusted-endpoint error naming the
   foreign uid, and unlinks nothing it refused.
-- **Wire** (`src/transport/src/wire.rs`) — framing + transport selection
-  (`wire.rs:83` still parses a `--mcp` flag as a stdio alias — leftover).
 - **Service macro** (`src/transport/macros/`) — `service!` turns a trait of
   `async fn`s into client + server + dispatch code. Both RPC contracts are one
   short file each: `kern_rpc.rs` (`health`/`shutdown`/`invoke`),
@@ -1065,12 +1069,13 @@ remains is the substrate both RPC contracts run on: `typed.rs`, `wire.rs`,
   beside them.
 
 **Where.** `src/transport/src/` (workspace member: `lib.rs`, `typed.rs`,
-`wire.rs`, `kern_rpc.rs`, `hub_rpc.rs`, ~2.5k LoC) plus the
+`kern_rpc.rs`, `hub_rpc.rs`, ~2.3k LoC) plus the
 `src/transport/macros` proc-macro crate.
 
 **Gaps.** No connection pooling in the local clients — each `connect_*` opens a
-fresh socket. `wire.rs:83` still accepts `--mcp` as a stdio alias, and a
-`kern mcp` mention survives in `src/store_core/src/lock.rs`'s header comment.
+fresh socket. A `kern mcp` mention survives in `src/store_core/src/lock.rs`'s
+header comment, deliberately — it names a real historical incident, not a
+live command.
 
 ---
 

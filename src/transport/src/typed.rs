@@ -372,6 +372,7 @@ pub enum Endpoint {
 
 // Unix `sun_path` ceiling — a path at or past this breaks the bind with
 // "path must be shorter than SUN_LEN"; conservative by design.
+#[cfg(unix)]
 const SUN_LEN_MAX: usize = 100;
 
 impl Endpoint {

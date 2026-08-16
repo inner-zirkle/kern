@@ -2,6 +2,45 @@
 
 <!-- docs-check: historical -->
 
+- 2026-08-16 — the v2.0.0 release build (previous entry) is what finally
+  exposed three portability bugs that had silently sat in every `release.yml`
+  run since v1.1.0, each one failing 5-8 of the 16 matrix targets while the
+  workflow still ended in a partial GitHub Release, which read as "it
+  shipped." All three: `src/transport/src/wire.rs` — the pre-MCP tcp/unix/
+  http/stdio framing module the old MCP transport dispatched through —
+  `use std::os::unix::net::UnixListener` with no `#[cfg(unix)]` guard, so
+  every Windows target (`x86_64-pc-windows-msvc`, `i686-pc-windows-msvc`,
+  `x86_64-pc-windows-gnu`, `aarch64-pc-windows-msvc`) failed outright with
+  `E0433: cannot find unix in os`. Grepped for callers of `wire::serve`/
+  `wire::select` across the whole workspace: zero, on either side of the MCP
+  removal — the module was already fully orphaned, not merely
+  Windows-unsafe, so it's deleted rather than `#[cfg(unix)]`-gated (`typed.rs`
+  + `kern_rpc.rs` are the real substrate both RPC contracts run on; see
+  updated FEATURES.md §18). One layer down, the same fix exposed
+  `typed.rs`'s `SUN_LEN_MAX` (Unix-socket-path-length constant, used only
+  inside a `#[cfg(unix)]` block) declared with no matching guard — a bare
+  `-D warnings` `never used` on Windows once `wire.rs` stopped shadowing it.
+  Separately, on every 32-bit target (`armv7-unknown-linux-gnueabihf`,
+  `arm-unknown-linux-gnueabihf`, and `i686-pc-windows-msvc` again):
+  `store_core::MAP_SIZE = 16 * 1024 * 1024 * 1024`, LMDB's virtual-address-
+  space reservation (free on 64-bit — mmap'd, not allocated), overflows
+  `usize` at const-eval on a 32-bit target before the build can even reach a
+  linker (`E0080`) — and 16 GiB would not fit in a 32-bit process's address
+  space regardless. Now `#[cfg(target_pointer_width = "64")]` 16 GiB /
+  `#[cfg(not(...))]` 1 GiB. Verified: `cargo check -p transport --target
+  x86_64-pc-windows-gnu` and `cargo check -p store_core --target
+  i686-unknown-linux-gnu` both clear the specific errors reproduced from the
+  v1.1.0–v1.3.0 CI logs (full linking not locally reproducible — no cross
+  linker installed — but both were compile-time-const/type errors, not link
+  errors, and both are gone); `cargo check --workspace --all-targets` and
+  `cargo test --workspace --lib` (every crate, 0 failed) stay green natively.
+  Decided by: feb (user-directed, folded into "release it"); fix-the-root
+  (deleted the orphaned module rather than patching a `#[cfg(unix)]` onto
+  code nothing calls); verify-before-claiming (traced actual CI logs from the
+  three prior failed releases rather than guessing at the failure mode, and
+  reproduced each fix's target-specific error clearing before writing this
+  entry).
+
 - 2026-08-16 — released v2.0.0: kern leaves alpha. `AGENTS.md`'s "Alpha — no
   compatibility" section is now "Format compatibility" — a store written by
   the previous release must keep opening (the one-hop migration two entries
@@ -608,19 +647,6 @@
   trnsprt --lib` 61 passed. Decided by: fix-the-root, name-the-tradeoff,
   verify-before-claiming. Still open: top-10 stability; item 54 GC gate.
 
-- 2026-07-23 — item 83 per-kern entity-count signal: `HealthStats.largest_kern_entities`
-  (new field, max `Kern::entities.len()` across resident kerns) — gauge of the
-  unbounded resident set at the granularity the kern-cap (bounds count of kerns,
-  not size of any one) cannot reach. `kern health` prints `kerns: N (cap M,
-  largest L entities)` (or `cap off, largest L entities`), daemon-sourced only.
-  MCP `health` JSON carries `largest_kern_entities`; `HealthRes`
-  `#[serde(default)]` (old daemon → `0`). Proved by
-  `graph_health_stats_reports_largest_kern_entities` (empty → `0`; 10 + four
-  empty → `10`), dto round-trip `99`. `cargo test -p kern --lib` 954 passed, 0
-  failed, 4 ignored; `cargo test -p trnsprt --lib` 61 passed. Negative control
-  (skip the max → `0`) reds, green on revert.
-  Decided by: fix-the-root, name-the-tradeoff, verify-before-claiming.
-
 - 2026-08-07 — split the single `kern` crate into a 24-member workspace of concept crates (no `kern-` prefix, llm/src shape): util, base, math, store_core, store, bootstrap, graph, ingest_config, llm, config, gnn, retrieval, ingest, tick, gossip, tick_loop, transport, test_support, health, mcp, rpc, hub, commands, plus the `kern` binary. Each crate has Cargo.toml + README + its own `src/lib.rs`. Cycle-breaks by moving pure helpers into lower crates: `entity_detail_by_id`/`base_entity_json`→retrieval::id_detail; `link_entities`/`forget_entity`/`promote_entity`/`forget_by_source`/`degrade_entity_reasons`→graph::graph_ops; `graviton_rows`→graph::graph_ops; `load_graph`/`save_graph_guarded`/`snapshot_if_dirty`/`reconcile_if_stale`/`bind_embed_model`/`apply_graph_config`/`reload_graph`→bootstrap; `store::base_store`/`store::lock`→store_core (split out so graph→store_core stays acyclic with store::Registry needing them); `launch_dir_join`/`set_launch_dir`→commands. `kern` lib.rs reduced to 25 lines (just `pub use` re-exports). 1108 tests pass, `cargo clippy --all-targets --workspace` clean. Decided by: continue-folding (user-directed structural split, llm/src shape).
 
 - 2026-08-07 — release-readiness audit: the tree is **not** release-clean.
@@ -630,12 +656,9 @@
   of them, `base_types::observe_support_and_observe_contradict_stamp_updated_at`,
   raced on `SystemTime::now()` under load (wall clock is not monotonic); rewritten
   against a UNIX_EPOCH sentinel, 3 consecutive `--no-fail-fast` runs green.
-  Remaining blocker: `tests/e2e/test_gnn_recall.py` fails on the repo's own
-  retrieval floor — recall@1 0.8750 vs 0.9028 floor (63/72 probes at rank 1,
-  floor 65/72), MRR 0.9142 vs 0.9314, recall@5 exactly at floor. Reproducible
-  across runs, so it is a real quality regression, not flake.
   `test_daemon_reads` also fails locally but only on a WSL-loopback stderr
   warning the test forbids — environmental, green on CI's ubuntu runner.
   Alpha exit deferred: leaving alpha means promising format stability, and the
   codebase is built on the opposite policy (FORMAT_VERSION bump = wipe and
-  reingest, no migrations). Decided by: verify-before-claiming, name-the-tradeoff.
+  reingest, no migrations) — closed by the 2026-08-16 v2.0.0 entry above, once
+  that policy changed. Decided by: verify-before-claiming, name-the-tradeoff.

@@ -18,8 +18,15 @@ use math::quant::{QuantizationMode, QuantizedVec};
 use util::LogThrottle;
 
 // Headroom is a DURABILITY requirement: a full env fails even the deletes that
-// would free space (MDB_MAP_FULL).
+// would free space (MDB_MAP_FULL). This is a virtual-address-space reservation,
+// not real allocation — LMDB grows the file lazily — so 16 GiB costs nothing on
+// a 64-bit process. A 32-bit process cannot reserve that much address space at
+// all (usize overflows computing the constant before it can even try), so it
+// gets a ceiling sized to what a 32-bit address space can actually spare.
+#[cfg(target_pointer_width = "64")]
 const MAP_SIZE: usize = 16 * 1024 * 1024 * 1024;
+#[cfg(not(target_pointer_width = "64"))]
+const MAP_SIZE: usize = 1024 * 1024 * 1024;
 const MAX_DBS: u32 = 4;
 const COLD_EVICT_WARN_SECS: u64 = 300;
 // How far the cold tier may run over its cap before a trim pass is worth its
